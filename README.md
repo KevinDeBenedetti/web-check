@@ -58,10 +58,19 @@ outputs/
     │   ├── nikto.log
     │   ├── testssl.log
     │   └── ffuf.log
-    ├── report.html          # Consolidated HTML report
-    ├── report.json          # Summary data
+    ├── report.html          # Interactive HTML report
+    ├── report.json          # Machine-readable JSON data
+    ├── report.md            # LLM-optimized Markdown report
     └── metadata.json        # Scan metadata
 ```
+
+### Report Formats
+
+| Format       | File          | Description                           | Best For                      |
+| ------------ | ------------- | ------------------------------------- | ----------------------------- |
+| **HTML**     | `report.html` | Interactive dashboard with filters    | Human review, sharing         |
+| **JSON**     | `report.json` | Structured data with all findings     | CI/CD integration, automation |
+| **Markdown** | `report.md`   | YAML frontmatter + structured content | LLM analysis, AI assistants   |
 
 ---
 
@@ -326,12 +335,72 @@ make shell-nuclei
 
 ## 📊 Understanding Reports
 
-The consolidated HTML report includes:
+### HTML Report (`report.html`)
 
-- **Summary Dashboard** - Critical/High/Medium/Low counts
+The interactive HTML report includes:
+
+- **Summary Dashboard** - Critical/High/Medium/Low counts with visual indicators
+- **Filterable Findings** - Filter by severity, tool, or search terms
 - **Tool Results** - Links to individual scan outputs
 - **Execution Logs** - Debug information for each tool
-- **Metadata** - Target, scan ID, duration
+
+### Markdown Report (`report.md`)
+
+The Markdown report is specifically designed for **LLM/AI analysis**:
+
+```yaml
+---
+type: security_scan_report
+version: "1.0"
+generated_at: 2024-12-23T10:30:00Z
+scan:
+  id: "20241223-103000"
+  target: "https://example.com"
+  mode: "full"
+summary:
+  critical: 0
+  high: 2
+  medium: 5
+  low: 3
+  info: 10
+  total: 20
+tools_used:
+  - nuclei
+  - zap
+  - testssl
+  - nikto
+  - ffuf
+---
+```
+
+**Features:**
+- **YAML Frontmatter** - Structured metadata for easy parsing
+- **Executive Summary** - Risk level assessment and severity distribution
+- **Grouped Findings** - Organized by severity (Critical → Info)
+- **Actionable Recommendations** - Prioritized remediation guidance
+- **LLM Instructions** - Context for AI-assisted analysis
+
+**Use with AI assistants:**
+```bash
+# Copy report content to clipboard (macOS)
+cat outputs/YYYYMMDD-HHMMSS/report.md | pbcopy
+
+# Then paste into ChatGPT, Claude, or your preferred AI assistant
+```
+
+### JSON Report (`report.json`)
+
+Machine-readable format for automation:
+
+```json
+{
+  "scan_id": "20241223-103000",
+  "target": "https://example.com",
+  "summary": { "critical": 0, "high": 2, ... },
+  "findings": [...],
+  "files": { "scans": [...], "logs": [...] }
+}
+```
 
 ### Severity Levels
 
@@ -372,9 +441,16 @@ MIT License - Feel free to use and modify.
 
 ## 🤝 Contributing
 
+Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) before submitting a PR.
+
 1. Fork the repository
 2. Create a feature branch
-3. Submit a pull request
+3. Run `make lint` to check code quality
+4. Submit a pull request
+
+See also:
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security Policy](SECURITY.md)
 
 ---
 
