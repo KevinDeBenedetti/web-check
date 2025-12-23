@@ -3,7 +3,7 @@
 # ══════════════════════════════════════════════════════════════════════════════
 # Variables
 # ══════════════════════════════════════════════════════════════════════════════
-TARGET ?= https://kevindb.dev
+TARGET ?= https://example.com
 MODE ?= full
 TOOLS ?= zap,nuclei,nikto,testssl,ffuf
 OUTPUT_BASE = outputs

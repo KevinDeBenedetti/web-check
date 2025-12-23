@@ -1,1 +1,32 @@
+# Scan outputs (contain potentially sensitive data)
 outputs/
+
+# Environment files (may contain secrets)
+.env
+.env.local
+.env.*.local
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.log
+*.bak
+
+# Docker overrides (may contain local config)
+docker-compose.override.yml
+
+# Custom wordlists (may contain sensitive paths)
+config/wordlists/custom*.txt
+
+# Node modules (if any tooling added)
+node_modules/
