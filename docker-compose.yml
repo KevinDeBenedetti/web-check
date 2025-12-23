@@ -1,0 +1,77 @@
+services:
+  zap:
+    image: zaproxy/zap-stable:latest
+    container_name: security-scanner-zap
+    volumes:
+      - ./outputs:/zap/wrk:rw
+    command: zap.sh -daemon -host 0.0.0.0 -port 8090 -config api.disablekey=true
+    ports:
+      - "8090:8090"
+    networks:
+      - scanner-net
+    restart: unless-stopped
+
+  nuclei:
+    image: projectdiscovery/nuclei:latest
+    container_name: security-scanner-nuclei
+    volumes:
+      - ./outputs:/output:rw
+      - nuclei-templates:/root/nuclei-templates
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["tail -f /dev/null"]
+    networks:
+      - scanner-net
+    restart: unless-stopped
+
+  nikto:
+    image: alpine/nikto:latest
+    container_name: security-scanner-nikto
+    volumes:
+      - ./outputs:/output:rw
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["tail -f /dev/null"]
+    networks:
+      - scanner-net
+    restart: unless-stopped
+
+  testssl:
+    image: drwetter/testssl.sh:latest
+    container_name: security-scanner-testssl
+    volumes:
+      - ./outputs:/output:rw
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["tail -f /dev/null"]
+    networks:
+      - scanner-net
+    restart: unless-stopped
+
+  ffuf:
+    image: secsi/ffuf:latest
+    container_name: security-scanner-ffuf
+    volumes:
+      - ./outputs:/output:rw
+      - ./config/wordlists:/wordlists:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["tail -f /dev/null"]
+    networks:
+      - scanner-net
+    restart: unless-stopped
+
+  sqlmap:
+    image: googlesky/sqlmap:latest
+    container_name: security-scanner-sqlmap
+    volumes:
+      - ./outputs:/output:rw
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["tail -f /dev/null"]
+    networks:
+      - scanner-net
+    restart: unless-stopped
+
+volumes:
+  nuclei-templates:
+    driver: local
+
+networks:
+  scanner-net:
+    driver: bridge
