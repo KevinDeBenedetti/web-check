@@ -101,6 +101,9 @@ EOF
 #   None
 # Outputs:
 #   Findings markdown to stdout
+# Notes:
+#   - INFO findings are limited to first 10 to keep report readable
+#   - Full findings available in JSON report
 #######################################
 generate_markdown_findings() {
     echo "## Detailed Findings"
@@ -110,12 +113,14 @@ generate_markdown_findings() {
     local severities=("critical" "high" "medium" "low" "info")
     local severity_labels=("Critical" "High" "Medium" "Low" "Informational")
     local severity_icons=("🔴" "🟠" "🟡" "🟢" "🔵")
+    local max_info_findings=10  # Limit INFO findings to avoid report bloat
 
     for i in "${!severities[@]}"; do
         local sev="${severities[$i]}"
         local label="${severity_labels[$i]}"
         local icon="${severity_icons[$i]}"
         local count=0
+        local displayed=0
         local findings_output=""
 
         # Collect findings for this severity
@@ -126,7 +131,14 @@ generate_markdown_findings() {
 
             if [ "$normalized_sev" = "$sev" ]; then
                 ((count++))
-                findings_output+="### $count. $f_name
+
+                # For INFO, limit the number displayed
+                if [ "$sev" = "info" ] && [ "$displayed" -ge "$max_info_findings" ]; then
+                    continue
+                fi
+
+                ((displayed++))
+                findings_output+="### $displayed. $f_name
 
 - **Tool:** \`$f_tool\`
 - **Severity:** $label
@@ -140,8 +152,15 @@ generate_markdown_findings() {
         if [ "$count" -gt 0 ]; then
             echo "---"
             echo ""
-            echo "## $icon $label Findings ($count)"
-            echo ""
+            if [ "$sev" = "info" ] && [ "$count" -gt "$max_info_findings" ]; then
+                echo "## $icon $label Findings ($displayed of $count shown)"
+                echo ""
+                echo "_Note: Showing first $max_info_findings informational findings. See JSON report for complete list._"
+                echo ""
+            else
+                echo "## $icon $label Findings ($count)"
+                echo ""
+            fi
             echo "$findings_output"
         fi
     done
