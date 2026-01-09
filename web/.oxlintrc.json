@@ -1,0 +1,30 @@
+{
+  "$schema": "https://oxc.rs/schema.json",
+  "plugins": ["react", "typescript"],
+  "env": {
+    "browser": true,
+    "es2024": true
+  },
+  "rules": {
+    "eqeqeq": "error",
+    "no-console": ["warn", { "allow": ["warn", "error"] }],
+    "no-debugger": "error",
+    "no-var": "error",
+    "prefer-const": "error",
+    "react/jsx-no-target-blank": "error",
+    "react/jsx-key": "error",
+    "react/jsx-no-useless-fragment": "error",
+    "react/self-closing-comp": ["error", { "html": false }],
+    "react/no-children-prop": "error",
+    "react/no-danger-with-children": "error",
+    "react/no-deprecated": "warn",
+    "react/no-find-dom-node": "error",
+    "react/no-is-mounted": "error",
+    "react/no-render-return-value": "error",
+    "react/no-string-refs": "error",
+    "react/no-unescaped-entities": "error",
+    "react/no-unknown-property": "error",
+    "react/require-render-return": "error",
+    "react/void-dom-elements-no-children": "error"
+  }
+}
