@@ -2,7 +2,7 @@
 
 import asyncio
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -61,22 +61,24 @@ async def get_scan_status(
     results_with_findings = await db_service.get_scan_results(session, scan_id)
 
     # Convert to CheckResult objects
-    check_results = []
+    check_results: list[CheckResult] = []
     for scan_result, findings in results_with_findings:
         from api.models import Finding
+        from api.models.findings import Severity
+        from api.models.results import ScanCategory, ScanStatus
 
         check_results.append(
             CheckResult(
                 module=scan_result.module,
-                category=scan_result.category,
+                category=cast(ScanCategory, scan_result.category),
                 target=scan_result.target,
                 timestamp=scan_result.timestamp,
                 duration_ms=scan_result.duration_ms,
-                status=scan_result.status,
+                status=cast(ScanStatus, scan_result.status),
                 data=scan_result.data,
                 findings=[
                     Finding(
-                        severity=f.severity,
+                        severity=cast(Severity, f.severity),
                         title=f.title,
                         description=f.description,
                         reference=f.reference,
@@ -92,7 +94,7 @@ async def get_scan_status(
     return ScanResponse(
         scan_id=scan.scan_id,
         target=scan.target,
-        status=scan.status,
+        status=cast("ScanStatus", scan.status),
         started_at=scan.started_at,
         results=check_results,
     )
@@ -103,26 +105,28 @@ async def list_scans(session: AsyncSession = Depends(get_session)) -> list[ScanR
     """List all scans."""
     scans = await db_service.list_scans(session, limit=100)
 
-    scan_responses = []
+    scan_responses: list[ScanResponse] = []
     for scan in scans:
         results_with_findings = await db_service.get_scan_results(session, scan.scan_id)
 
-        check_results = []
+        check_results: list[CheckResult] = []
         for scan_result, findings in results_with_findings:
             from api.models import Finding
+            from api.models.findings import Severity
+            from api.models.results import ScanCategory, ScanStatus
 
             check_results.append(
                 CheckResult(
                     module=scan_result.module,
-                    category=scan_result.category,
+                    category=cast(ScanCategory, scan_result.category),
                     target=scan_result.target,
                     timestamp=scan_result.timestamp,
                     duration_ms=scan_result.duration_ms,
-                    status=scan_result.status,
+                    status=cast(ScanStatus, scan_result.status),
                     data=scan_result.data,
                     findings=[
                         Finding(
-                            severity=f.severity,
+                            severity=cast(Severity, f.severity),
                             title=f.title,
                             description=f.description,
                             reference=f.reference,
@@ -139,7 +143,7 @@ async def list_scans(session: AsyncSession = Depends(get_session)) -> list[ScanR
             ScanResponse(
                 scan_id=scan.scan_id,
                 target=scan.target,
-                status=scan.status,
+                status=cast("ScanStatus", scan.status),
                 started_at=scan.started_at,
                 results=check_results,
             )

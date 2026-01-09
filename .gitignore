@@ -32,3 +32,5 @@ config/wordlists/custom*.txt
 node_modules/
 
 *__pycache__/
+.coverage
+vigil.db

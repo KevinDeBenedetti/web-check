@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.models import CheckResult, Finding as FindingModel
+from api.models import CheckResult
 from api.models.db_models import Finding, Scan, ScanResult
 
 
@@ -91,9 +91,7 @@ async def list_scans(session: AsyncSession, limit: int = 100) -> list[Scan]:
     Returns:
         List of Scan objects
     """
-    result = await session.execute(
-        select(Scan).order_by(Scan.started_at.desc()).limit(limit)
-    )
+    result = await session.execute(select(Scan).order_by(Scan.started_at.desc()).limit(limit))
     return list(result.scalars().all())
 
 
@@ -157,17 +155,15 @@ async def get_scan_results(
     Returns:
         List of tuples (ScanResult, list of findings)
     """
-    result = await session.execute(
-        select(ScanResult).where(ScanResult.scan_id == scan_id)
-    )
+    result = await session.execute(select(ScanResult).where(ScanResult.scan_id == scan_id))
     scan_results = list(result.scalars().all())
 
-    results_with_findings = []
+    results_with_findings: list[tuple[ScanResult, list[Finding]]] = []
     for scan_result in scan_results:
         findings_result = await session.execute(
             select(Finding).where(Finding.scan_result_id == scan_result.id)
         )
-        findings = list(findings_result.scalars().all())
+        findings: list[Finding] = list(findings_result.scalars().all())
         results_with_findings.append((scan_result, findings))
 
     return results_with_findings

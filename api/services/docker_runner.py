@@ -166,7 +166,7 @@ async def load_jsonl_output(output_path: Path) -> list[dict[str, Any]]:
         content: str = await asyncio.to_thread(_read_file)
         results: list[dict[str, Any]] = []
 
-        for line in content.strip().split('\n'):
+        for line in content.strip().split("\n"):
             if line.strip():
                 try:
                     results.append(json.loads(line))
