@@ -30,3 +30,5 @@ config/wordlists/custom*.txt
 
 # Node modules (if any tooling added)
 node_modules/
+
+*__pycache__/

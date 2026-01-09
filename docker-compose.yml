@@ -1,4 +1,25 @@
 services:
+  api:
+    build: .
+    container_name: vigil-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./api:/app/api:ro
+      - ./outputs:/app/outputs:rw
+      - ./config:/app/config:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=INFO
+    networks:
+      - scanner-net
+    restart: unless-stopped
+    depends_on:
+      - zap
+      - nuclei
+      - nikto
+
   zap:
     image: zaproxy/zap-stable:latest
     container_name: security-scanner-zap
