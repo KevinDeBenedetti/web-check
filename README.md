@@ -11,17 +11,27 @@ A comprehensive, Docker-based security scanning toolkit for web applications. Mo
 
 ## 🚀 Quick Start
 
-### With API (Recommended)
+### Web Interface (Recommended)
 
 ```bash
-# Start all services
+# Start all services including web UI
 docker-compose up -d
+
+# Access the web interface
+open http://localhost:3000
 
 # Access the API
 curl http://localhost:8000
 
-# View interactive docs
+# View interactive API docs
 open http://localhost:8000/docs
+```
+
+### With API Only
+
+```bash
+# Start all services
+docker-compose up -d
 
 # Run a quick scan
 curl "http://localhost:8000/api/quick/nuclei?url=https://example.com"
@@ -46,6 +56,13 @@ make open
 
 ```
 vigil/
+├── web/                     # React Web Interface
+│   ├── src/
+│   │   ├── components/      # UI components
+│   │   ├── services/        # API client
+│   │   └── types/           # TypeScript types
+│   ├── Dockerfile           # Web container
+│   └── package.json         # Node dependencies
 ├── api/                     # FastAPI application
 │   ├── main.py              # Application entry point
 │   ├── models/              # Pydantic data models
@@ -448,6 +465,70 @@ Machine-readable format for automation:
 | 🟡 Medium   | Yellow | Plan remediation       |
 | 🟢 Low      | Green  | Consider fixing        |
 | 🔵 Info     | Blue   | Informational only     |
+
+---
+
+## 🌐 Web Interface
+
+Vigil inclut une interface web React moderne pour une utilisation simplifiée.
+
+### Fonctionnalités
+
+- **Interface Intuitive** - Formulaire simple pour lancer des scans
+- **Résultats en Temps Réel** - Affichage immédiat des vulnérabilités détectées
+- **Visualisation des Findings** - Badges de sévérité et détails complets
+- **Historique des Scans** - Accès rapide aux scans récents
+- **Responsive Design** - Fonctionne sur desktop et mobile
+
+### Accès
+
+```bash
+# Démarrer avec Docker
+docker-compose up -d
+
+# Accéder à l'interface
+open http://localhost:3000
+```
+
+### Développement
+
+```bash
+# Installer les dépendances
+cd web && npm install
+
+# Mode développement avec hot-reload
+npm run dev
+
+# Build de production
+npm run build
+```
+
+### Stack Technique
+
+- **React 18** - Framework UI moderne
+- **TypeScript** - Typage statique pour la sécurité
+- **Vite** - Build ultra-rapide
+- **TailwindCSS** - Design system utility-first
+- **TanStack Query** - Gestion d'état et cache intelligent
+- **Axios** - Client HTTP avec intercepteurs
+
+### Screenshots
+
+**Dashboard Principal**
+- Formulaire de scan avec sélection du type (Rapide/Approfondi/Sécurité)
+- Configuration du timeout
+- Liste des scans récents en sidebar
+
+**Résultats de Scan**
+- Badges de statut colorés (Success/Error/Timeout)
+- Statistiques (durée, nombre de findings)
+- Liste détaillée des vulnérabilités avec :
+  - Sévérité (Critical → Info)
+  - Description complète
+  - CVE et CVSS score
+  - Liens vers références externes
+
+Pour plus de détails, voir [web/README.md](web/README.md) et [QUICKSTART.md](QUICKSTART.md).
 
 ---
 

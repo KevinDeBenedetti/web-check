@@ -1,11 +1,19 @@
 .PHONY: help install dev-setup sync lock run test test-cov lint lint-fix \
 		format format-check type-check check-all start stop restart status \
-		docker-install clean
+		docker-install clean web-install web-dev web-build web-format web-check
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Variables
 # ══════════════════════════════════════════════════════════════════════════════
 PYTHON_VERSION ?= 3.11
+
+# Docker Compose files
+COMPOSE_FILE_PROD = docker-compose.yml
+COMPOSE_FILE_DEV = docker-compose.dev.yml
+
+# Docker Compose command shortcuts
+DOCKER_COMPOSE_PROD = docker-compose -f $(COMPOSE_FILE_PROD)
+DOCKER_COMPOSE_DEV = docker-compose -f $(COMPOSE_FILE_DEV)
 
 # Colors for display
 RED = \033[0;31m
@@ -22,37 +30,51 @@ NC = \033[0m
 help: ## Display this help
 	@echo ""
 	@echo "$(BLUE)╔════════════════════════════════════════════════════════════════╗$(NC)"
-	@echo "$(BLUE)║              🔒 Vigil Security Scanner API                     ║$(NC)"
+	@echo "$(BLUE)║              🔒 Vigil Security Scanner                         ║$(NC)"
 	@echo "$(BLUE)╚════════════════════════════════════════════════════════════════╝$(NC)"
 	@echo ""
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage:\n  make $(CYAN)<target>$(NC)\n\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  $(CYAN)%-18s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(YELLOW)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 	@echo ""
 	@echo "$(YELLOW)Quick Start:$(NC)"
-	@echo "  make dev-setup              # First-time setup"
-	@echo "  make start                  # Start Docker containers"
-	@echo "  make run                    # Start API server (http://localhost:8000)"
+	@echo "  make dev-setup              # First-time setup (API + Web)"
+	@echo "  make dev-up                 # Start dev environment with hot-reload"
+	@echo "  make start                  # Start production environment"
+	@echo "  open http://localhost:3000  # Access web interface"
+	@echo "  open http://localhost:8000/docs # API documentation"
 	@echo ""
 	@echo "$(YELLOW)Development:$(NC)"
-	@echo "  make sync                   # Update dependencies"
-	@echo "  make test                   # Run tests"
+	@echo "  make dev-up                 # Start dev environment (hot-reload)"
+	@echo "  make dev-down               # Stop dev environment"
+	@echo "  make dev-logs               # View dev logs"
+	@echo "  make sync                   # Update API dependencies"
+	@echo "  make test                   # Run API tests"
 	@echo "  make check-all              # Run all code quality checks"
 	@echo ""
-	@echo "$(YELLOW)API Documentation:$(NC)"
-	@echo "  http://localhost:8000/docs  # Swagger UI"
-	@echo "  http://localhost:8000/redoc # ReDoc"
+	@echo "$(YELLOW)Endpoints:$(NC)"
+	@echo "  Web UI:       http://localhost:3000"
+	@echo "  API:          http://localhost:8000"
+	@echo "  API Docs:     http://localhost:8000/docs"
+	@echo "  API ReDoc:    http://localhost:8000/redoc"
 	@echo ""
 
 # ══════════════════════════════════════════════════════════════════════════════
 ##@ Python Development (uv)
 # ══════════════════════════════════════════════════════════════════════════════
 
-dev-setup: ## Complete development environment setup
-	@echo "$(GREEN)📦 Setting up development environment with uv...$(NC)"
+dev-setup: ## Complete development environment setup (API + Web)
+	@echo "$(GREEN)📦 Setting up development environment...$(NC)"
+	@echo "$(CYAN)Setting up Python API...$(NC)"
 	@command -v uv >/dev/null 2>&1 || { echo "$(RED)❌ uv not found. Install with: curl -LsSf https://astral.sh/uv/install.sh | sh$(NC)"; exit 1; }
 	@uv python install $(PYTHON_VERSION)
 	@uv sync --all-extras --dev
+	@echo "$(CYAN)Installing web dependencies...$(NC)"
+	@command -v bun >/dev/null 2>&1 || { echo "$(RED)❌ Bun not found. Install with: curl -fsSL https://bun.sh/install | bash$(NC)"; exit 1; }
+	@cd web && bun install
 	@echo "$(GREEN)✅ Development environment ready!$(NC)"
-	@echo "$(YELLOW)Run 'make run' to start the API server$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Next steps:$(NC)"
+	@echo "  make dev-up     # Start dev environment with hot-reload"
+	@echo "  make start      # Start production environment"
 
 sync: ## Sync dependencies from pyproject.toml
 	@echo "$(GREEN)🔄 Syncing dependencies...$(NC)"
@@ -106,34 +128,163 @@ check-all: format-check lint type-check ## Run all code quality checks
 	@echo "$(GREEN)✅ All checks passed!$(NC)"
 
 # ══════════════════════════════════════════════════════════════════════════════
-##@ Docker Management
+##@ Docker Management - Production
 # ══════════════════════════════════════════════════════════════════════════════
 
 docker-install: ## Install/Update Docker images
 	@echo "$(BLUE)📦 Installing Docker images...$(NC)"
-	@docker-compose pull
+	@$(DOCKER_COMPOSE_PROD) pull
 	@echo "$(GREEN)✅ Docker images installed$(NC)"
 
-start: ## Start Docker containers
-	@echo "$(BLUE)🐳 Starting containers...$(NC)"
-	@docker-compose up -d > /dev/null 2>&1
-	@sleep 2
+start: ## Start production containers
+	@echo "$(BLUE)🐳 Starting production containers...$(NC)"
+	@$(DOCKER_COMPOSE_PROD) up -d
+	@sleep 3
 	@echo "$(GREEN)✅ Containers started$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Access:$(NC)"
+	@echo "  Web:  http://localhost:3000"
+	@echo "  API:  http://localhost:8000"
+	@echo "  Docs: http://localhost:8000/docs"
 
-stop: ## Stop Docker containers
-	@echo "$(YELLOW)🛑 Stopping containers...$(NC)"
-	@docker-compose down
+stop: ## Stop production containers
+	@echo "$(YELLOW)🛑 Stopping production containers...$(NC)"
+	@$(DOCKER_COMPOSE_PROD) down
 	@echo "$(GREEN)✅ Containers stopped$(NC)"
 
-status: ## Check container status
-	@echo "$(BLUE)📊 Container status:$(NC)"
-	@docker-compose ps
+status: ## Check production container status
+	@echo "$(BLUE)📊 Production container status:$(NC)"
+	@$(DOCKER_COMPOSE_PROD) ps
 
-restart: stop start ## Restart containers
+restart: stop start ## Restart production containers
+
+logs: ## View production logs
+	@$(DOCKER_COMPOSE_PROD) logs -f
+
+build: ## Build production images
+	@echo "$(GREEN)🏗️  Building production images...$(NC)"
+	@$(DOCKER_COMPOSE_PROD) build
+	@echo "$(GREEN)✅ Build complete$(NC)"
+
+# ══════════════════════════════════════════════════════════════════════════════
+##@ Docker Management - Development
+# ══════════════════════════════════════════════════════════════════════════════
+
+dev-up: ## Start development environment with hot-reload
+	@echo "$(BLUE)🐳 Starting development environment...$(NC)"
+	@$(DOCKER_COMPOSE_DEV) up -d
+	@sleep 3
+	@echo "$(GREEN)✅ Development environment started$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Hot-reload enabled:$(NC)"
+	@echo "  • API changes auto-reload"
+	@echo "  • Web changes auto-reload"
+	@echo ""
+	@echo "$(YELLOW)Access:$(NC)"
+	@echo "  Web:  http://localhost:3000"
+	@echo "  API:  http://localhost:8000"
+	@echo "  Docs: http://localhost:8000/docs"
+	@echo ""
+	@echo "$(CYAN)View logs with: make dev-logs$(NC)"
+
+dev-down: ## Stop development environment
+	@echo "$(YELLOW)🛑 Stopping development environment...$(NC)"
+	@$(DOCKER_COMPOSE_DEV) down
+	@echo "$(GREEN)✅ Development environment stopped$(NC)"
+
+dev-restart: dev-down dev-up ## Restart development environment
+
+dev-status: ## Check development container status
+	@echo "$(BLUE)📊 Development container status:$(NC)"
+	@$(DOCKER_COMPOSE_DEV) ps
+
+dev-logs: ## View development logs (follow mode)
+	@$(DOCKER_COMPOSE_DEV) logs -f
+
+dev-logs-api: ## View API logs only
+	@$(DOCKER_COMPOSE_DEV) logs -f api
+
+dev-logs-web: ## View web logs only
+	@$(DOCKER_COMPOSE_DEV) logs -f web-dev
+
+dev-build: ## Rebuild development images
+	@echo "$(GREEN)🏗️  Rebuilding development images...$(NC)"
+	@$(DOCKER_COMPOSE_DEV) build
+	@echo "$(GREEN)✅ Build complete$(NC)"
+
+dev-shell-api: ## Open shell in API container
+	@$(DOCKER_COMPOSE_DEV) exec api /bin/bash
+
+dev-shell-web: ## Open shell in web container
+	@$(DOCKER_COMPOSE_DEV) exec web-dev /bin/sh
+
+# ══════════════════════════════════════════════════════════════════════════════
+##@ Web Development - Local (without Docker)
+# ══════════════════════════════════════════════════════════════════════════════
+
+web-install: ## Install web dependencies
+	@echo "$(GREEN)📦 Installing web dependencies...$(NC)"
+	@cd web && bun install
+	@echo "$(GREEN)✅ Web dependencies installed$(NC)"
+
+web-dev: ## Start web in local dev mode (requires API running)
+	@echo "$(BLUE)🚀 Starting web dev server locally...$(NC)"
+	@echo "$(YELLOW)⚠️  Make sure API is running: make run$(NC)"
+	@cd web && bun run dev
+
+web-build: ## Build web for production
+	@echo "$(GREEN)🏗️  Building web...$(NC)"
+	@cd web && bun run build
+	@echo "$(GREEN)✅ Web built$(NC)"
+
+web-lint: ## Lint web code
+	@echo "$(GREEN)🔍 Linting web code...$(NC)"
+	@cd web && bun run lint
+
+web-lint-fix: ## Fix web linting issues
+	@echo "$(GREEN)🔧 Fixing web linting issues...$(NC)"
+	@cd web && bun run lint:fix
+
+web-format: ## Format web code with oxfmt
+	@echo "$(GREEN)✨ Formatting web code...$(NC)"
+	@cd web && bun run format
+
+web-format-check: ## Check web code formatting
+	@echo "$(GREEN)🔍 Checking web formatting...$(NC)"
+	@cd web && bun run format:check
+
+web-check: ## Run all web checks (format, lint, typecheck)
+	@echo "$(GREEN)✅ Running all web checks...$(NC)"
+	@cd web && bun run check
+
+web-clean: ## Clean web build artifacts
+	@echo "$(YELLOW)🧹 Cleaning web build...$(NC)"
+	@rm -rf web/dist web/node_modules
+	@echo "$(GREEN)✅ Web cleaned$(NC)"
+
+# ══════════════════════════════════════════════════════════════════════════════
+##@ Cleanup
+# ══════════════════════════════════════════════════════════════════════════════
 
 clean: ## Delete outputs directory
 	@echo "$(YELLOW)🧹 Cleaning outputs...$(NC)"
 	@rm -rf outputs/*
+	@mkdir -p outputs
 	@echo "$(GREEN)✅ Outputs cleaned$(NC)"
+
+clean-all: clean web-clean ## Clean everything (outputs + web build)
+	@echo "$(GREEN)✅ Complete cleanup done$(NC)"
+
+prune: ## Remove all containers and volumes (DESTRUCTIVE)
+	@echo "$(RED)⚠️  This will remove ALL containers and volumes!$(NC)"
+	@read -p "Are you sure? [y/N] " -n 1 -r; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		echo "$(YELLOW)🧹 Pruning Docker resources...$(NC)"; \
+		$(DOCKER_COMPOSE_PROD) down -v; \
+		$(DOCKER_COMPOSE_DEV) down -v; \
+		docker system prune -f; \
+		echo "$(GREEN)✅ Cleanup complete$(NC)"; \
+	fi
 
 .DEFAULT_GOAL := help
