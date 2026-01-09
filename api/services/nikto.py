@@ -2,7 +2,6 @@
 
 import time
 from datetime import UTC, datetime
-from pathlib import Path
 
 import structlog
 
@@ -27,9 +26,7 @@ async def run_nikto_scan(target: str, timeout: int = 600) -> CheckResult:
     findings: list[Finding] = []
 
     # Use shared volume mounted in docker-compose
-    output_dir = Path("/app/outputs")
     output_filename = f"nikto_{int(time.time())}.html"
-    output_file = output_dir / output_filename
 
     try:
         result = await docker_run(

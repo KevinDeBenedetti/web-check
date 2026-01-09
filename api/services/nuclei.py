@@ -119,7 +119,7 @@ def _parse_nuclei_output(data: list[dict[str, Any]]) -> list[Finding]:
     items = data
 
     for item in items:
-        if not isinstance(item, dict):
+        if not item or not hasattr(item, "get"):
             continue
 
         info: dict[str, Any] = item.get("info", {})
