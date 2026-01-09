@@ -1,12 +1,11 @@
-.PHONY: help scan quick custom clean start stop status report open install
+.PHONY: help install dev-setup sync lock run test test-cov lint lint-fix \
+		format format-check type-check check-all start stop restart status \
+		docker-install clean
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Variables
 # ══════════════════════════════════════════════════════════════════════════════
-TARGET ?= https://example.com
-MODE ?= full
-TOOLS ?= zap,nuclei,nikto,testssl,ffuf
-OUTPUT_BASE = outputs
+PYTHON_VERSION ?= 3.11
 
 # Colors for display
 RED = \033[0;31m
@@ -23,106 +22,94 @@ NC = \033[0m
 help: ## Display this help
 	@echo ""
 	@echo "$(BLUE)╔════════════════════════════════════════════════════════════════╗$(NC)"
-	@echo "$(BLUE)║              🔒 Vigil			                         ║$(NC)"
+	@echo "$(BLUE)║              🔒 Vigil Security Scanner API                     ║$(NC)"
 	@echo "$(BLUE)╚════════════════════════════════════════════════════════════════╝$(NC)"
 	@echo ""
-	@awk 'BEGIN {FS = ":.*##"; printf "Usage:\n  make $(CYAN)<target>$(NC) TARGET=<url>\n\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  $(CYAN)%-15s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(BOLD)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "Usage:\n  make $(CYAN)<target>$(NC)\n\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  $(CYAN)%-18s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(YELLOW)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 	@echo ""
-	@echo "$(YELLOW)Examples:$(NC)"
-	@echo "  make scan TARGET=https://my-site.vercel.app"
-	@echo "  make quick TARGET=https://my-site.com"
-	@echo "  make zap TARGET=https://site.com"
+	@echo "$(YELLOW)Quick Start:$(NC)"
+	@echo "  make dev-setup              # First-time setup"
+	@echo "  make start                  # Start Docker containers"
+	@echo "  make run                    # Start API server (http://localhost:8000)"
 	@echo ""
-	@echo "$(YELLOW)Output structure:$(NC)"
-	@echo "  outputs/"
-	@echo "  └── YYYYMMDD-HHMMSS/"
-	@echo "      ├── scans/       (raw results)"
-	@echo "      ├── logs/        (execution logs)"
-	@echo "      ├── report.html  (consolidated report)"
-	@echo "      └── metadata.json"
+	@echo "$(YELLOW)Development:$(NC)"
+	@echo "  make sync                   # Update dependencies"
+	@echo "  make test                   # Run tests"
+	@echo "  make check-all              # Run all code quality checks"
+	@echo ""
+	@echo "$(YELLOW)API Documentation:$(NC)"
+	@echo "  http://localhost:8000/docs  # Swagger UI"
+	@echo "  http://localhost:8000/redoc # ReDoc"
 	@echo ""
 
 # ══════════════════════════════════════════════════════════════════════════════
-##@ Combined Scans
+##@ Python Development (uv)
 # ══════════════════════════════════════════════════════════════════════════════
 
-scan: start ## Complete scan (all tools, 30-60 min)
-	$(call setup_output)
-	@echo "$(GREEN)🔍 Complete scan in progress...$(NC)"
-	@./scripts/scan.sh "$(TARGET)" "$(OUTPUT_DIR)" "full"
+dev-setup: ## Complete development environment setup
+	@echo "$(GREEN)📦 Setting up development environment with uv...$(NC)"
+	@command -v uv >/dev/null 2>&1 || { echo "$(RED)❌ uv not found. Install with: curl -LsSf https://astral.sh/uv/install.sh | sh$(NC)"; exit 1; }
+	@uv python install $(PYTHON_VERSION)
+	@uv sync --all-extras --dev
+	@echo "$(GREEN)✅ Development environment ready!$(NC)"
+	@echo "$(YELLOW)Run 'make run' to start the API server$(NC)"
 
-quick: start ## Quick scan (Nuclei + Nikto, 5-10 min)
-	$(call setup_output)
-	@echo "$(GREEN)⚡ Quick scan in progress...$(NC)"
-	@./scripts/scan.sh "$(TARGET)" "$(OUTPUT_DIR)" "quick"
+sync: ## Sync dependencies from pyproject.toml
+	@echo "$(GREEN)🔄 Syncing dependencies...$(NC)"
+	@uv sync --all-extras --dev
 
-custom: start ## Custom scan (specify TOOLS=zap,nuclei,...)
-	$(call setup_output)
-	@echo "$(GREEN)🎯 Custom scan: $(TOOLS)$(NC)"
-	@./scripts/scan.sh "$(TARGET)" "$(OUTPUT_DIR)" "custom" "$(TOOLS)"
+lock: ## Update uv.lock file
+	@echo "$(GREEN)🔒 Updating lockfile...$(NC)"
+	@uv lock
+
+install: ## Install project dependencies only (no dev deps)
+	@echo "$(GREEN)📦 Installing production dependencies...$(NC)"
+	@uv sync
+
+run: ## Start FastAPI server with uvicorn
+	@echo "$(GREEN)🚀 Starting API server...$(NC)"
+	@uv run uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
 # ══════════════════════════════════════════════════════════════════════════════
-##@ Individual Scans
+##@ Code Quality (uv)
 # ══════════════════════════════════════════════════════════════════════════════
 
-zap: ## Scan only with ZAP (full DAST)
-	$(call setup_output)
-	@echo "$(GREEN)🔍 ZAP scan...$(NC)"
-	@docker run --rm -v $(PWD)/$(SCANS_DIR):/zap/wrk:rw zaproxy/zap-stable:latest \
-		zap-baseline.py -t $(TARGET) -r zap.html -J zap.json -I \
-		> $(LOGS_DIR)/zap.log 2>&1 || true
-	@$(MAKE) _finalize-scan TOOL=zap OUTPUT_DIR=$(OUTPUT_DIR)
+test: ## Run tests with pytest
+	@echo "$(GREEN)🧪 Running tests...$(NC)"
+	@uv run pytest tests/ -v
 
-nuclei: start ## Scan only with Nuclei (CVE)
-	$(call setup_output)
-	@echo "$(GREEN)🔍 Nuclei scan...$(NC)"
-	@docker exec security-scanner-nuclei nuclei -u $(TARGET) \
-		-severity critical,high,medium -jsonl -o /output/nuclei.json \
-		> $(LOGS_DIR)/nuclei.log 2>&1 || true
-	@mv $(OUTPUT_BASE)/nuclei.json $(SCANS_DIR)/ 2>/dev/null || true
-	@$(MAKE) _finalize-scan TOOL=nuclei OUTPUT_DIR=$(OUTPUT_DIR)
+test-cov: ## Run tests with coverage
+	@echo "$(GREEN)🧪 Running tests with coverage...$(NC)"
+	@uv run pytest tests/ --cov=api --cov-report=term-missing
 
-nikto: start ## Scan only with Nikto (web server)
-	$(call setup_output)
-	@echo "$(GREEN)🔍 Nikto scan...$(NC)"
-	@docker exec security-scanner-nikto perl /nikto/nikto.pl -h $(TARGET) \
-		-output /output/nikto.html -Format html \
-		> $(LOGS_DIR)/nikto.log 2>&1 || true
-	@mv $(OUTPUT_BASE)/nikto.html $(SCANS_DIR)/ 2>/dev/null || true
-	@mv $(OUTPUT_BASE)/nikto*.html $(SCANS_DIR)/ 2>/dev/null || true
-	@$(MAKE) _finalize-scan TOOL=nikto OUTPUT_DIR=$(OUTPUT_DIR)
+lint: ## Run ruff linter
+	@echo "$(GREEN)🔍 Running ruff linter...$(NC)"
+	@uv run ruff check api/ tests/
 
-testssl: start ## Scan only SSL/TLS
-	$(call setup_output)
-	@echo "$(GREEN)🔍 testssl.sh scan...$(NC)"
-	@$(eval DOMAIN=$(shell echo $(TARGET) | sed -e 's|^[^/]*//||' -e 's|/.*$$||'))
-	@docker exec security-scanner-testssl /home/testssl/testssl.sh \
-		--jsonfile /output/testssl.json $(DOMAIN) \
-		> $(LOGS_DIR)/testssl.log 2>&1 || true
-	@mv $(OUTPUT_BASE)/testssl.json $(SCANS_DIR)/ 2>/dev/null || true
-	@$(MAKE) _finalize-scan TOOL=testssl OUTPUT_DIR=$(OUTPUT_DIR)
+lint-fix: ## Fix auto-fixable linting issues
+	@echo "$(GREEN)🔧 Fixing linting issues...$(NC)"
+	@uv run ruff check --fix api/ tests/
 
-ffuf: start ## Scan only with Ffuf (fuzzing)
-	$(call setup_output)
-	@echo "$(GREEN)🔍 Ffuf scan...$(NC)"
-	@if [ ! -f config/wordlists/common.txt ]; then \
-		mkdir -p config/wordlists; \
-		curl -s https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt \
-			-o config/wordlists/common.txt; \
-	fi
-	@docker cp config/wordlists/common.txt security-scanner-ffuf:/tmp/wordlist.txt 2>/dev/null || true
-	@docker exec security-scanner-ffuf ffuf -u $(TARGET)/FUZZ \
-		-w /tmp/wordlist.txt -mc 200,201,301,302,401,403 \
-		-o /output/ffuf.json -of json -t 10 -s \
-		> $(LOGS_DIR)/ffuf.log 2>&1 || true
-	@mv $(OUTPUT_BASE)/ffuf.json $(SCANS_DIR)/ 2>/dev/null || true
-	@$(MAKE) _finalize-scan TOOL=ffuf OUTPUT_DIR=$(OUTPUT_DIR)
+format: ## Format code with ruff
+	@echo "$(GREEN)✨ Formatting code...$(NC)"
+	@uv run ruff format api/ tests/
+
+format-check: ## Check code formatting without modifying
+	@echo "$(GREEN)🔍 Checking code format...$(NC)"
+	@uv run ruff format --check api/ tests/
+
+type-check: ## Run type checking with pyright
+	@echo "$(GREEN)🔍 Running type checker...$(NC)"
+	@uv run pyright api/
+
+check-all: format-check lint type-check ## Run all code quality checks
+	@echo "$(GREEN)✅ All checks passed!$(NC)"
 
 # ══════════════════════════════════════════════════════════════════════════════
 ##@ Docker Management
 # ══════════════════════════════════════════════════════════════════════════════
 
-install: ## Install/Update Docker images
+docker-install: ## Install/Update Docker images
 	@echo "$(BLUE)📦 Installing Docker images...$(NC)"
 	@docker-compose pull
 	@echo "$(GREEN)✅ Docker images installed$(NC)"
@@ -144,130 +131,9 @@ status: ## Check container status
 
 restart: stop start ## Restart containers
 
-# ══════════════════════════════════════════════════════════════════════════════
-##@ Reports and Results
-# ══════════════════════════════════════════════════════════════════════════════
-
-report: ## Generate HTML report for the latest scan
-	@$(eval LATEST=$(shell ls -td $(OUTPUT_BASE)/*/ 2>/dev/null | head -1))
-	@if [ -n "$(LATEST)" ]; then \
-		echo "$(BLUE)📊 Generating report...$(NC)"; \
-		./scripts/report.sh "$(LATEST)"; \
-		echo "$(GREEN)✅ Report generated: $(LATEST)report.html$(NC)"; \
-	else \
-		echo "$(RED)❌ No scan found$(NC)"; \
-	fi
-
-open: ## Open the latest report in browser
-	@$(eval LATEST=$(shell ls -td $(OUTPUT_BASE)/*/ 2>/dev/null | head -1))
-	@if [ -f "$(LATEST)report.html" ]; then \
-		open "$(LATEST)report.html" 2>/dev/null || xdg-open "$(LATEST)report.html" 2>/dev/null || true; \
-		echo "$(GREEN)📂 Opening $(LATEST)report.html$(NC)"; \
-	else \
-		echo "$(RED)❌ No report found$(NC)"; \
-	fi
-
-list: ## List all scans performed
-	@echo ""
-	@echo "$(BLUE)📋 Available scans:$(NC)"
-	@echo ""
-	@for dir in $(OUTPUT_BASE)/*/; do \
-		if [ -d "$$dir" ]; then \
-			scan_id=$$(basename "$$dir"); \
-			files=$$(ls "$$dir/scans" 2>/dev/null | wc -l | tr -d ' '); \
-			has_report=$$([ -f "$$dir/report.html" ] && echo "✅" || echo "❌"); \
-			echo "  📁 $$scan_id  |  $$files files  |  Report: $$has_report"; \
-		fi \
-	done || echo "  No scan found"
-	@echo ""
-
-tree: ## Show file structure of the latest scan
-	@$(eval LATEST=$(shell ls -td $(OUTPUT_BASE)/*/ 2>/dev/null | head -1))
-	@if [ -n "$(LATEST)" ]; then \
-		echo "$(BLUE)🌳 Structure of $(LATEST)$(NC)"; \
-		find "$(LATEST)" -type f | sed 's|$(LATEST)||' | sort; \
-	else \
-		echo "$(RED)❌ No scan found$(NC)"; \
-	fi
-
-clean: ## Delete all results
-	@echo "$(RED)⚠️  Deleting ALL results...$(NC)"
-	@rm -rf $(OUTPUT_BASE)/*
-	@echo "$(GREEN)✅ All results deleted$(NC)"
-
-# ══════════════════════════════════════════════════════════════════════════════
-##@ Utilities
-# ══════════════════════════════════════════════════════════════════════════════
-
-logs: ## Show Docker logs
-	@docker-compose logs -f
-
-shell-zap: ## Interactive shell in ZAP container
-	@docker exec -it security-scanner-zap /bin/bash
-
-shell-nuclei: ## Interactive shell in Nuclei container
-	@docker exec -it security-scanner-nuclei /bin/sh
-
-update-templates: start ## Update Nuclei templates
-	@echo "$(BLUE)🔄 Updating Nuclei templates...$(NC)"
-	@docker exec security-scanner-nuclei nuclei -update-templates
-	@echo "$(GREEN)✅ Templates updated$(NC)"
-
-check: ## Check prerequisites (Docker, etc.)
-	@echo "$(BLUE)🔍 Checking prerequisites...$(NC)"
-	@command -v docker >/dev/null 2>&1 || { echo "$(RED)❌ Docker not installed$(NC)"; exit 1; }
-	@docker info >/dev/null 2>&1 || { echo "$(RED)❌ Docker daemon not started$(NC)"; exit 1; }
-	@command -v docker-compose >/dev/null 2>&1 || docker compose version >/dev/null 2>&1 || { echo "$(RED)❌ docker-compose not installed$(NC)"; exit 1; }
-	@echo "$(GREEN)✅ All prerequisites satisfied$(NC)"
-
-# ══════════════════════════════════════════════════════════════════════════════
-##@ CI/CD
-# ══════════════════════════════════════════════════════════════════════════════
-
-ci-scan: install ## Scan for CI/CD (non-interactive)
-	$(call setup_output)
-	@$(MAKE) scan TARGET=$(TARGET) || true
-	@if [ -f "$(OUTPUT_DIR)/report.json" ]; then \
-		critical=$$(cat "$(OUTPUT_DIR)/report.json" | jq -r '.summary.critical // 0'); \
-		if [ "$$critical" -gt 0 ]; then \
-			echo "$(RED)❌ $$critical critical vulnerabilities detected$(NC)"; \
-			exit 1; \
-		fi \
-	fi
-
-# ══════════════════════════════════════════════════════════════════════════════
-# Internal targets (private)
-# ══════════════════════════════════════════════════════════════════════════════
-
-# Create output directory and export variables
-define setup_output
-	$(eval SCAN_ID := $(shell date +%Y%m%d-%H%M%S))
-	$(eval OUTPUT_DIR := $(OUTPUT_BASE)/$(SCAN_ID))
-	$(eval SCANS_DIR := $(OUTPUT_DIR)/scans)
-	$(eval LOGS_DIR := $(OUTPUT_DIR)/logs)
-	@mkdir -p $(SCANS_DIR) $(LOGS_DIR)
-	@echo '{"scan_id":"$(SCAN_ID)","target":"$(TARGET)","started_at":"'$$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > $(OUTPUT_DIR)/metadata.json
-endef
-
-_finalize-scan:
-	@./scripts/report.sh "$(OUTPUT_DIR)" 2>/dev/null || true
-	@echo "$(GREEN)✅ Scan $(TOOL) completed$(NC)"
-	@echo ""
-	@echo "$(BLUE)📁 Results: $(OUTPUT_DIR)$(NC)"
-	@echo "   └── scans/$(TOOL).*"
-	@echo "   └── logs/$(TOOL).log"
-	@echo "   └── report.html"
-	@echo ""
-	@if [ -f "$(OUTPUT_DIR)/report.html" ]; then \
-		open "$(OUTPUT_DIR)/report.html" 2>/dev/null || xdg-open "$(OUTPUT_DIR)/report.html" 2>/dev/null || true; \
-	fi
-
-# ══════════════════════════════════════════════════════════════════════════════
-# Lint
-# ══════════════════════════════════════════════════════════════════════════════
-
-lint:
-	@command -v shellcheck >/dev/null || (echo "❌ Install shellcheck: brew install shellcheck" && exit 1)
-	@shellcheck scripts/*.sh scripts/lib/*.sh 2>&1 | grep -v "SC2034" || echo "✅ Code OK"
+clean: ## Delete outputs directory
+	@echo "$(YELLOW)🧹 Cleaning outputs...$(NC)"
+	@rm -rf outputs/*
+	@echo "$(GREEN)✅ Outputs cleaned$(NC)"
 
 .DEFAULT_GOAL := help

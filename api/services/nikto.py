@@ -1,7 +1,7 @@
 """Nikto scanning service."""
 
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
@@ -26,8 +26,10 @@ async def run_nikto_scan(target: str, timeout: int = 600) -> CheckResult:
     start = time.time()
     findings: list[Finding] = []
 
-    output_dir = Path("outputs/temp")
-    output_dir.mkdir(parents=True, exist_ok=True)
+    # Use shared volume mounted in docker-compose
+    output_dir = Path("/app/outputs")
+    output_filename = f"nikto_{int(time.time())}.html"
+    output_file = output_dir / output_filename
 
     try:
         result = await docker_run(
@@ -38,11 +40,10 @@ async def run_nikto_scan(target: str, timeout: int = 600) -> CheckResult:
                 "-h",
                 target,
                 "-output",
-                "/output/nikto.html",
+                f"/output/{output_filename}",
                 "-Format",
                 "html",
             ],
-            volumes={str(output_dir.absolute()): "/output"},
             timeout=timeout,
             container_name="security-scanner-nikto",
         )
@@ -52,7 +53,7 @@ async def run_nikto_scan(target: str, timeout: int = 600) -> CheckResult:
                 module="nikto",
                 category="quick",
                 target=target,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 duration_ms=int((time.time() - start) * 1000),
                 status="timeout",
                 data=None,
@@ -61,13 +62,21 @@ async def run_nikto_scan(target: str, timeout: int = 600) -> CheckResult:
             )
 
         # Parse Nikto output from stderr/stdout
-        findings = _parse_nikto_output(result["stdout"])
+        output = result["stdout"] + "\n" + result["stderr"]
+        findings = _parse_nikto_output(output)
+
+        logger.info(
+            "nikto_scan_completed",
+            target=target,
+            findings_count=len(findings),
+            exit_code=result["exit_code"],
+        )
 
         return CheckResult(
             module="nikto",
             category="quick",
             target=target,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             duration_ms=int((time.time() - start) * 1000),
             status="success",
             data={"findings_count": len(findings)},
@@ -81,7 +90,7 @@ async def run_nikto_scan(target: str, timeout: int = 600) -> CheckResult:
             module="nikto",
             category="quick",
             target=target,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             duration_ms=int((time.time() - start) * 1000),
             status="error",
             data=None,

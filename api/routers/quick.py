@@ -1,6 +1,6 @@
 """Quick scan endpoints."""
 
-from datetime import timezone
+from datetime import UTC
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
@@ -79,7 +79,7 @@ async def quick_dns_check(
             module="dns",
             category="quick",
             target=url,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             duration_ms=int((time.time() - start) * 1000),
             status="success",
             data={
@@ -88,14 +88,15 @@ async def quick_dns_check(
                 "http_status": status_code,
             },
             findings=[],
-            error=None,)
+            error=None,
+        )
 
     except Exception as e:
         return CheckResult(
             module="dns",
             category="quick",
             target=url,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             duration_ms=int((time.time() - start) * 1000),
             status="error",
             data=None,

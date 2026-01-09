@@ -87,7 +87,7 @@ async def docker_run(
 
         try:
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             process.kill()
             await process.wait()
             logger.warning("docker_command_timeout", command=" ".join(cmd))
@@ -143,3 +143,38 @@ async def load_json_output(output_path: Path) -> dict[str, Any] | None:
     except Exception as e:
         logger.error("file_read_error", path=str(output_path), error=str(e))
         return None
+
+
+async def load_jsonl_output(output_path: Path) -> list[dict[str, Any]]:
+    """
+    Load JSONL output from a scan result file (one JSON object per line).
+
+    Args:
+        output_path: Path to the JSONL file
+
+    Returns:
+        List of parsed JSON objects
+    """
+    try:
+        if not output_path.exists():
+            logger.warning("output_file_not_found", path=str(output_path))
+            return []
+
+        def _read_file() -> str:
+            return output_path.read_text()
+
+        content: str = await asyncio.to_thread(_read_file)
+        results: list[dict[str, Any]] = []
+
+        for line in content.strip().split('\n'):
+            if line.strip():
+                try:
+                    results.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+
+        return results
+
+    except Exception as e:
+        logger.error("jsonl_read_error", path=str(output_path), error=str(e))
+        return []

@@ -1,14 +1,14 @@
 """Nuclei scanning service."""
 
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import structlog
 
 from api.models import CheckResult, Finding
-from api.services.docker_runner import docker_run, load_json_output
+from api.services.docker_runner import docker_run, load_jsonl_output
 
 logger = structlog.get_logger()
 
@@ -27,9 +27,10 @@ async def run_nuclei_scan(target: str, timeout: int = 300) -> CheckResult:
     start = time.time()
     findings: list[Finding] = []
 
-    output_dir = Path("outputs/temp")
-    output_dir.mkdir(parents=True, exist_ok=True)
+    # Use shared volume mounted in docker-compose
+    output_dir = Path("/app/outputs")
     output_file = output_dir / f"nuclei_{int(time.time())}.json"
+    output_filename = output_file.name
 
     try:
         result = await docker_run(
@@ -42,9 +43,8 @@ async def run_nuclei_scan(target: str, timeout: int = 300) -> CheckResult:
                 "critical,high,medium",
                 "-jsonl",
                 "-o",
-                "/output/nuclei.json",
+                f"/output/{output_filename}",
             ],
-            volumes={str(output_dir.absolute()): "/output"},
             timeout=timeout,
             container_name="security-scanner-nuclei",
         )
@@ -54,7 +54,7 @@ async def run_nuclei_scan(target: str, timeout: int = 300) -> CheckResult:
                 module="nuclei",
                 category="quick",
                 target=target,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 duration_ms=int((time.time() - start) * 1000),
                 status="timeout",
                 data=None,
@@ -63,15 +63,28 @@ async def run_nuclei_scan(target: str, timeout: int = 300) -> CheckResult:
             )
 
         # Parse JSONL output
-        data = await load_json_output(output_file)
+        data = await load_jsonl_output(output_file)
         if data:
             findings = _parse_nuclei_output(data)
+            logger.info(
+                "nuclei_scan_completed",
+                target=target,
+                findings_count=len(findings),
+                exit_code=result["exit_code"],
+            )
+        else:
+            logger.warning(
+                "nuclei_no_output",
+                target=target,
+                output_file=str(output_file),
+                stderr=result["stderr"][:500] if result["stderr"] else None,
+            )
 
         return CheckResult(
             module="nuclei",
             category="quick",
             target=target,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             duration_ms=int((time.time() - start) * 1000),
             status="success",
             data={"templates_matched": len(findings)},
@@ -85,7 +98,7 @@ async def run_nuclei_scan(target: str, timeout: int = 300) -> CheckResult:
             module="nuclei",
             category="quick",
             target=target,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             duration_ms=int((time.time() - start) * 1000),
             status="error",
             data=None,
@@ -98,12 +111,12 @@ async def run_nuclei_scan(target: str, timeout: int = 300) -> CheckResult:
             output_file.unlink()
 
 
-def _parse_nuclei_output(data: dict[str, Any]) -> list[Finding]:
-    """Parse Nuclei JSON output into Finding objects."""
+def _parse_nuclei_output(data: list[dict[str, Any]]) -> list[Finding]:
+    """Parse Nuclei JSONL output into Finding objects."""
     findings: list[Finding] = []
 
-    # Nuclei outputs JSONL, so we might have a list or single dict
-    items = data if isinstance(data, list) else [data]
+    # data is now a list from load_jsonl_output
+    items = data
 
     for item in items:
         if not isinstance(item, dict):

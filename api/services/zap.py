@@ -1,7 +1,7 @@
 """ZAP (OWASP Zed Attack Proxy) scanning service."""
 
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -53,7 +53,7 @@ async def run_zap_scan(target: str, timeout: int = 900) -> CheckResult:
                 module="zap",
                 category="deep",
                 target=target,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 duration_ms=int((time.time() - start) * 1000),
                 status="timeout",
                 data=None,
@@ -70,7 +70,7 @@ async def run_zap_scan(target: str, timeout: int = 900) -> CheckResult:
             module="zap",
             category="deep",
             target=target,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             duration_ms=int((time.time() - start) * 1000),
             status="success",
             data={"alerts": len(findings)},
@@ -84,7 +84,7 @@ async def run_zap_scan(target: str, timeout: int = 900) -> CheckResult:
             module="zap",
             category="deep",
             target=target,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             duration_ms=int((time.time() - start) * 1000),
             status="error",
             data=None,

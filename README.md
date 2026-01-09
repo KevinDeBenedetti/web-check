@@ -1,13 +1,33 @@
 # 🔒 Vigil
 
-A comprehensive, Docker-based security scanning toolkit for web applications. Run multiple industry-standard security tools with a single command.
+A comprehensive, Docker-based security scanning toolkit for web applications. Modern REST API built with FastAPI and async Python, orchestrating multiple industry-standard security tools.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker](https://img.shields.io/badge/Docker-Required-blue.svg)](https://www.docker.com/)
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green.svg)](https://fastapi.tiangolo.com/)
 
 ---
 
 ## 🚀 Quick Start
+
+### With API (Recommended)
+
+```bash
+# Start all services
+docker-compose up -d
+
+# Access the API
+curl http://localhost:8000
+
+# View interactive docs
+open http://localhost:8000/docs
+
+# Run a quick scan
+curl "http://localhost:8000/api/quick/nuclei?url=https://example.com"
+```
+
+### With CLI (Legacy)
 
 ```bash
 # Install Docker images
@@ -25,17 +45,34 @@ make open
 ## 📦 Project Structure
 
 ```
-security-scanner/
-├── Makefile                 # Main command interface
-├── docker-compose.yml       # Docker services configuration
-├── config/
-│   ├── settings.conf        # Scanner settings
-│   └── wordlists/
-│       └── common.txt       # Wordlist for fuzzing
-├── scripts/
-│   ├── scan.sh              # Main scanning orchestrator
-│   └── report.sh            # HTML report generator
-└── outputs/                 # Scan results (gitignored)
+vigil/
+├── api/                     # FastAPI application
+│   ├── main.py              # Application entry point
+│   ├── models/              # Pydantic data models
+│   │   ├── findings.py      # Security finding models
+│   │   └── results.py       # Scan result models
+│   ├── routers/             # API route handlers
+│   │   ├── health.py        # Health check endpoints
+│   │   ├── quick.py         # Quick scan endpoints
+│   │   ├── deep.py          # Deep scan endpoints
+│   │   ├── security.py      # Security scan endpoints
+│   │   └── scans.py         # Scan management
+│   ├── services/            # Business logic
+│   │   ├── docker_runner.py # Docker execution utilities
+│   │   ├── nuclei.py        # Nuclei scanner service
+│   │   ├── nikto.py         # Nikto scanner service
+│   │   └── zap.py           # ZAP scanner service
+│   └── utils/               # Shared utilities
+│       └── config.py        # Configuration management
+├── tests/                   # Test suite
+├── Dockerfile               # API container image
+├── docker-compose.yml       # Multi-container setup
+├── pyproject.toml           # Python project config
+├── requirements.txt         # Python dependencies
+├── Makefile                 # CLI commands (legacy)
+├── scripts/                 # Shell scripts (legacy)
+├── config/                  # Scanner configuration
+└── outputs/                 # Scan results
 ```
 
 ### Output Structure

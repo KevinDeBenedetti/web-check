@@ -1,6 +1,6 @@
 """Deep scan endpoints."""
 
-from datetime import timezone
+from datetime import UTC
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -67,7 +67,7 @@ async def deep_testssl_scan(
                 module="testssl",
                 category="deep",
                 target=url,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 duration_ms=int((time.time() - start) * 1000),
                 status="timeout",
                 data=None,
@@ -79,19 +79,20 @@ async def deep_testssl_scan(
             module="testssl",
             category="deep",
             target=url,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             duration_ms=int((time.time() - start) * 1000),
             status="success",
             data={"scan_completed": True},
             findings=[],
-            error=None,)
+            error=None,
+        )
 
     except Exception as e:
         return CheckResult(
             module="testssl",
             category="deep",
             target=url,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             duration_ms=int((time.time() - start) * 1000),
             status="error",
             data=None,
