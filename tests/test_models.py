@@ -5,7 +5,7 @@ from datetime import datetime
 import pytest
 from pydantic import ValidationError
 
-from api.models import Finding, CheckResult, ScanRequest
+from api.models import CheckResult, Finding, ScanRequest
 
 
 def test_finding_model():

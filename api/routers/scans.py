@@ -1,38 +1,46 @@
 """Scan management endpoints."""
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.database import get_session
 from api.models.results import CheckResult, ScanRequest, ScanResponse
+from api.services import db_service
 
 router = APIRouter()
 
 
-# In-memory store for scan results (use Redis in production)
-_active_scans: dict[str, ScanResponse] = {}
-
-
 @router.post("/start", response_model=ScanResponse)
-async def start_scan(request: ScanRequest) -> ScanResponse:
+async def start_scan(
+    request: ScanRequest, session: AsyncSession = Depends(get_session)
+) -> ScanResponse:
     """
     Start a comprehensive security scan.
 
     Runs multiple scanners in parallel and tracks progress.
     """
-    scan_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    scan_id = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+
+    # Create scan in database
+    await db_service.create_scan(
+        session=session,
+        scan_id=scan_id,
+        target=request.target,
+        modules=request.modules,
+        timeout=request.timeout,
+    )
 
     scan_response = ScanResponse(
         scan_id=scan_id,
         target=request.target,
         status="running",
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
         results=[],
     )
-
-    _active_scans[scan_id] = scan_response
 
     # Start scans in background
     asyncio.create_task(_run_scans(scan_id, request))
@@ -41,22 +49,108 @@ async def start_scan(request: ScanRequest) -> ScanResponse:
 
 
 @router.get("/{scan_id}", response_model=ScanResponse)
-async def get_scan_status(scan_id: str) -> ScanResponse:
+async def get_scan_status(
+    scan_id: str, session: AsyncSession = Depends(get_session)
+) -> ScanResponse:
     """Get the status and results of a scan."""
-    if scan_id not in _active_scans:
+    scan = await db_service.get_scan(session, scan_id)
+    if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
 
-    return _active_scans[scan_id]
+    # Get results
+    results_with_findings = await db_service.get_scan_results(session, scan_id)
+
+    # Convert to CheckResult objects
+    check_results = []
+    for scan_result, findings in results_with_findings:
+        from api.models import Finding
+
+        check_results.append(
+            CheckResult(
+                module=scan_result.module,
+                category=scan_result.category,
+                target=scan_result.target,
+                timestamp=scan_result.timestamp,
+                duration_ms=scan_result.duration_ms,
+                status=scan_result.status,
+                data=scan_result.data,
+                findings=[
+                    Finding(
+                        severity=f.severity,
+                        title=f.title,
+                        description=f.description,
+                        reference=f.reference,
+                        cve=f.cve,
+                        cvss_score=f.cvss_score,
+                    )
+                    for f in findings
+                ],
+                error=scan_result.error,
+            )
+        )
+
+    return ScanResponse(
+        scan_id=scan.scan_id,
+        target=scan.target,
+        status=scan.status,
+        started_at=scan.started_at,
+        results=check_results,
+    )
 
 
 @router.get("/", response_model=list[ScanResponse])
-async def list_scans() -> list[ScanResponse]:
+async def list_scans(session: AsyncSession = Depends(get_session)) -> list[ScanResponse]:
     """List all scans."""
-    return list(_active_scans.values())
+    scans = await db_service.list_scans(session, limit=100)
+
+    scan_responses = []
+    for scan in scans:
+        results_with_findings = await db_service.get_scan_results(session, scan.scan_id)
+
+        check_results = []
+        for scan_result, findings in results_with_findings:
+            from api.models import Finding
+
+            check_results.append(
+                CheckResult(
+                    module=scan_result.module,
+                    category=scan_result.category,
+                    target=scan_result.target,
+                    timestamp=scan_result.timestamp,
+                    duration_ms=scan_result.duration_ms,
+                    status=scan_result.status,
+                    data=scan_result.data,
+                    findings=[
+                        Finding(
+                            severity=f.severity,
+                            title=f.title,
+                            description=f.description,
+                            reference=f.reference,
+                            cve=f.cve,
+                            cvss_score=f.cvss_score,
+                        )
+                        for f in findings
+                    ],
+                    error=scan_result.error,
+                )
+            )
+
+        scan_responses.append(
+            ScanResponse(
+                scan_id=scan.scan_id,
+                target=scan.target,
+                status=scan.status,
+                started_at=scan.started_at,
+                results=check_results,
+            )
+        )
+
+    return scan_responses
 
 
 async def _run_scans(scan_id: str, request: ScanRequest) -> None:
-    """Run scans in background and update results."""
+    """Run scans in background and update results in database."""
+    from api.database import get_session_context
     from api.services.nikto import run_nikto_scan
     from api.services.nuclei import run_nuclei_scan
     from api.services.zap import run_zap_scan
@@ -78,7 +172,10 @@ async def _run_scans(scan_id: str, request: ScanRequest) -> None:
         scan_results = await asyncio.gather(*tasks, return_exceptions=False)
         results = [r for r in scan_results if isinstance(r, CheckResult)]
 
-    # Update scan status
-    if scan_id in _active_scans:
-        _active_scans[scan_id].results = results
-        _active_scans[scan_id].status = "success"
+    # Save results to database
+    async with get_session_context() as session:
+        for result in results:
+            await db_service.save_scan_result(session, scan_id, result)
+
+        # Update scan status
+        await db_service.update_scan_status(session, scan_id, "success")

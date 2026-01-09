@@ -8,6 +8,9 @@ services:
       - ./api:/app/api:ro
       - ./outputs:/app/outputs:rw
       - ./config:/app/config:ro
+      - ./vigil.db:/app/vigil.db:rw
+      - ./alembic:/app/alembic:ro
+      - ./alembic.ini:/app/alembic.ini:ro
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - DEBUG=true

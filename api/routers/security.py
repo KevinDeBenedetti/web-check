@@ -1,6 +1,6 @@
 """Security-focused scan endpoints."""
 
-from datetime import timezone
+from datetime import UTC
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -60,7 +60,7 @@ async def security_ffuf_scan(
                 module="ffuf",
                 category="security",
                 target=url,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 duration_ms=int((time.time() - start) * 1000),
                 status="timeout",
                 data=None,
@@ -72,19 +72,20 @@ async def security_ffuf_scan(
             module="ffuf",
             category="security",
             target=url,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             duration_ms=int((time.time() - start) * 1000),
             status="success",
             data={"wordlist": wordlist},
             findings=[],
-            error=None,)
+            error=None,
+        )
 
     except Exception as e:
         return CheckResult(
             module="ffuf",
             category="security",
             target=url,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             duration_ms=int((time.time() - start) * 1000),
             status="error",
             data=None,
@@ -135,7 +136,7 @@ async def security_sqlmap_scan(
                 module="sqlmap",
                 category="security",
                 target=url,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 duration_ms=int((time.time() - start) * 1000),
                 status="timeout",
                 data=None,
@@ -147,19 +148,20 @@ async def security_sqlmap_scan(
             module="sqlmap",
             category="security",
             target=url,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             duration_ms=int((time.time() - start) * 1000),
             status="success",
             data={"scan_completed": True},
             findings=[],
-            error=None,)
+            error=None,
+        )
 
     except Exception as e:
         return CheckResult(
             module="sqlmap",
             category="security",
             target=url,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             duration_ms=int((time.time() - start) * 1000),
             status="error",
             data=None,

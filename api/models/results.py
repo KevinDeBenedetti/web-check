@@ -1,6 +1,6 @@
 """Result models for security scans."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -18,7 +18,7 @@ class CheckResult(BaseModel):
     category: ScanCategory = Field(..., description="Category of the scan")
     target: str = Field(..., description="Target URL or domain")
     timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="When the scan was performed",
     )
     duration_ms: int = Field(..., ge=0, description="Scan duration in milliseconds")
