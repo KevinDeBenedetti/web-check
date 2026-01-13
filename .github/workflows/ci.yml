@@ -112,9 +112,11 @@ jobs:
           context: .
           file: ./Dockerfile
           push: false
+          load: true
           tags: vigil:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          provenance: false
 
   # 3. React jobs (lint, format, type-check, test, build)
   react-lint:
@@ -203,9 +205,11 @@ jobs:
           context: ./web
           file: ./web/Dockerfile
           push: false
+          load: true
           tags: vigil-web:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          provenance: false
 
   # 4. Final check - all jobs passed
   ci-passed:

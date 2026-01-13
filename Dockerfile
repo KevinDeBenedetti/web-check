@@ -21,8 +21,7 @@ COPY pyproject.toml README.md ./
 COPY uv.lock ./
 
 # Install dependencies using uv sync (best practice)
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-install-project --no-dev
+RUN uv sync --frozen --no-install-project --no-dev
 
 # Copy application code
 COPY api/ ./api/
@@ -30,8 +29,7 @@ COPY alembic/ ./alembic/
 COPY alembic.ini ./
 
 # Install project
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev
 
 # Install XSStrike from GitHub (no official package)
 RUN git clone https://github.com/s0md3v/XSStrike.git /opt/xsstrike \
