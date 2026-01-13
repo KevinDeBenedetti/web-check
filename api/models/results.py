@@ -25,7 +25,7 @@ class CheckResult(BaseModel):
     status: ScanStatus = Field(..., description="Status of the scan")
     data: dict[str, Any] | None = Field(None, description="Raw scan data and metadata")
     findings: list[Finding] = Field(
-        default_factory=lambda: [], description="Security findings discovered"
+        default_factory=list, description="Security findings discovered"
     )
     error: str | None = Field(None, description="Error message if scan failed")
 
@@ -78,9 +78,7 @@ class ScanResponse(BaseModel):
     target: str = Field(..., description="Target being scanned")
     status: ScanStatus = Field(..., description="Current status of the scan")
     started_at: datetime = Field(..., description="When the scan started")
-    results: list[CheckResult] = Field(
-        default_factory=lambda: [], description="Available results so far"
-    )
+    results: list[CheckResult] = Field(default_factory=list, description="Available results so far")
 
     model_config = {
         "json_schema_extra": {

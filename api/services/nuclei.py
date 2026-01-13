@@ -116,11 +116,8 @@ def _parse_nuclei_output(data: list[dict[str, Any]]) -> list[Finding]:
     """Parse Nuclei JSONL output into Finding objects."""
     findings: list[Finding] = []
 
-    # data is now a list from load_jsonl_output
-    items = data
-
-    for item in items:
-        if not item or not hasattr(item, "get"):
+    for item in data:
+        if not item or not isinstance(item, dict):
             continue
 
         info: dict[str, Any] = item.get("info", {})
