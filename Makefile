@@ -21,7 +21,7 @@ NC = \033[0m
 help: ## Display this help
 	@echo ""
 	@echo "$(BLUE)╔═══════════════════════════════════════════════════════════════╗$(NC)"
-	@echo "$(BLUE)║              🔒 Vigil Security Scanner                        ║$(NC)"
+	@echo "$(BLUE)║              🔒 Web-Check Security Scanner                     ║$(NC)"
 	@echo "$(BLUE)╚═══════════════════════════════════════════════════════════════╝$(NC)"
 	@echo ""
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage:\n  make $(CYAN)<target>$(NC)\n\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  $(CYAN)%-18s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(YELLOW)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
@@ -42,9 +42,9 @@ help: ## Display this help
 # ==============================================================================
 
 start: ## Start production environment (web + api + scanners)
-	@echo "$(GREEN)🚀 Starting Vigil in production mode...$(NC)"
+	@echo "$(GREEN)🚀 Starting Web-Check in production mode...$(NC)"
 	@docker compose --profile prod up -d
-	@echo "$(GREEN)✅ Vigil is ready!$(NC)"
+	@echo "$(GREEN)✅ Web-Check is ready!$(NC)"
 	@echo ""
 	@echo "$(CYAN)Access:$(NC)"
 	@echo "  Web UI:       http://localhost:3000"
@@ -53,7 +53,7 @@ start: ## Start production environment (web + api + scanners)
 	@echo ""
 
 dev: ## Start development environment (hot-reload enabled)
-	@echo "$(GREEN)🚀 Starting Vigil in development mode...$(NC)"
+	@echo "$(GREEN)🚀 Starting Web-Check in development mode...$(NC)"
 	@docker compose --profile dev up -d
 	@echo "$(GREEN)✅ Development environment ready!$(NC)"
 	@echo ""
@@ -67,7 +67,7 @@ dev: ## Start development environment (hot-reload enabled)
 	@echo "$(CYAN)View logs: make logs$(NC)"
 
 stop: ## Stop all containers
-	@echo "$(YELLOW)🛑 Stopping Vigil...$(NC)"
+	@echo "$(YELLOW)🛑 Stopping Web-Check...$(NC)"
 	@docker compose --profile prod --profile dev down
 	@echo "$(GREEN)✅ Stopped$(NC)"
 
@@ -148,7 +148,7 @@ ci: ## Test all CI workflow steps locally
 	@echo "$(GREEN)✅ Python tests passed$(NC)"
 	@echo ""
 	@echo "$(YELLOW)📋 Step 6/11: Python Build (Docker)$(NC)"
-	@docker buildx build -t vigil:test -f Dockerfile . --load
+	@docker buildx build -t web-check:test -f Dockerfile . --load
 	@echo "$(GREEN)✅ Python Docker build passed$(NC)"
 	@echo ""
 	@echo "$(YELLOW)📋 Step 7/11: React Lint (oxlint)$(NC)"
@@ -168,7 +168,7 @@ ci: ## Test all CI workflow steps locally
 	@echo "$(GREEN)✅ React build passed$(NC)"
 	@echo ""
 	@echo "$(YELLOW)📋 Step 11/11: React Build (Docker)$(NC)"
-	@docker buildx build -t vigil-web:test -f web/Dockerfile web/ --load
+	@docker buildx build -t web-check-ui:test -f web/Dockerfile web/ --load
 	@echo "$(GREEN)✅ React Docker build passed$(NC)"
 	@echo ""
 	@echo "$(BLUE)╔═══════════════════════════════════════════════════════════════╗$(NC)"

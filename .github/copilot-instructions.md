@@ -1,17 +1,17 @@
 # GitHub Copilot Instructions
 
-This repository is **Vigil**, a Docker-based security scanning toolkit.
+This repository is **Web-Check**, a Docker-based security scanning toolkit.
 
 ## Context
 
-- **Language**: Python 3.11+
+- **Language**: Python 3.12+
 - **Framework**: FastAPI 0.115+ with Uvicorn
 - **Architecture**: Docker-first with docker-compose
 - **Purpose**: Web security analysis and vulnerability scanning
 - **Database**: SQLAlchemy 2.0 + Alembic + SQLite (async)
 - **Logging**: structlog for structured logs
 - **HTTP**: httpx for async requests
-- **Tooling**: Ruff (linting/formatting), Pyright (type checking), Pytest (testing)
+- **Tooling**: Ruff (linting/formatting), Ty (type checking), Pytest (testing)
 
 ## Code Style
 
@@ -28,6 +28,7 @@ This repository is **Vigil**, a Docker-based security scanning toolkit.
 ## Patterns to Follow
 
 ### API Endpoints
+
 ```python
 @router.get("/scan", response_model=CheckResult)
 async def perform_scan(
@@ -46,6 +47,7 @@ async def perform_scan(
 ```
 
 ### Service Functions
+
 ```python
 async def run_scanner(target: str, timeout: int = 300) -> CheckResult:
     """
@@ -118,6 +120,7 @@ async def run_scanner(target: str, timeout: int = 300) -> CheckResult:
 ```
 
 ### Docker Container Execution
+
 ```python
 async def docker_run(
     image: str,
@@ -149,6 +152,7 @@ async def docker_run(
 ## Key Models
 
 ### Finding Model
+
 ```python
 from typing import Literal
 from pydantic import BaseModel, Field
@@ -166,6 +170,7 @@ class Finding(BaseModel):
 ```
 
 ### CheckResult Model
+
 ```python
 from datetime import UTC, datetime
 
@@ -197,15 +202,21 @@ api/
 ├── routers/             # FastAPI route handlers
 │   ├── health.py        # Health check endpoint
 │   ├── quick.py         # Quick scans (nuclei, nikto, dns)
-│   ├── deep.py          # Deep analysis
-│   ├── security.py      # Security-focused scans
+│   ├── deep.py          # Deep analysis (ZAP, SSLyze)
+│   ├── security.py      # Security scans (SQLMap, Wapiti)
+│   ├── advanced.py      # Advanced scans (XSStrike)
 │   └── scans.py         # Scan management (CRUD)
 ├── services/            # Business logic
 │   ├── nikto.py         # Nikto scanner service
 │   ├── nuclei.py        # Nuclei scanner service
-│   ├── zap.py           # OWASP ZAP service
+│   ├── zap_native.py    # OWASP ZAP service (Python API)
+│   ├── sslyze_scanner.py# SSLyze service
+│   ├── sqlmap_scanner.py# SQLMap service
+│   ├── wapiti_scanner.py# Wapiti service
+│   ├── xsstrike_scanner.py # XSStrike service
 │   ├── docker_runner.py # Docker execution utilities
-│   └── db_service.py    # Database operations
+│   ├── db_service.py    # Database operations
+│   └── log_streamer.py  # SSE log streaming
 ├── models/              # Pydantic models
 │   ├── findings.py      # Finding, Severity types
 │   ├── results.py       # CheckResult, ScanStatus types
@@ -214,7 +225,7 @@ api/
     └── config.py        # Settings with pydantic-settings
 
 alembic/                 # Database migrations
-scripts/                 # Shell scripts for reporting
+config/                  # Scanner configuration
 outputs/                 # Scan outputs (HTML, JSON)
 ```
 
@@ -228,7 +239,7 @@ from pathlib import Path
 
 class Settings(BaseSettings):
     """Application settings."""
-    api_title: str = "Vigil Security Scanner"
+    api_title: str = "Web-Check Security Scanner"
     api_version: str = "0.1.0"
     debug: bool = False
     docker_network: str = "scanner-net"
@@ -274,7 +285,7 @@ SQLAlchemy 2.0 with async SQLite:
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
-engine = create_async_engine("sqlite+aiosqlite:///./vigil.db")
+engine = create_async_engine("sqlite+aiosqlite:///./web-check.db")
 
 class Base(DeclarativeBase):
     pass
@@ -301,10 +312,30 @@ async def create_scan(db: AsyncSession, scan_data: dict):
    - HTML output in `/outputs/`
    - Timeout: 600s by default
 
-3. **OWASP ZAP** (`api/services/zap.py`)
-   - Image: `zaproxy/zap-stable`
+3. **OWASP ZAP** (`api/services/zap_native.py`)
+   - Uses Python API (zapv2)
    - Comprehensive security scan
    - Timeout: 900s by default
+
+4. **SSLyze** (`api/services/sslyze_scanner.py`)
+   - Native Python library
+   - SSL/TLS configuration analysis
+   - Timeout: 300s by default
+
+5. **SQLMap** (`api/services/sqlmap_scanner.py`)
+   - Native Python library
+   - SQL injection detection
+   - Timeout: 900s by default
+
+6. **Wapiti** (`api/services/wapiti_scanner.py`)
+   - Docker-based web scanner
+   - Web application vulnerabilities
+   - Timeout: 900s by default
+
+7. **XSStrike** (`api/services/xsstrike_scanner.py`)
+   - Installed from GitHub
+   - Advanced XSS detection
+   - Timeout: 600s by default
 
 ## Don'ts
 
@@ -322,12 +353,13 @@ async def create_scan(db: AsyncSession, scan_data: dict):
 
 ```python
 import pytest
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from api.main import app
 
 @pytest.mark.asyncio
 async def test_nuclei_scan():
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get(
             "/api/quick/nuclei",
             params={"url": "https://example.com", "timeout": 300}

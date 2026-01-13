@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, Integer, String, Text
+from sqlalchemy import JSON, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from api.database import Base
@@ -70,7 +70,7 @@ class Finding(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     reference: Mapped[str | None] = mapped_column(String(500), nullable=True)
     cve: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    cvss_score: Mapped[float | None] = mapped_column(Integer, nullable=True)
+    cvss_score: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     def __repr__(self) -> str:
         """String representation."""

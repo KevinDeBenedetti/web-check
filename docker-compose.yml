@@ -1,5 +1,5 @@
 # ==============================================================================
-# Vigil Security Scanner - Docker Compose Configuration
+# Web-Check Security Scanner - Docker Compose Configuration
 # ==============================================================================
 # Usage:
 #   Production:  docker compose up -d
@@ -15,7 +15,7 @@ services:
     build:
       context: ./web
       dockerfile: Dockerfile
-    container_name: vigil-web
+    container_name: web-check-web
     ports:
       - "${WEB_PORT:-3000}:80"
     environment:
@@ -33,7 +33,7 @@ services:
   # ==========================================================================
   web-dev:
     image: oven/bun:1.1-alpine
-    container_name: vigil-web-dev
+    container_name: web-check-web-dev
     working_dir: /app
     ports:
       - "${WEB_PORT:-3000}:3000"
@@ -55,14 +55,14 @@ services:
   # ==========================================================================
   api:
     build: .
-    container_name: vigil-api
+    container_name: web-check-api
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
       - ./api:/app/api:ro
       - ./outputs:/app/outputs:rw
       - ./config:/app/config:ro
-      - ./vigil.db:/app/vigil.db:rw
+      - ./web-check.db:/app/web-check.db:rw
       - ./alembic:/app/alembic:ro
       - ./alembic.ini:/app/alembic.ini:ro
     environment:

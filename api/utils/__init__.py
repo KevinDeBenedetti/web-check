@@ -1,1 +1,1 @@
-"""Utilities for Vigil Security Scanner."""
+"""Utilities for Web-Check Security Scanner."""

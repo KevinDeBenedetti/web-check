@@ -33,4 +33,4 @@ node_modules/
 
 *__pycache__/
 .coverage
-vigil.db
+web-check.db

@@ -113,7 +113,7 @@ jobs:
           file: ./Dockerfile
           push: false
           load: true
-          tags: vigil:test
+          tags: web-check:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: false
@@ -206,7 +206,7 @@ jobs:
           file: ./web/Dockerfile
           push: false
           load: true
-          tags: vigil-web:test
+          tags: web-check-ui:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: false

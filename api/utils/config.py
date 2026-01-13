@@ -1,4 +1,4 @@
-"""Configuration management for Vigil."""
+"""Configuration management for Web-Check."""
 
 from functools import lru_cache
 from pathlib import Path
@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     """Application settings."""
 
     # API Configuration
-    api_title: str = "Vigil Security Scanner"
+    api_title: str = "Web-Check Security Scanner"
     api_version: str = "0.1.0"
     debug: bool = False
 
