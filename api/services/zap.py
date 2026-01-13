@@ -27,9 +27,11 @@ async def run_zap_scan(target: str, timeout: int = 900) -> CheckResult:
     start = time.time()
     findings: list[Finding] = []
 
-    output_dir = Path("outputs/temp")
+    output_dir = Path("outputs")
     output_dir.mkdir(parents=True, exist_ok=True)
-    json_output = output_dir / f"zap_{int(time.time())}.json"
+    json_filename = f"zap_{int(time.time())}.json"
+    html_filename = f"zap_{int(time.time())}.html"
+    json_output = output_dir / json_filename
 
     try:
         result = await docker_run(
@@ -39,13 +41,13 @@ async def run_zap_scan(target: str, timeout: int = 900) -> CheckResult:
                 "-t",
                 target,
                 "-r",
-                "/zap/wrk/zap.html",
+                f"/zap/wrk/{html_filename}",
                 "-J",
-                "/zap/wrk/zap.json",
+                f"/zap/wrk/{json_filename}",
                 "-I",  # Ignore warning on missing TLS certificate
             ],
-            volumes={str(output_dir.absolute()): "/zap/wrk"},
             timeout=timeout,
+            container_name="security-scanner-zap",
         )
 
         if result["timeout"]:

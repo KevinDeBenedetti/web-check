@@ -3,6 +3,8 @@ export type Severity = "critical" | "high" | "medium" | "low" | "info";
 export type ScanStatus = "success" | "error" | "timeout" | "running";
 export type ScanCategory = "quick" | "deep" | "security";
 
+export type ScanTool = "nuclei" | "nikto" | "zap" | "testssl" | "ffuf" | "sqlmap" | "wapiti" | "xsstrike";
+
 export interface Finding {
   severity: Severity;
   title: string;
@@ -37,4 +39,13 @@ export interface ScanResponse {
   started_at: string;
   completed_at?: string;
   results: CheckResult[];
+}
+
+export interface ToolInfo {
+  id: ScanTool;
+  name: string;
+  description: string;
+  category: ScanCategory;
+  defaultTimeout: number;
+  icon: string;
 }

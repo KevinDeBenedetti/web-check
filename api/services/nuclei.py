@@ -28,7 +28,8 @@ async def run_nuclei_scan(target: str, timeout: int = 300) -> CheckResult:
     findings: list[Finding] = []
 
     # Use shared volume mounted in docker-compose
-    output_dir = Path("/app/outputs")
+    output_dir = Path("outputs")
+    output_dir.mkdir(exist_ok=True)
     output_file = output_dir / f"nuclei_{int(time.time())}.json"
     output_filename = output_file.name
 
@@ -73,11 +74,11 @@ async def run_nuclei_scan(target: str, timeout: int = 300) -> CheckResult:
                 exit_code=result["exit_code"],
             )
         else:
-            logger.warning(
-                "nuclei_no_output",
+            # No output file means no vulnerabilities found (normal behavior)
+            logger.info(
+                "nuclei_scan_completed_no_findings",
                 target=target,
-                output_file=str(output_file),
-                stderr=result["stderr"][:500] if result["stderr"] else None,
+                exit_code=result["exit_code"],
             )
 
         return CheckResult(

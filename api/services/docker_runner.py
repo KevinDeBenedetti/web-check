@@ -44,6 +44,7 @@ async def docker_run(
     timeout: int = 300,
     container_name: str | None = None,
     network: str | None = None,
+    scan_id: str | None = None,
 ) -> dict[str, Any]:
     """
     Run a Docker container and return the results.
@@ -55,6 +56,7 @@ async def docker_run(
         timeout: Maximum execution time in seconds
         container_name: Name for the container (for docker exec)
         network: Docker network to use
+        scan_id: Scan ID for streaming logs (optional)
 
     Returns:
         Dictionary with stdout, stderr, and exit code
@@ -78,6 +80,18 @@ async def docker_run(
 
     logger.info("running_docker_command", command=" ".join(cmd))
 
+    # Stream logs if scan_id provided
+    if scan_id:
+        from api.services.log_streamer import log_streamer
+        await log_streamer.send_log(
+            scan_id,
+            {
+                "type": "docker",
+                "message": f"Executing: {image}",
+                "command": " ".join(command),
+            },
+        )
+
     try:
         process = await asyncio.create_subprocess_exec(
             *cmd,
@@ -91,6 +105,17 @@ async def docker_run(
             process.kill()
             await process.wait()
             logger.warning("docker_command_timeout", command=" ".join(cmd))
+
+            if scan_id:
+                from api.services.log_streamer import log_streamer
+                await log_streamer.send_log(
+                    scan_id,
+                    {
+                        "type": "warning",
+                        "message": f"Command timed out after {timeout}s",
+                    },
+                )
+
             return {
                 "stdout": "",
                 "stderr": "Command timed out",
@@ -107,6 +132,17 @@ async def docker_run(
 
     except Exception as e:
         logger.error("docker_command_failed", command=" ".join(cmd), error=str(e))
+
+        if scan_id:
+            from api.services.log_streamer import log_streamer
+            await log_streamer.send_log(
+                scan_id,
+                {
+                    "type": "error",
+                    "message": f"Docker command failed: {str(e)}",
+                },
+            )
+
         return {
             "stdout": "",
             "stderr": str(e),
