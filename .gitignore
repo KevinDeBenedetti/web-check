@@ -34,6 +34,11 @@ node_modules/
 *__pycache__/
 .coverage
 
+# Python virtual environment
+.venv/
+venv/
+env/
+
 # Database files (contain potentially sensitive scan data)
 *.db
 *.db-*
