@@ -180,7 +180,7 @@ async def run_sslyze_scan(
     except Exception as e:
         error_msg = str(e)
 
-        # Fournir des messages d'erreur plus clairs
+        # Provide clearer error messages
         if "Could not resolve" in error_msg:
             error_msg = f"DNS resolution failed for '{domain}'. Please verify the domain name is correct."
         elif "timed out" in error_msg.lower():

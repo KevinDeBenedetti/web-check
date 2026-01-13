@@ -470,17 +470,17 @@ Machine-readable format for automation:
 
 ## 🌐 Web Interface
 
-Vigil inclut une interface web React moderne pour une utilisation simplifiée.
+Vigil includes a modern React web interface for simplified usage.
 
-### Fonctionnalités
+### Features
 
-- **Interface Intuitive** - Formulaire simple pour lancer des scans
-- **Résultats en Temps Réel** - Affichage immédiat des vulnérabilités détectées
-- **Visualisation des Findings** - Badges de sévérité et détails complets
-- **Historique des Scans** - Accès rapide aux scans récents
-- **Responsive Design** - Fonctionne sur desktop et mobile
+- **Intuitive Interface** - Simple form to launch scans
+- **Real-Time Results** - Immediate display of detected vulnerabilities
+- **Finding Visualization** - Severity badges and complete details
+- **Scan History** - Quick access to recent scans
+- **Responsive Design** - Works on desktop and mobile
 
-### Accès
+### Access
 
 ```bash
 # Démarrer avec Docker

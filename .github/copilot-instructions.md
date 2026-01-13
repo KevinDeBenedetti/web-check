@@ -5,25 +5,25 @@ This repository is **Vigil**, a Docker-based security scanning toolkit.
 ## Context
 
 - **Language**: Python 3.11+
-- **Framework**: FastAPI 0.115+ avec Uvicorn
-- **Architecture**: Docker-first avec docker-compose
-- **Purpose**: Analyse de sécurité web et scans de vulnérabilités
+- **Framework**: FastAPI 0.115+ with Uvicorn
+- **Architecture**: Docker-first with docker-compose
+- **Purpose**: Web security analysis and vulnerability scanning
 - **Database**: SQLAlchemy 2.0 + Alembic + SQLite (async)
-- **Logging**: structlog pour logs structurés
-- **HTTP**: httpx pour requêtes async
+- **Logging**: structlog for structured logs
+- **HTTP**: httpx for async requests
 - **Tooling**: Ruff (linting/formatting), Pyright (type checking), Pytest (testing)
 
 ## Code Style
 
-- Use **type hints** sur toutes les fonctions (obligatoire)
-- Use **Pydantic v2** pour validation et settings
-- Use **async/await** pour toutes les opérations I/O
-- Follow **PEP 8** avec max line length **100**
+- Use **type hints** on all functions (mandatory)
+- Use **Pydantic v2** for validation and settings
+- Use **async/await** for all I/O operations
+- Follow **PEP 8** with max line length **100**
 - Use **Google-style docstrings**
-- Use **datetime.now(UTC)** au lieu de `datetime.utcnow()` (deprecated)
-- Use **structlog** pour tous les logs, jamais `print()`
-- Use **httpx.AsyncClient** au lieu de requests
-- Use **type aliases** pour Literal types (ex: `Severity`, `ScanStatus`)
+- Use **datetime.now(UTC)** instead of `datetime.utcnow()` (deprecated)
+- Use **structlog** for all logs, never `print()`
+- Use **httpx.AsyncClient** instead of requests
+- Use **type aliases** for Literal types (e.g., `Severity`, `ScanStatus`)
 
 ## Patterns to Follow
 
@@ -211,7 +211,7 @@ api/
 │   ├── results.py       # CheckResult, ScanStatus types
 │   └── db_models.py     # SQLAlchemy models
 └── utils/
-    └── config.py        # Settings avec pydantic-settings
+    └── config.py        # Settings with pydantic-settings
 
 alembic/                 # Database migrations
 scripts/                 # Shell scripts for reporting
@@ -268,7 +268,7 @@ print("Scan completed")                    # ❌ Never use print()
 
 ## Database
 
-SQLAlchemy 2.0 avec async SQLite:
+SQLAlchemy 2.0 with async SQLite:
 
 ```python
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -279,7 +279,7 @@ engine = create_async_engine("sqlite+aiosqlite:///./vigil.db")
 class Base(DeclarativeBase):
     pass
 
-# Dans les services
+# In services
 async def create_scan(db: AsyncSession, scan_data: dict):
     scan = Scan(**scan_data)
     db.add(scan)
@@ -288,23 +288,23 @@ async def create_scan(db: AsyncSession, scan_data: dict):
     return scan
 ```
 
-## Scanner Modules Actuels
+## Current Scanner Modules
 
 1. **Nuclei** (`api/services/nuclei.py`)
    - Image: `projectdiscovery/nuclei:latest`
-   - Scan rapide CVE et vulnérabilités
-   - Timeout: 300s par défaut
+   - Fast CVE and vulnerability scanning
+   - Timeout: 300s by default
 
 2. **Nikto** (`api/services/nikto.py`)
    - Image: `alpine/nikto:latest`
    - Scan web server misconfigurations
-   - Output HTML dans `/outputs/`
-   - Timeout: 600s par défaut
+   - HTML output in `/outputs/`
+   - Timeout: 600s by default
 
 3. **OWASP ZAP** (`api/services/zap.py`)
    - Image: `zaproxy/zap-stable`
-   - Scan sécurité complet
-   - Timeout: 900s par défaut
+   - Comprehensive security scan
+   - Timeout: 900s by default
 
 ## Don'ts
 
@@ -341,9 +341,9 @@ async def test_nuclei_scan():
 ## Commit Messages
 
 Use conventional commits:
-- `feat:` - Nouvelle fonctionnalité
-- `fix:` - Correction de bug
+- `feat:` - New feature
+- `fix:` - Bug fix
 - `docs:` - Documentation
-- `refactor:` - Refactoring sans changement de comportement
-- `test:` - Ajout/modification de tests
-- `chore:` - Tâches de maintenance
+- `refactor:` - Refactoring without behavior change
+- `test:` - Add/modify tests
+- `chore:` - Maintenance tasks
