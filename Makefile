@@ -105,20 +105,20 @@ run: ## Run API locally (outside Docker)
 
 test: ## Run tests
 	@echo "$(GREEN)🧪 Running tests...$(NC)"
-	@uv run pytest tests/ -v
+	@uv run pytest api/tests/ -v
 
 lint: ## Lint code
 	@echo "$(GREEN)🔍 Linting...$(NC)"
-	@uv run ruff check api/ tests/
+	@uv run ruff check api/
 
 format: ## Format code
 	@echo "$(GREEN)✨ Formatting code...$(NC)"
-	@uv run ruff format api/ tests/
+	@uv run ruff format api/
 
 check: ## Run all code quality checks
 	@echo "$(GREEN)✅ Running all checks...$(NC)"
-	@uv run ruff format --check api/ tests/
-	@uv run ruff check api/ tests/
+	@uv run ruff format --check api/
+	@uv run ruff check api/
 	@uv run ty check api/
 	@echo "$(GREEN)✅ All checks passed!$(NC)"
 
