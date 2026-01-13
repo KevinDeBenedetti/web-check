@@ -8,7 +8,7 @@ export const TOOL_INFO: Record<ScanTool, ToolInfo> = {
   nuclei: {
     id: "nuclei",
     name: "Nuclei",
-    description: "Scan CVE et vulnérabilités avec templates communautaires",
+    description: "CVE and vulnerability scanning with community templates",
     category: "quick",
     defaultTimeout: 300,
     icon: "🎯",
@@ -16,7 +16,7 @@ export const TOOL_INFO: Record<ScanTool, ToolInfo> = {
   nikto: {
     id: "nikto",
     name: "Nikto",
-    description: "Scan serveur web pour misconfigurations",
+    description: "Web server scanning for misconfigurations",
     category: "quick",
     defaultTimeout: 600,
     icon: "🕷️",
@@ -24,7 +24,7 @@ export const TOOL_INFO: Record<ScanTool, ToolInfo> = {
   zap: {
     id: "zap",
     name: "OWASP ZAP",
-    description: "Scan sécurité complet (XSS, SQLi, etc.)",
+    description: "Comprehensive security scan (XSS, SQLi, etc.)",
     category: "deep",
     defaultTimeout: 900,
     icon: "⚡",
@@ -32,7 +32,7 @@ export const TOOL_INFO: Record<ScanTool, ToolInfo> = {
   testssl: {
     id: "testssl",
     name: "SSLyze",
-    description: "Analyse SSL/TLS et configuration cryptographique",
+    description: "SSL/TLS analysis and cryptographic configuration",
     category: "deep",
     defaultTimeout: 300,
     icon: "🔒",
@@ -40,7 +40,7 @@ export const TOOL_INFO: Record<ScanTool, ToolInfo> = {
   ffuf: {
     id: "ffuf",
     name: "FFUF",
-    description: "Fuzzing directories et fichiers cachés",
+    description: "Directory and hidden file fuzzing",
     category: "security",
     defaultTimeout: 600,
     icon: "🔍",
@@ -48,7 +48,7 @@ export const TOOL_INFO: Record<ScanTool, ToolInfo> = {
   sqlmap: {
     id: "sqlmap",
     name: "SQLMap",
-    description: "Test automatisé d'injection SQL",
+    description: "Automated SQL injection testing",
     category: "security",
     defaultTimeout: 900,
     icon: "💉",
@@ -56,7 +56,7 @@ export const TOOL_INFO: Record<ScanTool, ToolInfo> = {
   wapiti: {
     id: "wapiti",
     name: "Wapiti",
-    description: "Scanner de vulnérabilités web (XSS, injection, etc.)",
+    description: "Web vulnerability scanner (XSS, injection, etc.)",
     category: "security",
     defaultTimeout: 600,
     icon: "🕸️",
@@ -64,7 +64,7 @@ export const TOOL_INFO: Record<ScanTool, ToolInfo> = {
   xsstrike: {
     id: "xsstrike",
     name: "XSStrike",
-    description: "Détection avancée de vulnérabilités XSS",
+    description: "Advanced XSS vulnerability detection",
     category: "security",
     defaultTimeout: 300,
     icon: "⚔️",
@@ -75,25 +75,25 @@ export const AVAILABLE_TOOLS: ToolInfo[] = Object.values(TOOL_INFO);
 
 export const TOOL_CATEGORIES = {
   quick: {
-    name: "Scan Rapide",
-    description: "Scans rapides pour une évaluation initiale",
+    name: "Quick Scan",
+    description: "Fast scans for initial assessment",
     color: "green",
   },
   deep: {
-    name: "Analyse Approfondie",
-    description: "Analyse détaillée avec tests en profondeur",
+    name: "Deep Analysis",
+    description: "Detailed analysis with in-depth testing",
     color: "blue",
   },
   security: {
-    name: "Sécurité Avancée",
-    description: "Tests de sécurité spécialisés",
+    name: "Advanced Security",
+    description: "Specialized security tests",
     color: "purple",
   },
 } as const;
 
 export const FULL_SCAN_CONFIG = {
-  timeout: 3600, // 1 heure
+  timeout: 3600, // 1 hour
   tools: Object.keys(TOOL_INFO) as ScanTool[],
   name: "Full Scan",
-  description: "Exécute tous les outils de scan disponibles",
+  description: "Executes all available scanning tools",
 };

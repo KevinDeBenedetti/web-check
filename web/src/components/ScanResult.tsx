@@ -1,5 +1,5 @@
 import { formatDistanceToNow } from "date-fns";
-import { fr } from "date-fns/locale";
+import { enUS } from "date-fns/locale";
 import { ExternalLink } from "lucide-react";
 import type { CheckResult } from "../types/api";
 import { SeverityBadge } from "./SeverityBadge";
@@ -40,7 +40,7 @@ export function ScanResult({ result }: ScanResultProps) {
               {result.status.toUpperCase()}
             </Badge>
             <p className="text-xs text-muted-foreground mt-1">
-              {formatDistanceToNow(new Date(result.timestamp), { addSuffix: true, locale: fr })}
+              {formatDistanceToNow(new Date(result.timestamp), { addSuffix: true, locale: enUS })}
             </p>
           </div>
         </div>
@@ -50,15 +50,15 @@ export function ScanResult({ result }: ScanResultProps) {
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-slate-700/50 rounded-lg p-3 border border-slate-600">
-            <p className="text-xs text-muted-foreground">Durée</p>
+            <p className="text-xs text-muted-foreground">Duration</p>
             <p className="text-lg font-semibold">{(result.duration_ms / 1000).toFixed(1)}s</p>
           </div>
           <div className="bg-slate-700/50 rounded-lg p-3 border border-slate-600">
-            <p className="text-xs text-muted-foreground">Vulnérabilités</p>
+            <p className="text-xs text-muted-foreground">Vulnerabilities</p>
             <p className="text-lg font-semibold">{result.findings.length}</p>
           </div>
           <div className="bg-slate-700/50 rounded-lg p-3 border border-slate-600">
-            <p className="text-xs text-muted-foreground">Catégorie</p>
+            <p className="text-xs text-muted-foreground">Category</p>
             <p className="text-lg font-semibold capitalize">{result.category}</p>
           </div>
         </div>
@@ -73,7 +73,7 @@ export function ScanResult({ result }: ScanResultProps) {
         {/* Findings */}
         {result.findings.length > 0 && (
           <div className="space-y-3">
-            <h4 className="text-lg font-semibold">Vulnérabilités Détectées</h4>
+            <h4 className="text-lg font-semibold">Detected Vulnerabilities</h4>
             <div className="space-y-3">
               {result.findings.map((finding, idx) => (
                 <Card
@@ -109,7 +109,7 @@ export function ScanResult({ result }: ScanResultProps) {
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 text-primary hover:underline"
                         >
-                          Référence
+                          Reference
                           <ExternalLink className="w-3 h-3" />
                         </a>
                       )}

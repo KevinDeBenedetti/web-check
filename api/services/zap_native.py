@@ -138,7 +138,7 @@ async def run_zap_scan(target: str, timeout: int = 900, scan_id: str | None = No
     except Exception as e:
         error_msg = str(e)
 
-        # Fournir des messages d'erreur plus clairs
+        # Provide clearer error messages
         if "Unable to connect to proxy" in error_msg or "Max retries exceeded" in error_msg:
             error_msg = "ZAP daemon is not accessible. Please ensure the ZAP container is running and healthy."
         elif "not permitted" in error_msg:

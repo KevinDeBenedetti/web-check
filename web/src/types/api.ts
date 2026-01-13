@@ -1,4 +1,4 @@
-// Types basés sur les modèles Pydantic de l'API
+// Types based on Pydantic API models
 export type Severity = "critical" | "high" | "medium" | "low" | "info";
 export type ScanStatus = "success" | "error" | "timeout" | "running";
 export type ScanCategory = "quick" | "deep" | "security";

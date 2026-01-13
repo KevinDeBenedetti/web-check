@@ -6,9 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { ToolSelector } from "./ToolSelector";
 
 interface ScanFormProps {
   onSubmit: (target: string, tools: ScanTool[], timeout: number) => void;
@@ -72,68 +70,12 @@ export function ScanForm({ onSubmit, isLoading }: ScanFormProps) {
           </div>
 
           {/* Tool Selection */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Outils de Scan ({selectedTools.length} sélectionnés)</Label>
-              <div className="flex gap-2 text-sm">
-                <Button
-                  type="button"
-                  variant="link"
-                  size="sm"
-                  onClick={selectAllTools}
-                  className="h-auto p-0 text-primary"
-                >
-                  Tous
-                </Button>
-                <span className="text-muted-foreground">|</span>
-                <Button
-                  type="button"
-                  variant="link"
-                  size="sm"
-                  onClick={clearAllTools}
-                  className="h-auto p-0 text-primary"
-                >
-                  Aucun
-                </Button>
-              </div>
-            </div>
-            <div className="space-y-2">
-              {AVAILABLE_TOOLS.map((tool) => (
-                <label
-                  key={tool.id}
-                  className={cn(
-                    "flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors",
-                    "bg-slate-700/50 hover:bg-slate-700 border border-transparent hover:border-slate-600"
-                  )}
-                >
-                  <Checkbox
-                    checked={selectedTools.includes(tool.id)}
-                    onCheckedChange={() => toggleTool(tool.id)}
-                    className="mt-1"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-lg">{tool.icon}</span>
-                      <span className="font-medium">{tool.name}</span>
-                      <Badge
-                        variant="secondary"
-                        className={cn(
-                          tool.category === "quick"
-                            ? "bg-green-900/50 text-green-300 hover:bg-green-900/70"
-                            : tool.category === "deep"
-                              ? "bg-blue-900/50 text-blue-300 hover:bg-blue-900/70"
-                              : "bg-purple-900/50 text-purple-300 hover:bg-purple-900/70"
-                        )}
-                      >
-                        {tool.category}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">{tool.description}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
+          <ToolSelector
+            selectedTools={selectedTools}
+            onToggleTool={toggleTool}
+            onSelectAll={selectAllTools}
+            onClearAll={clearAllTools}
+          />
 
           {/* Timeout */}
           <div className="space-y-2">
