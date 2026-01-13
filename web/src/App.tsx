@@ -23,26 +23,16 @@ function App() {
     data: savedScans,
     isLoading: isLoadingScans,
     error: scansError,
-    isSuccess,
   } = useQuery({
     queryKey: ["scans"],
     queryFn: async () => {
-      console.log("Fetching scans...");
       const result = await scans.list();
-      console.log("Scans fetched:", result);
       return result;
     },
     refetchInterval: 10000, // Refresh toutes les 10s
   });
 
-  // Debug logs
-  console.log("Query state:", {
-    data: savedScans,
-    isLoading: isLoadingScans,
-    error: scansError,
-    isSuccess,
-    dataLength: savedScans?.length,
-  });
+  // Automatic selection of first scan
 
   // Mutation pour démarrer un scan complet avec logs streaming
   const startFullScan = useMutation({

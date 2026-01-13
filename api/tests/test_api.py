@@ -7,7 +7,7 @@ from api.main import app
 
 
 @pytest.fixture
-def test_url():
+def test_url() -> str:
     """Test URL for scans."""
     return "https://example.com"
 
@@ -36,7 +36,7 @@ async def test_health_check():
 
 
 @pytest.mark.asyncio
-async def test_dns_check(test_url):
+async def test_dns_check(test_url: str) -> None:
     """Test quick DNS check."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

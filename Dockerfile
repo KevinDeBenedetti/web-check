@@ -38,10 +38,9 @@ RUN git clone https://github.com/s0md3v/XSStrike.git /opt/xsstrike \
     && cd /opt/xsstrike \
     && uv pip install --python /app/.venv/bin/python -r requirements.txt
 
-# Copy config and create outputs directory
-COPY outputs/ ./outputs/
-COPY config/ ./config/
+# Create outputs directory and copy config
 RUN mkdir -p outputs/temp
+COPY config/ ./config/
 
 # Place executables in the environment at the front of the path
 ENV PATH="/app/.venv/bin:$PATH"

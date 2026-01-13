@@ -1,22 +1,63 @@
+# ==============================================================================
+# Vigil Security Scanner - Docker Compose Configuration
+# ==============================================================================
+# Usage:
+#   Production:  docker compose up -d
+#   Development: docker compose --profile dev up -d
+#
+# Copy .env.example to .env and customize as needed
+
 services:
+  # ==========================================================================
+  # Web Interface (Production Build)
+  # ==========================================================================
   web:
     build:
       context: ./web
       dockerfile: Dockerfile
     container_name: vigil-web
     ports:
-      - "3000:80"
+      - "${WEB_PORT:-3000}:80"
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
     networks:
       - scanner-net
     restart: unless-stopped
     depends_on:
       - api
+    profiles:
+      - prod
 
+  # ==========================================================================
+  # Web Interface (Development with Hot-Reload)
+  # ==========================================================================
+  web-dev:
+    image: oven/bun:1.1-alpine
+    container_name: vigil-web-dev
+    working_dir: /app
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+    command: sh -c "bun install && bun run dev -- --host"
+    environment:
+      - VITE_API_URL=http://api:8000
+    networks:
+      - scanner-net
+    depends_on:
+      - api
+    profiles:
+      - dev
+
+  # ==========================================================================
+  # API Server
+  # ==========================================================================
   api:
     build: .
     container_name: vigil-api
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     volumes:
       - ./api:/app/api:ro
       - ./outputs:/app/outputs:rw
@@ -25,17 +66,25 @@ services:
       - ./alembic:/app/alembic:ro
       - ./alembic.ini:/app/alembic.ini:ro
     environment:
-      - DEBUG=true
-      - LOG_LEVEL=INFO
+      - DEBUG=${DEBUG:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DOCKER_NETWORK=${DOCKER_NETWORK:-scanner-net}
     networks:
       - scanner-net
     restart: unless-stopped
     depends_on:
-      - zap
-      - nuclei
-      - nikto
+      zap:
+        condition: service_healthy
+      nuclei:
+        condition: service_started
+      nikto:
+        condition: service_started
 
-  # ZAP daemon for Python API client
+  # ==========================================================================
+  # Security Scanners
+  # ==========================================================================
+
+  # ZAP (OWASP Zed Attack Proxy)
   zap:
     image: zaproxy/zap-stable:latest
     container_name: security-scanner-zap
@@ -54,7 +103,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
 
+  # Nuclei (Vulnerability Scanner)
   nuclei:
     image: projectdiscovery/nuclei:latest
     container_name: security-scanner-nuclei
@@ -67,6 +118,7 @@ services:
       - scanner-net
     restart: unless-stopped
 
+  # Nikto (Web Server Scanner)
   nikto:
     image: alpine/nikto:latest
     container_name: security-scanner-nikto
@@ -78,6 +130,7 @@ services:
       - scanner-net
     restart: unless-stopped
 
+  # FFuf (Fuzzer)
   ffuf:
     image: secsi/ffuf:latest
     container_name: security-scanner-ffuf
@@ -89,11 +142,20 @@ services:
     networks:
       - scanner-net
     restart: unless-stopped
+    profiles:
+      - tools
 
+# ==============================================================================
+# Volumes
+# ==============================================================================
 volumes:
   nuclei-templates:
     driver: local
 
+# ==============================================================================
+# Networks
+# ==============================================================================
 networks:
   scanner-net:
+    name: ${DOCKER_NETWORK:-scanner-net}
     driver: bridge

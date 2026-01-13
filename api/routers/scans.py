@@ -47,7 +47,8 @@ async def start_scan(
     # Prepare log streamer for this scan (initialize queue)
     from api.services.log_streamer import log_streamer
 
-    log_streamer._scan_status[scan_id] = "running"
+    # Initialize scan status
+    log_streamer._scan_status[scan_id] = "running"  # type: ignore[attr-defined]
 
     # Start scans in background
     asyncio.create_task(_run_scans(scan_id, request))
@@ -201,7 +202,9 @@ async def _run_scans(scan_id: str, request: ScanRequest) -> None:
     )
 
     # Run scans sequentially to show progress
-    module_funcs = {
+    from collections.abc import Awaitable, Callable
+
+    module_funcs: dict[str, Callable[[str, int], Awaitable[CheckResult]]] = {
         "nuclei": lambda t, timeout: run_nuclei_scan(t, timeout),
         "nikto": lambda t, timeout: run_nikto_scan(t, timeout),
         "zap": lambda t, timeout: run_zap_scan(t, timeout, scan_id),
