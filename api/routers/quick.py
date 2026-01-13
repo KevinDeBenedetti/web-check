@@ -74,9 +74,7 @@ async def quick_dns_check(
 
     # Domains that this endpoint is allowed to contact.
     # Replace or extend this tuple with the domains that are acceptable in your deployment.
-    ALLOWED_DOMAINS = (
-        "example.com",
-    )
+    ALLOWED_DOMAINS = ("example.com",)
 
     def _is_public_ip_address(ip_str: str) -> bool:
         ip = ipaddress.ip_address(ip_str)
@@ -100,10 +98,7 @@ async def quick_dns_check(
         hostname_lower = hostname.lower().rstrip(".")
         for allowed in ALLOWED_DOMAINS:
             allowed_lower = allowed.lower().rstrip(".")
-            if (
-                hostname_lower == allowed_lower
-                or hostname_lower.endswith("." + allowed_lower)
-            ):
+            if hostname_lower == allowed_lower or hostname_lower.endswith("." + allowed_lower):
                 return True
         return False
 
@@ -117,7 +112,7 @@ async def quick_dns_check(
         # Ensure all resolved addresses are public
         for family, _, _, _, sockaddr in addrinfo:
             if family in (socket.AF_INET, socket.AF_INET6):
-                ip_str = sockaddr[0]
+                ip_str = str(sockaddr[0])
                 if not _is_public_ip_address(ip_str):
                     raise HTTPException(
                         status_code=400,
