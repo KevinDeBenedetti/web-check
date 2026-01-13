@@ -1,6 +1,9 @@
 """Quick scan endpoints."""
 
+import ipaddress
+import socket
 from datetime import UTC
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
@@ -8,10 +11,6 @@ from fastapi import APIRouter, HTTPException, Query
 from api.models import CheckResult
 from api.services.nikto import run_nikto_scan
 from api.services.nuclei import run_nuclei_scan
-
-import ipaddress
-import socket
-from urllib.parse import urlparse
 
 router = APIRouter()
 
@@ -76,11 +75,7 @@ async def quick_dns_check(
     def _is_public_ip_address(ip_str: str) -> bool:
         ip = ipaddress.ip_address(ip_str)
         return not (
-            ip.is_private
-            or ip.is_loopback
-            or ip.is_link_local
-            or ip.is_multicast
-            or ip.is_reserved
+            ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved
         )
 
     def _validate_public_hostname(hostname: str) -> None:
@@ -132,10 +127,11 @@ async def quick_dns_check(
             },
             findings=[],
             error=None,
+        )
+
     except HTTPException:
         # Re-raise HTTP errors (validation failures) directly
         raise
-        )
 
     except Exception as e:
         return CheckResult(
