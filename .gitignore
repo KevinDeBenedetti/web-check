@@ -33,4 +33,9 @@ node_modules/
 
 *__pycache__/
 .coverage
+
+# Database files (contain potentially sensitive scan data)
+*.db
+*.db-*
 web-check.db
+vigil.db
