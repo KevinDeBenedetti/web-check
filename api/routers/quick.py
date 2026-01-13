@@ -72,11 +72,40 @@ async def quick_dns_check(
         # Strip any path portion if present
         return value.split("/")[0]
 
+    # Domains that this endpoint is allowed to contact.
+    # Replace or extend this tuple with the domains that are acceptable in your deployment.
+    ALLOWED_DOMAINS = (
+        "example.com",
+    )
+
     def _is_public_ip_address(ip_str: str) -> bool:
         ip = ipaddress.ip_address(ip_str)
         return not (
             ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved
         )
+
+    def _is_allowed_domain(hostname: str) -> bool:
+        """
+        Return True if the hostname is an allowed domain or its subdomain.
+        Raw IP addresses are not allowed here.
+        """
+        # Reject raw IP addresses
+        try:
+            ipaddress.ip_address(hostname)
+            return False
+        except ValueError:
+            # Not an IP address, continue with domain checks
+            pass
+
+        hostname_lower = hostname.lower().rstrip(".")
+        for allowed in ALLOWED_DOMAINS:
+            allowed_lower = allowed.lower().rstrip(".")
+            if (
+                hostname_lower == allowed_lower
+                or hostname_lower.endswith("." + allowed_lower)
+            ):
+                return True
+        return False
 
     def _validate_public_hostname(hostname: str) -> None:
         try:
@@ -94,6 +123,12 @@ async def quick_dns_check(
                         status_code=400,
                         detail="Target domain resolves to a non-public IP address and is not allowed",
                     )
+
+        if not _is_allowed_domain(domain):
+            raise HTTPException(
+                status_code=400,
+                detail="Target domain is not allowed",
+            )
 
     try:
         # Extract and validate domain from URL or hostname
