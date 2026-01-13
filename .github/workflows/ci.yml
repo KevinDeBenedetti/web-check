@@ -57,21 +57,18 @@ jobs:
         run: ruff format --check --target-version=py312 api/
 
   python-typecheck:
-    name: Python Type Check (Pyright)
+    name: Python Type Check (ty)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
       - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+        run: uv python install 3.12
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e .
-          pip install pyright
-      - name: Type check with Pyright
-        run: pyright api/
+        run: uv sync --all-groups
+      - name: Type check with ty
+        run: uv run ty check api/
 
   python-test:
     name: Python Tests (Pytest)
@@ -81,17 +78,14 @@ jobs:
         python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e .
-          pip install pytest pytest-asyncio pytest-cov
+        run: uv sync --all-groups
       - name: Run tests with pytest
-        run: pytest api/tests/ --cov=api --cov-report=xml --junitxml=junit/test-results-${{ matrix.python-version }}.xml
+        run: uv run pytest api/tests/ --cov=api --cov-report=xml --junitxml=junit/test-results-${{ matrix.python-version }}.xml
       - name: Upload pytest test results
         uses: actions/upload-artifact@v4
         with:
@@ -136,7 +130,7 @@ jobs:
         with:
           bun-version: latest
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install
       - name: Lint with oxlint
         run: bun run lint
 
@@ -153,7 +147,7 @@ jobs:
         with:
           bun-version: latest
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install
       - name: Check formatting with oxfmt
         run: bun run format:check
 
@@ -170,7 +164,7 @@ jobs:
         with:
           bun-version: latest
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install
       - name: Type check with TypeScript
         run: bun run tsc --noEmit
 
@@ -187,7 +181,7 @@ jobs:
         with:
           bun-version: latest
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install
       - name: Build with Vite
         run: bun run build
       - name: Upload build artifacts
