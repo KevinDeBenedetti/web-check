@@ -15,6 +15,8 @@ def test_finding_model():
         title="Test Finding",
         description="This is a test finding",
         reference="https://example.com",
+        cve=None,
+        cvss_score=None,
     )
 
     assert finding.severity == "high"
@@ -26,23 +28,29 @@ def test_finding_invalid_severity():
     """Test that invalid severity is rejected."""
     with pytest.raises(ValidationError):
         Finding(
-            severity="invalid",
+            severity="invalid",  # type: ignore[arg-type]
             title="Test",
             description="Test",
+            reference=None,
+            cve=None,
+            cvss_score=None,
         )
 
 
 def test_check_result_model():
     """Test CheckResult model validation."""
+    from datetime import UTC
+
     result = CheckResult(
         module="test",
         category="quick",
         target="https://example.com",
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(UTC),
         duration_ms=1000,
         status="success",
         data={"test": "data"},
         findings=[],
+        error=None,
     )
 
     assert result.module == "test"
@@ -59,6 +67,7 @@ def test_scan_request_model():
     )
 
     assert request.target == "https://example.com"
+    assert request.modules is not None
     assert len(request.modules) == 2
     assert request.timeout == 300
 
@@ -68,5 +77,6 @@ def test_scan_request_timeout_validation():
     with pytest.raises(ValidationError):
         ScanRequest(
             target="https://example.com",
+            modules=["nuclei"],
             timeout=5000,  # Too high
         )

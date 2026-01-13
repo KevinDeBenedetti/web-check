@@ -11,46 +11,85 @@ A comprehensive, Docker-based security scanning toolkit for web applications. Mo
 
 ## 🚀 Quick Start
 
-### Web Interface (Recommended)
+**Prerequisites:** [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/)
+
+### 1. Clone and Configure
 
 ```bash
-# Start all services including web UI
-docker-compose up -d
+git clone https://github.com/KevinDeBenedetti/vigil.git
+cd vigil
 
-# Access the web interface
-open http://localhost:3000
-
-# Access the API
-curl http://localhost:8000
-
-# View interactive API docs
-open http://localhost:8000/docs
+# Optional: Customize configuration
+cp .env.example .env
+# Edit .env to adjust ports, timeouts, etc.
 ```
 
-### With API Only
+### 2. Start Vigil
 
 ```bash
-# Start all services
-docker-compose up -d
+# Production mode (optimized builds)
+make start
 
-# Run a quick scan
-curl "http://localhost:8000/api/quick/nuclei?url=https://example.com"
+# Development mode (hot-reload enabled)
+make dev
 ```
 
-### With CLI (Legacy)
+### 3. Access the Interface
+
+- **Web UI:** http://localhost:3000
+- **API Docs:** http://localhost:8000/docs
+- **API:** http://localhost:8000
+
+### Quick Commands
 
 ```bash
-# Install Docker images
-make install
-
-# Run a complete security scan
-make scan TARGET=https://your-site.com
-
-# Open the HTML report
-make open
+make start      # Start production environment
+make dev        # Start development environment (hot-reload)
+make stop       # Stop all containers
+make logs       # View logs
+make restart    # Restart containers
+make clean      # Clean output files
 ```
 
 ---
+
+## 📖 Usage Examples
+
+### Web Interface (Recommended)
+
+1. Open http://localhost:3000
+2. Select scanning tools (Nuclei, Nikto, ZAP, etc.)
+3. Enter target URL
+4. Click "Start Scan"
+5. View results organized by severity with accordions
+
+### API Examples
+
+```bash
+# Quick vulnerability scan with Nuclei
+curl "http://localhost:8000/api/quick/nuclei?url=https://example.com"
+
+# Web server scan with Nikto
+curl "http://localhost:8000/api/quick/nikto?url=https://example.com"
+
+# Comprehensive ZAP scan
+curl "http://localhost:8000/api/security/zap?url=https://example.com"
+
+# Get scan history
+curl "http://localhost:8000/api/scans"
+```
+
+---
+
+## 🏗️ Architecture
+
+### Technology Stack
+
+- **Frontend:** React + TypeScript + Vite + shadcn/ui + Tailwind CSS
+- **Backend:** FastAPI + Python 3.11 + SQLAlchemy + Alembic
+- **Database:** SQLite (async with aiosqlite)
+- **Scanners:** Docker containers (ZAP, Nuclei, Nikto, FFuf)
+- **Orchestration:** Docker Compose with profiles
 
 ## 📦 Project Structure
 
@@ -329,15 +368,42 @@ open outputs/20231223-143052/report.html
 
 ### Environment Variables
 
+Copy `.env.example` to `.env` and customize as needed:
+
 ```bash
-# Default target
-TARGET=https://example.com
+# Production mode (default)
+NODE_ENV=production
+DEBUG=false
+LOG_LEVEL=INFO
 
-# Scan mode (full, quick, custom)
-MODE=full
+# Development mode
+NODE_ENV=development
+DEBUG=true
+LOG_LEVEL=DEBUG
 
-# Tools to use (comma-separated)
-TOOLS=zap,nuclei,nikto,testssl,ffuf
+# Ports (customize if needed)
+WEB_PORT=3000
+API_PORT=8000
+ZAP_PORT=8090
+
+# Timeouts
+DEFAULT_TIMEOUT=300
+MAX_TIMEOUT=3600
+```
+
+### Docker Profiles
+
+The `docker-compose.yml` uses profiles for different environments:
+
+```bash
+# Production (default profile)
+docker compose --profile prod up -d
+
+# Development (hot-reload enabled)
+docker compose --profile dev up -d
+
+# With optional tools
+docker compose --profile prod --profile tools up -d
 ```
 
 ### Custom Wordlists
@@ -345,7 +411,7 @@ TOOLS=zap,nuclei,nikto,testssl,ffuf
 Place custom wordlists in `config/wordlists/`:
 
 ```bash
-# Download SecLists common.txt (automatic if missing)
+mkdir -p config/wordlists
 curl -s https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt \
   -o config/wordlists/common.txt
 ```
@@ -354,10 +420,96 @@ curl -s https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discove
 
 ## 🐛 Troubleshooting
 
-### Prerequisites Check
+### Port Already in Use
 
 ```bash
+# Check what's using the port
+lsof -i :3000  # Web
+lsof -i :8000  # API
+
+# Change ports in .env
+WEB_PORT=3001
+API_PORT=8001
+```
+
+### Containers Not Starting
+
+```bash
+# View logs
+make logs
+
+# Check container status
+docker compose ps
+
+# Restart containers
+make restart
+```
+
+### Database Issues
+
+```bash
+# Reset database
+rm vigil.db
+docker compose restart api
+```
+
+---
+
+## 👨‍💻 Development
+
+### Local Development Setup
+
+```bash
+# Install dependencies
+make install
+
+# This installs:
+# - Python 3.11+ with uv
+# - Node.js dependencies with bun
+# - All required tools
+```
+
+### Run API Locally (outside Docker)
+
+```bash
+# Start API in development mode
+make run
+
+# Access at http://localhost:8000
+```
+
+### Run Tests
+
+```bash
+# Run all tests
+make test
+
+# Run with coverage
+uv run pytest tests/ --cov=api --cov-report=term-missing
+
+# Type checking
+uv run pyright api/
+
+# Code quality checks
 make check
+```
+
+### Code Quality
+
+```bash
+# Format code
+make format
+
+# Lint code
+make lint
+
+# Run all checks (format + lint + type-check)
+make check
+```
+
+---
+
+## 🏗️ Project Structure (Detailed)
 
 # ✅ All prerequisites satisfied
 ```

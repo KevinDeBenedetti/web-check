@@ -3,16 +3,14 @@
 import asyncio
 import time
 from datetime import UTC, datetime
+from typing import Any
 
 import structlog
-from sslyze import (
-    ScanCommand,
-    ScanCommandAttemptStatusEnum,
-    Scanner,
-    ServerNetworkLocation,
-    ServerScanRequest,
-    ServerScanStatusEnum,
-)
+from sslyze.plugins.scan_commands import ScanCommand
+from sslyze.scanner.models import ServerScanRequest, ServerScanStatusEnum
+from sslyze.scanner.scan_command_attempt import ScanCommandAttemptStatusEnum
+from sslyze.scanner.scanner import Scanner
+from sslyze.server_setting import ServerNetworkLocation
 
 from api.models import CheckResult, Finding
 
@@ -57,7 +55,7 @@ async def run_sslyze_scan(
 
     try:
         # Run SSLyze in thread pool (it's synchronous)
-        def _run_scan() -> dict:
+        def _run_scan() -> dict[str, Any]:
             # Create scan request
             server_location = ServerNetworkLocation(hostname=domain, port=port)
 
@@ -212,7 +210,7 @@ async def run_sslyze_scan(
         )
 
 
-def _parse_sslyze_results(scan_result, domain: str) -> list[Finding]:
+def _parse_sslyze_results(scan_result: Any, domain: str) -> list[Finding]:
     """Parse SSLyze scan results into Finding objects."""
     findings: list[Finding] = []
 

@@ -89,15 +89,15 @@ async def run_wapiti_scan(
                 vulnerabilities = wapiti_data.get("vulnerabilities", {})
                 for vuln_type, vuln_list in vulnerabilities.items():
                     for vuln in vuln_list:
-                        severity = _map_wapiti_severity(vuln.get("level", 1))
+                        severity_str = _map_wapiti_severity(vuln.get("level", 1))
                         findings.append(
                             Finding(
-                                severity=severity,
+                                severity=severity_str,  # type: ignore[arg-type]
                                 title=f"Wapiti: {vuln_type}",
                                 description=vuln.get("info", "No description available"),
                                 reference=vuln.get("wstg", [None])[0] if vuln.get("wstg") else None,
                                 cve=vuln.get("cve", [None])[0] if vuln.get("cve") else None,
-                                cvss_score=_severity_to_cvss(severity),
+                                cvss_score=_severity_to_cvss(severity_str),
                             )
                         )
             except Exception as e:
