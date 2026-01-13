@@ -1192,7 +1192,7 @@ requires-dist = [
     { name = "alembic", specifier = ">=1.18.0" },
     { name = "fastapi", specifier = ">=0.115.13" },
     { name = "httpx", specifier = ">=0.28.1" },
-    { name = "httpx-secure", specifier = ">=0.1.2" },
+    { name = "httpx-secure", specifier = ">=1.2.0" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-settings", specifier = ">=2.7.1" },
     { name = "python-json-logger", specifier = ">=4.0.0" },
