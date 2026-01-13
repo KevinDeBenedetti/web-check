@@ -86,24 +86,38 @@ async def quick_dns_check(
         """
         Check if hostname is allowed for DNS checks.
 
-        By default, all public domains are allowed. This function can be extended
-        to implement a domain allow-list or deny-list if needed.
+        This function enforces that the hostname is not internal/localhost and
+        that it matches the configured allow-list in ALLOWED_DOMAINS, either
+        as an exact match or as a subdomain.
         """
         # Basic validation: ensure hostname is not empty and doesn't contain suspicious patterns
         if not hostname or len(hostname) > 253:
             return False
 
+        hostname_lc = hostname.lower().strip(".")
+
         # Reject localhost variations
         localhost_variations = {"localhost", "127.0.0.1", "::1", "0.0.0.0"}
-        if hostname.lower() in localhost_variations:
+        if hostname_lc in localhost_variations:
             return False
 
         # Reject internal domain suffixes
         internal_suffixes = (".local", ".internal", ".localhost")
-        if any(hostname.lower().endswith(suffix) for suffix in internal_suffixes):
+        if any(hostname_lc.endswith(suffix) for suffix in internal_suffixes):
             return False
 
-        return True
+        # Enforce allow-list: hostname must be equal to or a subdomain of one of ALLOWED_DOMAINS
+        allowed = False
+        for allowed_domain in ALLOWED_DOMAINS:
+            allowed_domain_lc = allowed_domain.lower().strip(".")
+            if (
+                hostname_lc == allowed_domain_lc
+                or hostname_lc.endswith("." + allowed_domain_lc)
+            ):
+                allowed = True
+                break
+
+        return allowed
 
     def _validate_public_hostname(hostname: str) -> None:
         # First, check if the hostname is allowed (not in deny-list)
@@ -129,12 +143,6 @@ async def quick_dns_check(
                         detail="Target domain resolves to a non-public IP address and is not allowed",
                     )
 
-        if not _is_allowed_domain(domain):
-            raise HTTPException(
-                status_code=400,
-                detail="Target domain is not allowed",
-            )
-
     try:
         # Extract and validate domain from URL or hostname
         domain = _extract_hostname(url)
@@ -150,7 +158,8 @@ async def quick_dns_check(
         # Simple DNS check using httpx
         async with httpx.AsyncClient(timeout=10.0) as client:
             try:
-                response = await client.get(validated_url, follow_redirects=True)
+                # Do not follow redirects to avoid being redirected to unintended hosts.
+                response = await client.get(validated_url, follow_redirects=False)
                 dns_ok = True
                 status_code = response.status_code
             except Exception:
