@@ -80,8 +80,11 @@ curl "http://localhost:8000/api/deep/zap?url=https://example.com"
 # SSL/TLS analysis with SSLyze
 curl "http://localhost:8000/api/deep/sslyze?url=https://example.com"
 
-# SQL injection scan
-curl "http://localhost:8000/api/security/sqlmap?url=https://example.com"
+# SQL injection scan with SQLMap
+curl "http://localhost:8000/api/advanced/sqlmap?url=https://example.com"
+
+# XSS detection with XSStrike
+curl "http://localhost:8000/api/advanced/xsstrike?url=https://example.com"
 
 # Get scan history
 curl "http://localhost:8000/api/scans"
@@ -119,8 +122,8 @@ web-check/
 │   │   ├── health.py        # Health check endpoints
 │   │   ├── quick.py         # Quick scans (Nuclei, Nikto, DNS)
 │   │   ├── deep.py          # Deep scans (ZAP, SSLyze)
-│   │   ├── security.py      # Security scans (SQLMap, Wapiti)
-│   │   ├── advanced.py      # Advanced security (XSStrike)
+│   │   ├── security.py      # Security scans (FFUF, SQLMap Docker)
+│   │   ├── advanced.py      # Advanced security (SQLMap, Wapiti, XSStrike)
 │   │   └── scans.py         # Scan management (CRUD)
 │   ├── services/            # Business logic & scanners
 │   │   ├── docker_runner.py # Docker execution utilities
@@ -172,16 +175,18 @@ web-check/
 
 ### Security Scans
 
-| Tool                                         | Description                           | Timeout |
-| -------------------------------------------- | ------------------------------------- | ------- |
-| **[SQLMap](https://sqlmap.org/)**            | Automatic SQL injection detection     | 900s    |
-| **[Wapiti](https://wapiti.sourceforge.io/)** | Web application vulnerability scanner | 900s    |
+| Tool                                    | Description                               | Timeout |
+| --------------------------------------- | ----------------------------------------- | ------- |
+| **[FFUF](https://github.com/ffuf/ffuf)** | Fast web fuzzer (directory/file discovery) | 600s    |
+| **SQLMap (Docker)**                     | SQL injection testing (basic)             | 900s    |
 
 ### Advanced Security
 
-| Tool                                               | Description            | Timeout |
-| -------------------------------------------------- | ---------------------- | ------- |
-| **[XSStrike](https://github.com/s0md3v/XSStrike)** | Advanced XSS detection | 600s    |
+| Tool                                               | Description                           | Timeout |
+| -------------------------------------------------- | ------------------------------------- | ------- |
+| **[SQLMap](https://sqlmap.org/)**                  | Automatic SQL injection detection     | 900s    |
+| **[Wapiti](https://wapiti.sourceforge.io/)**       | Web application vulnerability scanner | 600s    |
+| **[XSStrike](https://github.com/s0md3v/XSStrike)** | Advanced XSS detection                | 300s    |
 
 ---
 
@@ -312,16 +317,18 @@ make clean-all
 
 ### Security Scans
 
-| Method | Endpoint               | Description            |
-| ------ | ---------------------- | ---------------------- |
-| GET    | `/api/security/sqlmap` | SQL injection scan     |
-| GET    | `/api/security/wapiti` | Web vulnerability scan |
+| Method | Endpoint               | Description                 |
+| ------ | ---------------------- | --------------------------- |
+| GET    | `/api/security/ffuf`   | Directory/file fuzzing      |
+| GET    | `/api/security/sqlmap` | SQL injection scan (Docker) |
 
 ### Advanced Security
 
-| Method | Endpoint                 | Description   |
-| ------ | ------------------------ | ------------- |
-| GET    | `/api/advanced/xsstrike` | XSS detection |
+| Method | Endpoint                 | Description             |
+| ------ | ------------------------ | ----------------------- |
+| GET    | `/api/advanced/sqlmap`   | SQL injection detection |
+| GET    | `/api/advanced/wapiti`   | Web vulnerability scan  |
+| GET    | `/api/advanced/xsstrike` | XSS detection           |
 
 ### Scan Management
 
