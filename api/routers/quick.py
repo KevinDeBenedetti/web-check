@@ -132,10 +132,10 @@ async def quick_dns_check(
             },
             findings=[],
             error=None,
+        )
     except HTTPException:
         # Re-raise HTTP errors (validation failures) directly
         raise
-        )
 
     except Exception as e:
         return CheckResult(
