@@ -24,7 +24,7 @@ export function ToolSelector({
         {/* Header */}
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-muted-foreground">
-            Outils ({selectedTools.length}/{AVAILABLE_TOOLS.length})
+            Tools ({selectedTools.length}/{AVAILABLE_TOOLS.length})
           </span>
           <div className="flex gap-2">
             <button
@@ -32,7 +32,7 @@ export function ToolSelector({
               onClick={onSelectAll}
               className="text-xs text-primary hover:underline transition-colors"
             >
-              Tous
+              All
             </button>
             <span className="text-xs text-muted-foreground">•</span>
             <button
@@ -40,7 +40,7 @@ export function ToolSelector({
               onClick={onClearAll}
               className="text-xs text-primary hover:underline transition-colors"
             >
-              Aucun
+              None
             </button>
           </div>
         </div>

@@ -36,45 +36,45 @@ export function ScanStats({ results }: ScanStatsProps) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <BarChart3 className="w-5 h-5" />
-          Statistiques du Scan
+          Scan Statistics
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
-            <p className="text-xs text-muted-foreground mb-1">Outils</p>
+            <p className="text-xs text-muted-foreground mb-1">Tools</p>
             <p className="text-2xl font-bold">{stats.total}</p>
             <p className="text-xs text-green-400 mt-1">
-              {stats.success} réussis
-              {stats.error > 0 && `, ${stats.error} erreurs`}
+              {stats.success} successful
+              {stats.error > 0 && `, ${stats.error} errors`}
               {stats.timeout > 0 && `, ${stats.timeout} timeout`}
             </p>
           </div>
 
           <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
-            <p className="text-xs text-muted-foreground mb-1">Vulnérabilités</p>
+            <p className="text-xs text-muted-foreground mb-1">Vulnerabilities</p>
             <p className="text-2xl font-bold">{stats.totalFindings}</p>
-            <p className="text-xs text-muted-foreground mt-1">Au total</p>
+            <p className="text-xs text-muted-foreground mt-1">Total</p>
           </div>
 
           <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
-            <p className="text-xs text-muted-foreground mb-1">Durée totale</p>
+            <p className="text-xs text-muted-foreground mb-1">Total Duration</p>
             <p className="text-2xl font-bold">{(stats.totalDuration / 1000).toFixed(1)}s</p>
-            <p className="text-xs text-muted-foreground mt-1">Cumulée</p>
+            <p className="text-xs text-muted-foreground mt-1">Cumulative</p>
           </div>
 
           <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
-            <p className="text-xs text-muted-foreground mb-1">Durée moyenne</p>
+            <p className="text-xs text-muted-foreground mb-1">Average Duration</p>
             <p className="text-2xl font-bold">
               {(stats.totalDuration / stats.total / 1000).toFixed(1)}s
             </p>
-            <p className="text-xs text-muted-foreground mt-1">Par outil</p>
+            <p className="text-xs text-muted-foreground mt-1">Per Tool</p>
           </div>
         </div>
 
         {stats.totalFindings > 0 && (
           <div className="space-y-3">
-            <h4 className="text-sm font-semibold">Répartition par sévérité</h4>
+            <h4 className="text-sm font-semibold">Distribution by Severity</h4>
             <div className="grid grid-cols-4 gap-3">
               <Card className="bg-red-900/20 border-red-700">
                 <CardContent className="p-4 text-center">

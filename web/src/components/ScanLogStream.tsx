@@ -91,7 +91,7 @@ export function ScanLogStream({ scanId, onComplete }: ScanLogStreamProps) {
 
     eventSource.onerror = (err) => {
       console.error("EventSource error:", err);
-      setError("Connexion perdue avec le serveur");
+      setError("Connection lost with server");
       setIsConnected(false);
       eventSource.close();
     };
@@ -187,7 +187,7 @@ export function ScanLogStream({ scanId, onComplete }: ScanLogStreamProps) {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Logs en Temps Réel</CardTitle>
+              <CardTitle>Real-Time Logs</CardTitle>
               <CardDescription>Scan ID: {scanId}</CardDescription>
             </div>
             {isConnected ? (
@@ -196,10 +196,10 @@ export function ScanLogStream({ scanId, onComplete }: ScanLogStreamProps) {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
                 </span>
-                Connecté
+                Connected
               </Badge>
             ) : (
-              <Badge variant="outline">Déconnecté</Badge>
+              <Badge variant="outline">Disconnected</Badge>
             )}
           </div>
         </CardHeader>
@@ -218,7 +218,7 @@ export function ScanLogStream({ scanId, onComplete }: ScanLogStreamProps) {
             className="bg-slate-900 rounded-lg border border-slate-700 p-4 h-96 overflow-y-auto font-mono text-sm space-y-2"
           >
             {logs.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">En attente des logs...</p>
+              <p className="text-muted-foreground text-center py-8">Waiting for logs...</p>
             ) : (
               logs.map((log, idx) => (
                 <div
@@ -227,7 +227,7 @@ export function ScanLogStream({ scanId, onComplete }: ScanLogStreamProps) {
                 >
                   <span className="text-muted-foreground text-xs mt-0.5 w-20 flex-shrink-0">
                     {log.timestamp
-                      ? new Date(log.timestamp).toLocaleTimeString("fr-FR")
+                      ? new Date(log.timestamp).toLocaleTimeString("en-US")
                       : "--:--:--"}
                   </span>
                   <span className={cn("mt-0.5", logTypeColors[log.type])}>
@@ -249,7 +249,7 @@ export function ScanLogStream({ scanId, onComplete }: ScanLogStreamProps) {
                     )}
                     {log.findings_count !== undefined && (
                       <Badge variant="secondary" className="text-xs ml-2">
-                        {log.findings_count} vulnérabilités
+                        {log.findings_count} vulnerabilities
                       </Badge>
                     )}
                   </div>
@@ -260,7 +260,7 @@ export function ScanLogStream({ scanId, onComplete }: ScanLogStreamProps) {
 
           {/* Stats */}
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{logs.length} événements</span>
+            <span>{logs.length} events</span>
           </div>
         </CardContent>
       </Card>
