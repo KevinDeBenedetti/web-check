@@ -1,0 +1,56 @@
+# Prek pre-commit configuration
+# Run manually: prek run --all-files
+# Install git hooks: prek install
+
+repos:
+  # Built-in fast hooks (Rust-native)
+  - repo: builtin
+    hooks:
+      - id: trailing-whitespace
+        args: ['--markdown-linebreak-ext=md']
+      - id: end-of-file-fixer
+      - id: check-json
+      - id: check-yaml
+      - id: check-toml
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+
+  # Ruff linting and formatting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.5
+    hooks:
+      - id: ruff
+        name: Ruff lint
+        args: [--fix, --exit-non-zero-on-fix]
+        files: ^api/.*\.py$
+        priority: 10
+      - id: ruff-format
+        name: Ruff format
+        files: ^api/.*\.py$
+        priority: 10
+
+  # Type checking with pyright (local hook) - disabled for now
+  # Uncomment when you want strict type checking
+  # - repo: local
+  #   hooks:
+  #     - id: pyright
+  #       name: Pyright type checking
+  #       entry: uv run pyright
+  #       language: system
+  #       types: [python]
+  #       files: ^api/.*\.py$
+  #       pass_filenames: false
+  #       priority: 20
+
+# Global configuration
+default_language_version:
+  python: python3.12
+
+default_stages: [pre-commit]
+
+files: ''
+exclude: '^(__pycache__|\.venv|outputs|alembic/versions|tests/__pycache__)'
+
+fail_fast: false
+minimum_prek_version: '0.2.23'

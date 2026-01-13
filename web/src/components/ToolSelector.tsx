@@ -12,7 +12,12 @@ interface ToolSelectorProps {
   onClearAll: () => void;
 }
 
-export function ToolSelector({ selectedTools, onToggleTool, onSelectAll, onClearAll }: ToolSelectorProps) {
+export function ToolSelector({
+  selectedTools,
+  onToggleTool,
+  onSelectAll,
+  onClearAll,
+}: ToolSelectorProps) {
   return (
     <TooltipProvider delayDuration={300}>
       <div className="space-y-3">
@@ -44,7 +49,7 @@ export function ToolSelector({ selectedTools, onToggleTool, onSelectAll, onClear
         <div className="grid grid-cols-2 gap-2">
           {AVAILABLE_TOOLS.map((tool) => {
             const isSelected = selectedTools.includes(tool.id);
-            
+
             return (
               <Tooltip key={tool.id}>
                 <TooltipTrigger asChild>
@@ -71,10 +76,7 @@ export function ToolSelector({ selectedTools, onToggleTool, onSelectAll, onClear
                     </div>
                   </label>
                 </TooltipTrigger>
-                <TooltipContent 
-                  side="top" 
-                  className="max-w-xs bg-slate-900 border-slate-700"
-                >
+                <TooltipContent side="top" className="max-w-xs bg-slate-900 border-slate-700">
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <span className="text-base">{tool.icon}</span>

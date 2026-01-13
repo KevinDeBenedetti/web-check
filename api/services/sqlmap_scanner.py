@@ -1,7 +1,6 @@
 """SQLMap scanning service for SQL injection detection."""
 
 import asyncio
-import subprocess
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -13,7 +12,9 @@ from api.models import CheckResult, Finding
 logger = structlog.get_logger()
 
 
-async def run_sqlmap_scan(target: str, timeout: int = 900, scan_id: str | None = None) -> CheckResult:
+async def run_sqlmap_scan(
+    target: str, timeout: int = 900, scan_id: str | None = None
+) -> CheckResult:
     """
     Run SQLMap SQL injection scanner against a target using Python library.
 
@@ -62,13 +63,9 @@ async def run_sqlmap_scan(target: str, timeout: int = 900, scan_id: str | None =
         )
 
         try:
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                process.communicate(), timeout=timeout
-            )
+            stdout_bytes, _ = await asyncio.wait_for(process.communicate(), timeout=timeout)
             stdout = stdout_bytes.decode("utf-8", errors="ignore")
-            stderr = stderr_bytes.decode("utf-8", errors="ignore")
-            timed_out = False
-        except asyncio.TimeoutError:
+        except TimeoutError:
             process.kill()
             await process.wait()
             return CheckResult(
@@ -120,7 +117,6 @@ async def run_sqlmap_scan(target: str, timeout: int = 900, scan_id: str | None =
             "sqlmap_scan_completed",
             target=target,
             findings_count=len(findings),
-            exit_code=result["exit_code"],
         )
 
         if scan_id:
@@ -141,7 +137,7 @@ async def run_sqlmap_scan(target: str, timeout: int = 900, scan_id: str | None =
             timestamp=datetime.now(UTC),
             duration_ms=int((time.time() - start) * 1000),
             status="success",
-            data={"exit_code": result["exit_code"]},
+            data={"findings_count": len(findings)},
             findings=findings,
             error=None,
         )

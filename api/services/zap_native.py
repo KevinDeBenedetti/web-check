@@ -109,7 +109,10 @@ async def run_zap_scan(target: str, timeout: int = 900, scan_id: str | None = No
         findings = _parse_zap_alerts(alerts)
 
         logger.info(
-            "zap_scan_completed", target=target, findings_count=len(findings), alerts_count=len(alerts)
+            "zap_scan_completed",
+            target=target,
+            findings_count=len(findings),
+            alerts_count=len(alerts),
         )
 
         if scan_id:

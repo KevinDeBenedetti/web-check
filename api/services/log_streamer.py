@@ -58,7 +58,9 @@ class LogStreamer:
         queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
         self._queues[scan_id].append(queue)
 
-        logger.info("client_subscribed", scan_id=scan_id, total_subscribers=len(self._queues[scan_id]))
+        logger.info(
+            "client_subscribed", scan_id=scan_id, total_subscribers=len(self._queues[scan_id])
+        )
 
         try:
             # Send initial connection message
@@ -92,7 +94,11 @@ class LogStreamer:
         finally:
             # Cleanup
             self._queues[scan_id].remove(queue)
-            logger.info("client_unsubscribed", scan_id=scan_id, remaining_subscribers=len(self._queues[scan_id]))
+            logger.info(
+                "client_unsubscribed",
+                scan_id=scan_id,
+                remaining_subscribers=len(self._queues[scan_id]),
+            )
 
             if not self._queues[scan_id]:
                 del self._queues[scan_id]
@@ -105,7 +111,7 @@ class LogStreamer:
                 {
                     "type": "complete",
                     "message": "Scan completed",
-                }
+                },
             )
         )
 

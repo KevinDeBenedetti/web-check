@@ -10,18 +10,17 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.13",
     "uvicorn[standard]>=0.34.0",
-    "pydantic>=2.10.5",
+    "pydantic>=2.12.5",
     "pydantic-settings>=2.7.1",
     "httpx>=0.28.1",
     "structlog>=25.5.0",
     "python-json-logger>=4.0.0",
     "sqlalchemy>=2.0.28,<2.1",
-    "alembic>=1.14.0",
+    "alembic>=1.18.0",
     "aiosqlite>=0.20.0",
     "python-owasp-zap-v2.4>=0.0.22",
     "sslyze>=6.0.0",
     "sqlmap>=1.8.11",
-    "wapiti3>=3.2.0",
 ]
 
 [dependency-groups]
@@ -31,6 +30,7 @@ dev = [
     "pytest-cov>=6.0.0",
     "ruff>=0.8.5",
     "pyright>=1.1.390",
+    "prek>=0.2.23",
 ]
 
 [build-system]
