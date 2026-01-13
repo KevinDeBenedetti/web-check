@@ -44,9 +44,6 @@ async def start_scan(
         results=[],
     )
 
-    # Prepare log streamer for this scan (initialize queue)
-    from api.services.log_streamer import log_streamer
-
     # Initialize scan status
     log_streamer._scan_status[scan_id] = "running"
 
