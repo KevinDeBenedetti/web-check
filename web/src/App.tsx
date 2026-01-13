@@ -115,7 +115,7 @@ function App() {
               <Shield className="w-6 h-6 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold">Vigil</h1>
+              <h1 className="text-3xl font-bold">Web-Check</h1>
               <p className="text-sm text-muted-foreground">Security Scanner Dashboard</p>
             </div>
           </div>

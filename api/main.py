@@ -1,4 +1,4 @@
-"""Main FastAPI application for Vigil Security Scanner."""
+"""Main FastAPI application for Web-Check Security Scanner."""
 
 import time
 from collections.abc import Awaitable, Callable
@@ -17,13 +17,13 @@ logger = structlog.get_logger()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Handle application startup and shutdown."""
-    logger.info("Starting Vigil Security Scanner API")
+    logger.info("Starting Web-Check Security Scanner API")
     yield
-    logger.info("Shutting down Vigil Security Scanner API")
+    logger.info("Shutting down Web-Check Security Scanner API")
 
 
 app = FastAPI(
-    title="Vigil Security Scanner",
+    title="Web-Check Security Scanner",
     description="Docker-based security scanning toolkit for web applications",
     version="0.1.0",
     lifespan=lifespan,
@@ -86,7 +86,7 @@ app.include_router(scans.router, prefix="/api/scans", tags=["Scan Management"])
 async def root():
     """Root endpoint with API information."""
     return {
-        "name": "Vigil Security Scanner",
+        "name": "Web-Check Security Scanner",
         "version": "0.1.0",
         "docs": "/docs",
         "health": "/api/health",

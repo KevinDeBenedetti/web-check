@@ -1,4 +1,4 @@
-"""Tests for Vigil Security Scanner."""
+"""Tests for Web-Check Security Scanner."""
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -20,7 +20,7 @@ async def test_root_endpoint():
         response = await client.get("/")
         assert response.status_code == 200
         data = response.json()
-        assert data["name"] == "Vigil Security Scanner"
+        assert data["name"] == "Web-Check Security Scanner"
         assert "version" in data
 
 

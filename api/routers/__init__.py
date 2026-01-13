@@ -1,1 +1,1 @@
-"""API routers for Vigil Security Scanner."""
+"""API routers for Web-Check Security Scanner."""

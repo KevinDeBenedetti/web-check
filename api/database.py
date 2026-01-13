@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
-DATABASE_URL = "sqlite+aiosqlite:///./vigil.db"
+DATABASE_URL = "sqlite+aiosqlite:///./web-check.db"
 
 engine = create_async_engine(
     DATABASE_URL,

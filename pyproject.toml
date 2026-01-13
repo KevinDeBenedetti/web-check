@@ -1,5 +1,5 @@
 [project]
-name = "vigil"
+name = "web-check"
 version = "0.1.0"
 description = "Docker-based security scanning toolkit"
 authors = [

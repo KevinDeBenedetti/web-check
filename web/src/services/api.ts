@@ -31,8 +31,8 @@ export const quickScans = {
   nikto: (url: string, timeout: number = 600): Promise<CheckResult> =>
     api.get("/quick/nikto", { params: { url, timeout } }).then((res) => res.data),
 
-  dns: (domain: string): Promise<CheckResult> =>
-    api.get("/quick/dns", { params: { domain } }).then((res) => res.data),
+  dns: (url: string): Promise<CheckResult> =>
+    api.get("/quick/dns", { params: { url } }).then((res) => res.data),
 };
 
 // Deep scans

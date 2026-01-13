@@ -1,10 +1,10 @@
-# 🔒 Vigil
+# 🔒 Web-Check
 
 A comprehensive, Docker-based security scanning toolkit for web applications. Modern REST API built with FastAPI and async Python, orchestrating multiple industry-standard security tools.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker](https://img.shields.io/badge/Docker-Required-blue.svg)](https://www.docker.com/)
-[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green.svg)](https://fastapi.tiangolo.com/)
 
 ---
@@ -16,15 +16,15 @@ A comprehensive, Docker-based security scanning toolkit for web applications. Mo
 ### 1. Clone and Configure
 
 ```bash
-git clone https://github.com/KevinDeBenedetti/vigil.git
-cd vigil
+git clone https://github.com/KevinDeBenedetti/web-check.git
+cd web-check
 
 # Optional: Customize configuration
 cp .env.example .env
 # Edit .env to adjust ports, timeouts, etc.
 ```
 
-### 2. Start Vigil
+### 2. Start Web-Check
 
 ```bash
 # Production mode (optimized builds)
@@ -36,9 +36,11 @@ make dev
 
 ### 3. Access the Interface
 
-- **Web UI:** http://localhost:3000
-- **API Docs:** http://localhost:8000/docs
-- **API:** http://localhost:8000
+| Service      | URL                        |
+| ------------ | -------------------------- |
+| **Web UI**   | http://localhost:3000      |
+| **API Docs** | http://localhost:8000/docs |
+| **API**      | http://localhost:8000      |
 
 ### Quick Commands
 
@@ -72,8 +74,14 @@ curl "http://localhost:8000/api/quick/nuclei?url=https://example.com"
 # Web server scan with Nikto
 curl "http://localhost:8000/api/quick/nikto?url=https://example.com"
 
-# Comprehensive ZAP scan
-curl "http://localhost:8000/api/security/zap?url=https://example.com"
+# Deep ZAP scan
+curl "http://localhost:8000/api/deep/zap?url=https://example.com"
+
+# SSL/TLS analysis with SSLyze
+curl "http://localhost:8000/api/deep/sslyze?url=https://example.com"
+
+# SQL injection scan
+curl "http://localhost:8000/api/security/sqlmap?url=https://example.com"
 
 # Get scan history
 curl "http://localhost:8000/api/scans"
@@ -85,282 +93,95 @@ curl "http://localhost:8000/api/scans"
 
 ### Technology Stack
 
-- **Frontend:** React + TypeScript + Vite + shadcn/ui + Tailwind CSS
-- **Backend:** FastAPI + Python 3.11 + SQLAlchemy + Alembic
-- **Database:** SQLite (async with aiosqlite)
-- **Scanners:** Docker containers (ZAP, Nuclei, Nikto, FFuf)
-- **Orchestration:** Docker Compose with profiles
+| Layer             | Technologies                                            |
+| ----------------- | ------------------------------------------------------- |
+| **Frontend**      | React 18 + TypeScript + Vite + shadcn/ui + Tailwind CSS |
+| **Backend**       | FastAPI + Python 3.12 + SQLAlchemy 2.0 + Alembic        |
+| **Database**      | SQLite (async with aiosqlite)                           |
+| **Scanners**      | Docker containers (ZAP, Nuclei, Nikto, SSLyze, SQLMap)  |
+| **Orchestration** | Docker Compose with profiles                            |
+| **Tooling**       | Ruff (lint/format), Ty (type-check), Pytest             |
+
+---
 
 ## 📦 Project Structure
 
 ```
-vigil/
-├── web/                     # React Web Interface
+web-check/
+├── api/                     # FastAPI Backend
+│   ├── main.py              # Application entry point
+│   ├── database.py          # SQLAlchemy async setup
+│   ├── models/              # Pydantic & SQLAlchemy models
+│   │   ├── findings.py      # Security finding models
+│   │   ├── results.py       # Scan result models
+│   │   └── db_models.py     # Database ORM models
+│   ├── routers/             # API route handlers
+│   │   ├── health.py        # Health check endpoints
+│   │   ├── quick.py         # Quick scans (Nuclei, Nikto, DNS)
+│   │   ├── deep.py          # Deep scans (ZAP, SSLyze)
+│   │   ├── security.py      # Security scans (SQLMap, Wapiti)
+│   │   ├── advanced.py      # Advanced security (XSStrike)
+│   │   └── scans.py         # Scan management (CRUD)
+│   ├── services/            # Business logic & scanners
+│   │   ├── docker_runner.py # Docker execution utilities
+│   │   ├── nuclei.py        # Nuclei scanner service
+│   │   ├── nikto.py         # Nikto scanner service
+│   │   ├── zap_native.py    # ZAP Python API service
+│   │   ├── sslyze_scanner.py# SSLyze scanner service
+│   │   ├── sqlmap_scanner.py# SQLMap scanner service
+│   │   ├── wapiti_scanner.py# Wapiti scanner service
+│   │   ├── xsstrike_scanner.py # XSStrike scanner
+│   │   ├── db_service.py    # Database operations
+│   │   └── log_streamer.py  # SSE log streaming
+│   ├── tests/               # Test suite
+│   └── utils/
+│       └── config.py        # Settings with pydantic-settings
+├── web/                     # React Frontend
 │   ├── src/
 │   │   ├── components/      # UI components
 │   │   ├── services/        # API client
 │   │   └── types/           # TypeScript types
-│   ├── Dockerfile           # Web container
-│   └── package.json         # Node dependencies
-├── api/                     # FastAPI application
-│   ├── main.py              # Application entry point
-│   ├── models/              # Pydantic data models
-│   │   ├── findings.py      # Security finding models
-│   │   └── results.py       # Scan result models
-│   ├── routers/             # API route handlers
-│   │   ├── health.py        # Health check endpoints
-│   │   ├── quick.py         # Quick scan endpoints
-│   │   ├── deep.py          # Deep scan endpoints
-│   │   ├── security.py      # Security scan endpoints
-│   │   └── scans.py         # Scan management
-│   ├── services/            # Business logic
-│   │   ├── docker_runner.py # Docker execution utilities
-│   │   ├── nuclei.py        # Nuclei scanner service
-│   │   ├── nikto.py         # Nikto scanner service
-│   │   └── zap.py           # ZAP scanner service
-│   └── utils/               # Shared utilities
-│       └── config.py        # Configuration management
-├── tests/                   # Test suite
-├── Dockerfile               # API container image
-├── docker-compose.yml       # Multi-container setup
-├── pyproject.toml           # Python project config
-├── requirements.txt         # Python dependencies
-├── Makefile                 # CLI commands (legacy)
-├── scripts/                 # Shell scripts (legacy)
+│   └── Dockerfile           # Web container
+├── alembic/                 # Database migrations
 ├── config/                  # Scanner configuration
-└── outputs/                 # Scan results
+├── outputs/                 # Scan results
+├── docker-compose.yml       # Multi-container setup
+├── Dockerfile               # API container
+├── Makefile                 # CLI commands
+└── pyproject.toml           # Python project config
 ```
-
-### Output Structure
-
-Each scan creates a timestamped folder with a **uniform structure**:
-
-```
-outputs/
-└── YYYYMMDD-HHMMSS/         # Unique scan ID
-    ├── scans/               # Raw tool outputs
-    │   ├── zap.html         # ZAP HTML report
-    │   ├── zap.json         # ZAP JSON data
-    │   ├── nuclei.json      # Nuclei findings
-    │   ├── nikto.html       # Nikto report
-    │   ├── testssl.json     # SSL/TLS analysis
-    │   └── ffuf.json        # Fuzzing results
-    ├── logs/                # Execution logs
-    │   ├── zap.log
-    │   ├── nuclei.log
-    │   ├── nikto.log
-    │   ├── testssl.log
-    │   └── ffuf.log
-    ├── report.html          # Interactive HTML report
-    ├── report.json          # Machine-readable JSON data
-    ├── report.md            # LLM-optimized Markdown report
-    └── metadata.json        # Scan metadata
-```
-
-### Report Formats
-
-| Format       | File          | Description                           | Best For                      |
-| ------------ | ------------- | ------------------------------------- | ----------------------------- |
-| **HTML**     | `report.html` | Interactive dashboard with filters    | Human review, sharing         |
-| **JSON**     | `report.json` | Structured data with all findings     | CI/CD integration, automation |
-| **Markdown** | `report.md`   | YAML frontmatter + structured content | LLM analysis, AI assistants   |
 
 ---
 
 ## 🛠️ Security Tools
 
-### [OWASP ZAP](https://www.zaproxy.org/) - Dynamic Application Security Testing
+### Quick Scans
 
-> Zed Attack Proxy (ZAP) is a free and open-source web application that helps automatically find security vulnerabilities in web applications during development and testing.
+| Tool                                                     | Description                                               | Timeout |
+| -------------------------------------------------------- | --------------------------------------------------------- | ------- |
+| **[Nuclei](https://github.com/projectdiscovery/nuclei)** | Template-based vulnerability scanner with 5000+ templates | 300s    |
+| **[Nikto](https://cirt.net/Nikto2)**                     | Web server scanner (6700+ dangerous files/CGIs)           | 600s    |
+| **DNS**                                                  | Quick DNS reconnaissance and domain information           | 10s     |
 
-| Feature       | Description                                              |
-| ------------- | -------------------------------------------------------- |
-| **Type**      | DAST (Dynamic Application Security Testing)              |
-| **Scan Mode** | Baseline scan with passive analysis                      |
-| **Output**    | HTML report + JSON data                                  |
-| **Best For**  | Catching common vulnerabilities early, CI/CD integration |
+### Deep Scans
 
-**Key Capabilities:**
-- Spider and crawl web applications
-- Passive vulnerability scanning
-- Active attack simulation
-- API security testing
-- WebSocket scanning
+| Tool                                               | Description                                 | Timeout |
+| -------------------------------------------------- | ------------------------------------------- | ------- |
+| **[OWASP ZAP](https://www.zaproxy.org/)**          | Dynamic Application Security Testing (DAST) | 900s    |
+| **[SSLyze](https://github.com/nabla-c0d3/sslyze)** | SSL/TLS configuration analyzer              | 300s    |
 
----
+### Security Scans
 
-### [Nuclei](https://github.com/projectdiscovery/nuclei) - Template-Based Vulnerability Scanner
+| Tool                                         | Description                           | Timeout |
+| -------------------------------------------- | ------------------------------------- | ------- |
+| **[SQLMap](https://sqlmap.org/)**            | Automatic SQL injection detection     | 900s    |
+| **[Wapiti](https://wapiti.sourceforge.io/)** | Web application vulnerability scanner | 900s    |
 
-> Nuclei is a modern, high-performance vulnerability scanner built in Go that leverages YAML-based templates for customizable vulnerability detection. It supports multiple protocols (HTTP, DNS, TCP, SSL, WebSocket) and is designed for zero false positives.
+### Advanced Security
 
-| Feature       | Description                                 |
-| ------------- | ------------------------------------------- |
-| **Type**      | Template-based scanner                      |
-| **Templates** | 5000+ community-curated templates           |
-| **Output**    | JSON Lines format                           |
-| **Best For**  | CVE detection, misconfigurations, exposures |
-
-**Key Capabilities:**
-- Multi-protocol support (HTTP, DNS, TCP, SSL)
-- Severity-based filtering (critical, high, medium, low)
-- Community-driven templates for latest CVEs
-- Fast parallel scanning
-
----
-
-### [Nikto](https://cirt.net/Nikto2) - Web Server Scanner
-
-> Nikto is an Open Source web server scanner that performs comprehensive tests against web servers for multiple items, including over 6700 potentially dangerous files/programs.
-
-| Feature      | Description                                 |
-| ------------ | ------------------------------------------- |
-| **Type**     | Web Server Scanner                          |
-| **Tests**    | 6700+ dangerous files/CGIs                  |
-| **Output**   | HTML report                                 |
-| **Best For** | Server misconfigurations, outdated software |
-
-**Key Capabilities:**
-- Outdated server software detection
-- Default file and program scanning
-- Server configuration issues
-- SSL certificate analysis
-
----
-
-### [testssl.sh](https://testssl.sh/) - SSL/TLS Configuration Analyzer
-
-> testssl.sh is a free command-line tool to check a server's TLS/SSL configuration, ciphers, protocols, and cryptographic flaws.
-
-| Feature      | Description                         |
-| ------------ | ----------------------------------- |
-| **Type**     | SSL/TLS Analyzer                    |
-| **Checks**   | Protocols, ciphers, vulnerabilities |
-| **Output**   | JSON report                         |
-| **Best For** | SSL/TLS hardening, compliance       |
-
-**Key Capabilities:**
-- Protocol support analysis (SSLv2, SSLv3, TLS 1.0-1.3)
-- Cipher suite enumeration
-- Certificate chain verification
-- Known vulnerabilities (BEAST, POODLE, Heartbleed, etc.)
-
----
-
-### [ffuf](https://github.com/ffuf/ffuf) - Fast Web Fuzzer
-
-> ffuf is a fast web fuzzer written in Go, designed for content discovery, virtual host discovery, and parameter fuzzing.
-
-| Feature      | Description                           |
-| ------------ | ------------------------------------- |
-| **Type**     | Web Fuzzer                            |
-| **Speed**    | Very fast (Go-based)                  |
-| **Output**   | JSON results                          |
-| **Best For** | Hidden directories, files, parameters |
-
-**Key Capabilities:**
-- Directory and file brute-forcing
-- Virtual host discovery
-- Parameter fuzzing
-- Custom wordlist support
-
----
-
-## 📋 Available Commands
-
-### Scanning Commands
-
-| Command                        | Description                  | Duration  |
-| ------------------------------ | ---------------------------- | --------- |
-| `make scan`                    | Complete scan with all tools | 30-60 min |
-| `make quick`                   | Quick scan (Nuclei + Nikto)  | 5-10 min  |
-| `make custom TOOLS=zap,nuclei` | Custom tool selection        | Varies    |
-
-### Individual Tool Scans
-
-| Command        | Tool       | Description                |
-| -------------- | ---------- | -------------------------- |
-| `make zap`     | OWASP ZAP  | DAST baseline scan         |
-| `make nuclei`  | Nuclei     | CVE and vulnerability scan |
-| `make nikto`   | Nikto      | Web server scanner         |
-| `make testssl` | testssl.sh | SSL/TLS analysis           |
-| `make ffuf`    | ffuf       | Directory fuzzing          |
-
-### Report Management
-
-| Command       | Description                          |
-| ------------- | ------------------------------------ |
-| `make report` | Generate HTML report for latest scan |
-| `make open`   | Open latest report in browser        |
-| `make list`   | List all scans with status           |
-| `make tree`   | Show file structure of latest scan   |
-
-### Docker Management
-
-| Command        | Description               |
-| -------------- | ------------------------- |
-| `make install` | Pull/update Docker images |
-| `make start`   | Start scanner containers  |
-| `make stop`    | Stop all containers       |
-| `make status`  | Show container status     |
-| `make restart` | Restart containers        |
-
-### Utilities
-
-| Command        | Description             |
-| -------------- | ----------------------- |
-| `make check`   | Verify prerequisites    |
-| `make logs`    | View Docker logs        |
-| `make clean`   | Delete all scan results |
-| `make version` | Show version            |
-
----
-
-## 🎯 Usage Examples
-
-### Basic Scanning
-
-```bash
-# Full security audit
-make scan TARGET=https://example.com
-
-# Quick vulnerability check
-make quick TARGET=https://staging.example.com
-
-# SSL/TLS only
-make testssl TARGET=https://api.example.com
-```
-
-### Custom Scans
-
-```bash
-# ZAP + Nuclei only
-make custom TARGET=https://example.com TOOLS=zap,nuclei
-
-# Everything except fuzzing
-make custom TARGET=https://example.com TOOLS=zap,nuclei,nikto,testssl
-```
-
-### CI/CD Integration
-
-```bash
-# Returns non-zero exit code if critical vulnerabilities found
-make ci-scan TARGET=https://staging.example.com
-```
-
-### View Results
-
-```bash
-# List all scans
-make list
-
-# Output:
-# 📋 Available scans:
-#   📁 20231223-143052  |  5 files  |  Report: ✅
-#   📁 20231223-120015  |  3 files  |  Report: ✅
-
-# Open specific scan
-open outputs/20231223-143052/report.html
-```
+| Tool                                               | Description            | Timeout |
+| -------------------------------------------------- | ---------------------- | ------- |
+| **[XSStrike](https://github.com/s0md3v/XSStrike)** | Advanced XSS detection | 600s    |
 
 ---
 
@@ -368,52 +189,62 @@ open outputs/20231223-143052/report.html
 
 ### Environment Variables
 
-Copy `.env.example` to `.env` and customize as needed:
+Copy `.env.example` to `.env` and customize:
 
 ```bash
-# Production mode (default)
-NODE_ENV=production
+# Core
 DEBUG=false
 LOG_LEVEL=INFO
 
-# Development mode
-NODE_ENV=development
-DEBUG=true
-LOG_LEVEL=DEBUG
-
-# Ports (customize if needed)
+# Ports
 WEB_PORT=3000
 API_PORT=8000
-ZAP_PORT=8090
 
 # Timeouts
 DEFAULT_TIMEOUT=300
 MAX_TIMEOUT=3600
+
+# Database
+DATABASE_URL="sqlite+aiosqlite:///./web-check.db"
 ```
 
 ### Docker Profiles
 
-The `docker-compose.yml` uses profiles for different environments:
-
 ```bash
-# Production (default profile)
+# Production (default)
 docker compose --profile prod up -d
 
-# Development (hot-reload enabled)
+# Development (hot-reload)
 docker compose --profile dev up -d
-
-# With optional tools
-docker compose --profile prod --profile tools up -d
 ```
 
-### Custom Wordlists
+---
 
-Place custom wordlists in `config/wordlists/`:
+## 👨‍💻 Development
+
+### Local Setup
 
 ```bash
-mkdir -p config/wordlists
-curl -s https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt \
-  -o config/wordlists/common.txt
+# Install dependencies
+make install
+
+# Run API locally (outside Docker)
+make run
+
+# Run tests
+make test
+
+# Code quality
+make check    # lint + format + type-check
+make format   # Format code
+make lint     # Lint code
+```
+
+### CI Workflow
+
+```bash
+# Run all CI steps locally
+make ci
 ```
 
 ---
@@ -432,274 +263,74 @@ WEB_PORT=3001
 API_PORT=8001
 ```
 
-### Containers Not Starting
+### Database Issues
+
+```bash
+# Reset database
+rm web-check.db
+docker compose restart api
+```
+
+### Container Issues
 
 ```bash
 # View logs
 make logs
 
-# Check container status
-docker compose ps
-
 # Restart containers
 make restart
-```
 
-### Database Issues
-
-```bash
-# Reset database
-rm vigil.db
-docker compose restart api
+# Full cleanup
+make clean-all
 ```
 
 ---
 
-## 👨‍💻 Development
+## 📊 API Endpoints
 
-### Local Development Setup
+### Health
 
-```bash
-# Install dependencies
-make install
+| Method | Endpoint      | Description     |
+| ------ | ------------- | --------------- |
+| GET    | `/api/health` | Health check    |
+| GET    | `/api/ready`  | Readiness check |
 
-# This installs:
-# - Python 3.11+ with uv
-# - Node.js dependencies with bun
-# - All required tools
-```
+### Quick Scans
 
-### Run API Locally (outside Docker)
+| Method | Endpoint            | Description               |
+| ------ | ------------------- | ------------------------- |
+| GET    | `/api/quick/nuclei` | Nuclei vulnerability scan |
+| GET    | `/api/quick/nikto`  | Nikto web server scan     |
+| GET    | `/api/quick/dns`    | DNS reconnaissance        |
 
-```bash
-# Start API in development mode
-make run
+### Deep Scans
 
-# Access at http://localhost:8000
-```
+| Method | Endpoint           | Description             |
+| ------ | ------------------ | ----------------------- |
+| GET    | `/api/deep/zap`    | OWASP ZAP baseline scan |
+| GET    | `/api/deep/sslyze` | SSL/TLS analysis        |
 
-### Run Tests
+### Security Scans
 
-```bash
-# Run all tests
-make test
+| Method | Endpoint               | Description            |
+| ------ | ---------------------- | ---------------------- |
+| GET    | `/api/security/sqlmap` | SQL injection scan     |
+| GET    | `/api/security/wapiti` | Web vulnerability scan |
 
-# Run with coverage
-uv run pytest tests/ --cov=api --cov-report=term-missing
+### Advanced Security
 
-# Type checking
-uv run pyright api/
+| Method | Endpoint                 | Description   |
+| ------ | ------------------------ | ------------- |
+| GET    | `/api/advanced/xsstrike` | XSS detection |
 
-# Code quality checks
-make check
-```
+### Scan Management
 
-### Code Quality
-
-```bash
-# Format code
-make format
-
-# Lint code
-make lint
-
-# Run all checks (format + lint + type-check)
-make check
-```
-
----
-
-## 🏗️ Project Structure (Detailed)
-
-# ✅ All prerequisites satisfied
-```
-
-### Common Issues
-
-| Issue                  | Solution                     |
-| ---------------------- | ---------------------------- |
-| Docker not running     | `docker info` to verify      |
-| Containers won't start | `make restart`               |
-| Scan hangs             | Check target accessibility   |
-| Empty results          | Verify target URL is correct |
-
-### Debug Commands
-
-```bash
-# View container status
-make status
-
-# Check container logs
-make logs
-
-# Shell into container
-make shell-zap
-make shell-nuclei
-```
-
----
-
-## 📊 Understanding Reports
-
-### HTML Report (`report.html`)
-
-The interactive HTML report includes:
-
-- **Summary Dashboard** - Critical/High/Medium/Low counts with visual indicators
-- **Filterable Findings** - Filter by severity, tool, or search terms
-- **Tool Results** - Links to individual scan outputs
-- **Execution Logs** - Debug information for each tool
-
-### Markdown Report (`report.md`)
-
-The Markdown report is specifically designed for **LLM/AI analysis**:
-
-```yaml
----
-type: security_scan_report
-version: "1.0"
-generated_at: 2024-12-23T10:30:00Z
-scan:
-  id: "20241223-103000"
-  target: "https://example.com"
-  mode: "full"
-summary:
-  critical: 0
-  high: 2
-  medium: 5
-  low: 3
-  info: 10
-  total: 20
-tools_used:
-  - nuclei
-  - zap
-  - testssl
-  - nikto
-  - ffuf
----
-```
-
-**Features:**
-- **YAML Frontmatter** - Structured metadata for easy parsing
-- **Executive Summary** - Risk level assessment and severity distribution
-- **Grouped Findings** - Organized by severity (Critical → Info)
-- **Actionable Recommendations** - Prioritized remediation guidance
-- **LLM Instructions** - Context for AI-assisted analysis
-
-**Use with AI assistants:**
-```bash
-# Copy report content to clipboard (macOS)
-cat outputs/YYYYMMDD-HHMMSS/report.md | pbcopy
-
-# Then paste into ChatGPT, Claude, or your preferred AI assistant
-```
-
-### JSON Report (`report.json`)
-
-Machine-readable format for automation:
-
-```json
-{
-  "scan_id": "20241223-103000",
-  "target": "https://example.com",
-  "summary": { "critical": 0, "high": 2, ... },
-  "findings": [...],
-  "files": { "scans": [...], "logs": [...] }
-}
-```
-
-### Severity Levels
-
-| Level      | Color  | Action                 |
-| ---------- | ------ | ---------------------- |
-| 🔴 Critical | Red    | Immediate fix required |
-| 🟠 High     | Orange | Fix before production  |
-| 🟡 Medium   | Yellow | Plan remediation       |
-| 🟢 Low      | Green  | Consider fixing        |
-| 🔵 Info     | Blue   | Informational only     |
-
----
-
-## 🌐 Web Interface
-
-Vigil includes a modern React web interface for simplified usage.
-
-### Features
-
-- **Intuitive Interface** - Simple form to launch scans
-- **Real-Time Results** - Immediate display of detected vulnerabilities
-- **Finding Visualization** - Severity badges and complete details
-- **Scan History** - Quick access to recent scans
-- **Responsive Design** - Works on desktop and mobile
-
-### Access
-
-```bash
-# Démarrer avec Docker
-docker-compose up -d
-
-# Accéder à l'interface
-open http://localhost:3000
-```
-
-### Développement
-
-```bash
-# Installer les dépendances
-cd web && npm install
-
-# Mode développement avec hot-reload
-npm run dev
-
-# Build de production
-npm run build
-```
-
-### Stack Technique
-
-- **React 18** - Framework UI moderne
-- **TypeScript** - Typage statique pour la sécurité
-- **Vite** - Build ultra-rapide
-- **TailwindCSS** - Design system utility-first
-- **TanStack Query** - Gestion d'état et cache intelligent
-- **Axios** - Client HTTP avec intercepteurs
-
-### Screenshots
-
-**Dashboard Principal**
-- Formulaire de scan avec sélection du type (Rapide/Approfondi/Sécurité)
-- Configuration du timeout
-- Liste des scans récents en sidebar
-
-**Résultats de Scan**
-- Badges de statut colorés (Success/Error/Timeout)
-- Statistiques (durée, nombre de findings)
-- Liste détaillée des vulnérabilités avec :
-  - Sévérité (Critical → Info)
-  - Description complète
-  - CVE et CVSS score
-  - Liens vers références externes
-
-Pour plus de détails, voir [web/README.md](web/README.md) et [QUICKSTART.md](QUICKSTART.md).
-
----
-
-## 🔗 Resources
-
-### Tool Documentation
-
-- [OWASP ZAP Documentation](https://www.zaproxy.org/docs/)
-- [Nuclei Documentation](https://docs.projectdiscovery.io/tools/nuclei/overview)
-- [Nuclei Templates](https://github.com/projectdiscovery/nuclei-templates)
-- [Nikto Documentation](https://cirt.net/Nikto2)
-- [testssl.sh Documentation](https://testssl.sh/doc/)
-- [ffuf Documentation](https://github.com/ffuf/ffuf)
-
-### Security Resources
-
-- [OWASP Top 10](https://owasp.org/www-project-top-ten/)
-- [OWASP Testing Guide](https://owasp.org/www-project-web-security-testing-guide/)
-- [CWE/SANS Top 25](https://cwe.mitre.org/top25/)
+| Method | Endpoint                    | Description            |
+| ------ | --------------------------- | ---------------------- |
+| GET    | `/api/scans`                | List all scans         |
+| POST   | `/api/scans/start`          | Start multi-tool scan  |
+| GET    | `/api/scans/{scan_id}`      | Get scan details       |
+| GET    | `/api/scans/{scan_id}/logs` | Stream scan logs (SSE) |
 
 ---
 
@@ -711,16 +342,12 @@ MIT License - Feel free to use and modify.
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) before submitting a PR.
+Contributions are welcome!
 
 1. Fork the repository
 2. Create a feature branch
-3. Run `make lint` to check code quality
+3. Run `make check` to validate code quality
 4. Submit a pull request
-
-See also:
-- [Code of Conduct](CODE_OF_CONDUCT.md)
-- [Security Policy](SECURITY.md)
 
 ---
 

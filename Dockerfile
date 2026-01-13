@@ -1,4 +1,4 @@
-# Dockerfile for Vigil API
+# Dockerfile for Web-Check API
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
 WORKDIR /app
@@ -10,7 +10,8 @@ ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
 
 # Install system dependencies (git for XSStrike)
-RUN apt-get update && apt-get install -y \
+# hadolint ignore=DL3008
+RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/*
 
@@ -32,9 +33,10 @@ COPY alembic.ini ./
 RUN uv sync --frozen --no-dev
 
 # Install XSStrike from GitHub (no official package)
-RUN git clone https://github.com/s0md3v/XSStrike.git /opt/xsstrike \
-    && cd /opt/xsstrike \
-    && uv pip install --python /app/.venv/bin/python -r requirements.txt
+RUN git clone https://github.com/s0md3v/XSStrike.git /opt/xsstrike
+WORKDIR /opt/xsstrike
+RUN uv pip install --python /app/.venv/bin/python -r requirements.txt
+WORKDIR /app
 
 # Create outputs directory and copy config
 RUN mkdir -p outputs/temp

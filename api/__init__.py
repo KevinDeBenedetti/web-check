@@ -1,3 +1,3 @@
-"""Vigil Security Scanner API."""
+"""Web-Check Security Scanner API."""
 
 __version__ = "0.1.0"
