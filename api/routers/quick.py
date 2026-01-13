@@ -110,10 +110,7 @@ async def quick_dns_check(
         allowed = False
         for allowed_domain in ALLOWED_DOMAINS:
             allowed_domain_lc = allowed_domain.lower().strip(".")
-            if (
-                hostname_lc == allowed_domain_lc
-                or hostname_lc.endswith("." + allowed_domain_lc)
-            ):
+            if hostname_lc == allowed_domain_lc or hostname_lc.endswith("." + allowed_domain_lc):
                 allowed = True
                 break
 
