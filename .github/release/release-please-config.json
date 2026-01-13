@@ -48,14 +48,7 @@
   "packages": {
     ".": {
       "package-name": "web-check",
-      "changelog-path": "CHANGELOG.md",
-      "extra-files": [
-        {
-          "type": "toml",
-          "path": "pyproject.toml",
-          "jsonpath": "$.project.version"
-        }
-      ]
+      "changelog-path": "CHANGELOG.md"
     }
   },
   "pull-request-title-pattern": "chore(release): release ${version}",
