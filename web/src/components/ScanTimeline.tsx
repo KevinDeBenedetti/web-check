@@ -19,25 +19,25 @@ const statusConfig = {
     icon: Clock,
     color: "text-muted-foreground",
     bgColor: "bg-slate-700",
-    label: "En attente",
+    label: "Pending",
   },
   running: {
     icon: Loader2,
     color: "text-blue-400",
     bgColor: "bg-blue-500/20",
-    label: "En cours",
+    label: "Running",
   },
   success: {
     icon: CheckCircle2,
     color: "text-green-400",
     bgColor: "bg-green-500/20",
-    label: "Terminé",
+    label: "Completed",
   },
   error: {
     icon: AlertCircle,
     color: "text-red-400",
     bgColor: "bg-red-500/20",
-    label: "Erreur",
+    label: "Error",
   },
 };
 
@@ -50,7 +50,7 @@ export function ScanTimeline({ steps }: ScanTimelineProps) {
     <Card className="border-slate-700">
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle>Progression du Scan</CardTitle>
+          <CardTitle>Scan Progress</CardTitle>
           <span className="text-sm text-muted-foreground">
             {completedSteps}/{totalSteps} modules
           </span>
@@ -108,7 +108,7 @@ export function ScanTimeline({ steps }: ScanTimelineProps) {
 
                 {step.startTime && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    Démarré à {new Date(step.startTime).toLocaleTimeString("fr-FR")}
+                    Started at {new Date(step.startTime).toLocaleTimeString("en-US")}
                   </p>
                 )}
 
@@ -116,8 +116,8 @@ export function ScanTimeline({ steps }: ScanTimelineProps) {
                   <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-slate-700/50 rounded-full text-xs">
                     <CheckCircle2 className="w-3 h-3 text-green-400" />
                     <span>
-                      {step.findingsCount} vulnérabilité{step.findingsCount !== 1 ? "s" : ""}{" "}
-                      détectée{step.findingsCount !== 1 ? "s" : ""}
+                      {step.findingsCount} vulnerabilit{step.findingsCount !== 1 ? "ies" : "y"}{" "}
+                      detected
                     </span>
                   </div>
                 )}
@@ -125,7 +125,7 @@ export function ScanTimeline({ steps }: ScanTimelineProps) {
                 {step.status === "error" && (
                   <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-red-500/20 rounded-full text-xs text-red-400">
                     <AlertCircle className="w-3 h-3" />
-                    <span>Le scan a échoué</span>
+                    <span>Scan failed</span>
                   </div>
                 )}
               </div>

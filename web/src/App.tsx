@@ -143,7 +143,7 @@ function App() {
             {isLoadingScans && (
               <Card className="border-slate-700">
                 <CardContent className="pt-6">
-                  <p className="text-sm text-muted-foreground">Chargement des scans...</p>
+                  <p className="text-sm text-muted-foreground">Loading scans...</p>
                 </CardContent>
               </Card>
             )}
@@ -152,10 +152,8 @@ function App() {
               <Card className="border-destructive bg-destructive/10">
                 <CardContent className="pt-6">
                   <p className="text-sm text-destructive">
-                    Erreur:{" "}
-                    {scansError instanceof Error
-                      ? scansError.message
-                      : "Impossible de charger les scans"}
+                    Error:{" "}
+                    {scansError instanceof Error ? scansError.message : "Unable to load scans"}
                   </p>
                 </CardContent>
               </Card>
@@ -164,7 +162,7 @@ function App() {
             {!isLoadingScans && !scansError && savedScans && savedScans.length === 0 && (
               <Card className="border-slate-700">
                 <CardContent className="pt-6">
-                  <p className="text-sm text-muted-foreground">Aucun scan disponible</p>
+                  <p className="text-sm text-muted-foreground">No scans available</p>
                 </CardContent>
               </Card>
             )}
@@ -172,9 +170,7 @@ function App() {
             {savedScans && savedScans.length > 0 && (
               <Card className="border-slate-700">
                 <CardContent className="pt-6">
-                  <h3 className="text-lg font-semibold mb-4">
-                    Scans Récents ({savedScans.length})
-                  </h3>
+                  <h3 className="text-lg font-semibold mb-4">Recent Scans ({savedScans.length})</h3>
                   <div className="space-y-2">
                     {savedScans.slice(0, 5).map((scan) => (
                       <div
@@ -223,9 +219,9 @@ function App() {
               <Card className="border-slate-700">
                 <CardContent className="p-8 text-center">
                   <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-primary" />
-                  <p className="font-semibold">Démarrage du scan...</p>
+                  <p className="font-semibold">Starting scan...</p>
                   <p className="text-sm text-muted-foreground mt-2">
-                    Connexion aux services de scanning
+                    Connecting to scanning services
                   </p>
                 </CardContent>
               </Card>
@@ -235,7 +231,7 @@ function App() {
               <Card className="border-slate-700">
                 <CardContent className="p-8 text-center">
                   <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-primary" />
-                  <p className="font-semibold">Chargement des résultats...</p>
+                  <p className="font-semibold">Loading results...</p>
                 </CardContent>
               </Card>
             )}
@@ -243,11 +239,11 @@ function App() {
             {startFullScan.isError && (
               <Card className="border-destructive bg-destructive/10">
                 <CardContent className="p-6">
-                  <h3 className="text-destructive font-semibold mb-2">Erreur lors du scan</h3>
+                  <h3 className="text-destructive font-semibold mb-2">Scan Error</h3>
                   <p className="text-sm text-muted-foreground">
                     {startFullScan.error instanceof Error
                       ? startFullScan.error.message
-                      : "Une erreur est survenue"}
+                      : "An error occurred"}
                   </p>
                 </CardContent>
               </Card>
@@ -259,7 +255,7 @@ function App() {
                 {/* En-tête des résultats */}
                 {selectedScanId && (
                   <div className="flex items-center justify-between mb-2">
-                    <h2 className="text-xl font-semibold">Résultats du scan</h2>
+                    <h2 className="text-xl font-semibold">Scan Results</h2>
                     <Badge variant="outline" className="font-mono">
                       {selectedScanId}
                     </Badge>
@@ -280,9 +276,9 @@ function App() {
                 <Card className="border-slate-700">
                   <CardContent className="p-12 text-center">
                     <span className="text-6xl mb-4 block">🔍</span>
-                    <h3 className="text-xl font-semibold mb-2">Aucun résultat</h3>
+                    <h3 className="text-xl font-semibold mb-2">No Results</h3>
                     <p className="text-muted-foreground">
-                      Lancez un scan pour commencer à analyser votre cible
+                      Start a scan to begin analyzing your target
                     </p>
                   </CardContent>
                 </Card>
@@ -293,9 +289,9 @@ function App() {
               <Card className="border-slate-700">
                 <CardContent className="p-12 text-center">
                   <span className="text-6xl mb-4 block">📭</span>
-                  <h3 className="text-xl font-semibold mb-2">Aucun résultat pour ce scan</h3>
+                  <h3 className="text-xl font-semibold mb-2">No Results for This Scan</h3>
                   <p className="text-muted-foreground">
-                    Ce scan n'a généré aucun résultat ou est peut-être en cours d'exécution.
+                    This scan generated no results or may still be running.
                   </p>
                 </CardContent>
               </Card>

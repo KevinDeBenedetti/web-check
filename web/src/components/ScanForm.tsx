@@ -50,14 +50,14 @@ export function ScanForm({ onSubmit, isLoading }: ScanFormProps) {
   return (
     <Card className="border-slate-700">
       <CardHeader>
-        <CardTitle className="text-2xl">Nouveau Scan</CardTitle>
-        <CardDescription>Configurez votre scan de sécurité</CardDescription>
+        <CardTitle className="text-2xl">New Scan</CardTitle>
+        <CardDescription>Configure your security scan</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Target URL */}
           <div className="space-y-2">
-            <Label htmlFor="target">URL Cible</Label>
+            <Label htmlFor="target">Target URL</Label>
             <Input
               type="url"
               id="target"
@@ -79,7 +79,7 @@ export function ScanForm({ onSubmit, isLoading }: ScanFormProps) {
 
           {/* Timeout */}
           <div className="space-y-2">
-            <Label htmlFor="timeout">Timeout (secondes)</Label>
+            <Label htmlFor="timeout">Timeout (seconds)</Label>
             <Input
               type="number"
               id="timeout"
@@ -98,7 +98,7 @@ export function ScanForm({ onSubmit, isLoading }: ScanFormProps) {
               disabled={isLoading || selectedTools.length === 0}
               className="flex-1"
             >
-              {isLoading ? "Scan en cours..." : "Lancer le Scan"}
+              {isLoading ? "Scanning..." : "Start Scan"}
             </Button>
             <Button
               type="button"
