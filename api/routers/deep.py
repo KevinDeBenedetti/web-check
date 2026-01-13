@@ -1,11 +1,10 @@
 """Deep scan endpoints."""
 
-from datetime import UTC
-
 from fastapi import APIRouter, HTTPException, Query
 
 from api.models import CheckResult
-from api.services.zap import run_zap_scan
+from api.services.sslyze_scanner import run_sslyze_scan
+from api.services.zap_native import run_zap_scan
 
 router = APIRouter()
 
@@ -27,75 +26,19 @@ async def deep_zap_scan(
     return await run_zap_scan(url, timeout)
 
 
-@router.get("/testssl", response_model=CheckResult)
-async def deep_testssl_scan(
+@router.get("/sslyze", response_model=CheckResult)
+async def deep_sslyze_scan(
     url: str = Query(..., description="Target URL or domain to scan"),
-    timeout: int = Query(300, ge=60, le=600, description="Timeout in seconds"),
+    timeout: int = Query(300, ge=60, le=3600, description="Timeout in seconds"),
 ) -> CheckResult:
     """
-    Run comprehensive SSL/TLS security analysis.
+    Run comprehensive SSL/TLS security analysis using SSLyze.
 
     Tests for SSL/TLS configuration issues, weak ciphers, and certificate problems.
-    Average duration: 3-5 minutes.
+    Average duration: 1-3 minutes.
     """
-    import time
-    from datetime import datetime
+    if not url.startswith(("http://", "https://")) and ":" not in url:
+        # If just a domain, assume HTTPS
+        url = f"https://{url}"
 
-    from api.services.docker_runner import docker_run
-
-    start = time.time()
-
-    try:
-        # Extract domain from URL
-        domain = url.replace("http://", "").replace("https://", "").split("/")[0]
-
-        result = await docker_run(
-            image="drwetter/testssl.sh:latest",
-            command=[
-                "/home/testssl/testssl.sh",
-                "--jsonfile",
-                "/output/testssl.json",
-                domain,
-            ],
-            volumes={"outputs/temp": "/output"},
-            timeout=timeout,
-            container_name="security-scanner-testssl",
-        )
-
-        if result["timeout"]:
-            return CheckResult(
-                module="testssl",
-                category="deep",
-                target=url,
-                timestamp=datetime.now(UTC),
-                duration_ms=int((time.time() - start) * 1000),
-                status="timeout",
-                data=None,
-                findings=[],
-                error="Scan timed out",
-            )
-
-        return CheckResult(
-            module="testssl",
-            category="deep",
-            target=url,
-            timestamp=datetime.now(UTC),
-            duration_ms=int((time.time() - start) * 1000),
-            status="success",
-            data={"scan_completed": True},
-            findings=[],
-            error=None,
-        )
-
-    except Exception as e:
-        return CheckResult(
-            module="testssl",
-            category="deep",
-            target=url,
-            timestamp=datetime.now(UTC),
-            duration_ms=int((time.time() - start) * 1000),
-            status="error",
-            data=None,
-            findings=[],
-            error=str(e),
-        )
+    return await run_sslyze_scan(url, timeout)

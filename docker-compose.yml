@@ -24,7 +24,6 @@ services:
       - ./vigil.db:/app/vigil.db:rw
       - ./alembic:/app/alembic:ro
       - ./alembic.ini:/app/alembic.ini:ro
-      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - DEBUG=true
       - LOG_LEVEL=INFO
@@ -36,17 +35,25 @@ services:
       - nuclei
       - nikto
 
+  # ZAP daemon for Python API client
   zap:
     image: zaproxy/zap-stable:latest
     container_name: security-scanner-zap
     volumes:
       - ./outputs:/zap/wrk:rw
-    command: zap.sh -daemon -host 0.0.0.0 -port 8090 -config api.disablekey=true
-    ports:
-      - "8090:8090"
+    command: >
+      zap.sh -daemon -host 0.0.0.0 -port 8090
+      -config api.disablekey=true
+      -config api.addrs.addr.name=.*
+      -config api.addrs.addr.regex=true
     networks:
       - scanner-net
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   nuclei:
     image: projectdiscovery/nuclei:latest
@@ -71,34 +78,12 @@ services:
       - scanner-net
     restart: unless-stopped
 
-  testssl:
-    image: drwetter/testssl.sh:latest
-    container_name: security-scanner-testssl
-    volumes:
-      - ./outputs:/output:rw
-    entrypoint: ["/bin/sh", "-c"]
-    command: ["tail -f /dev/null"]
-    networks:
-      - scanner-net
-    restart: unless-stopped
-
   ffuf:
     image: secsi/ffuf:latest
     container_name: security-scanner-ffuf
     volumes:
       - ./outputs:/output:rw
       - ./config/wordlists:/wordlists:ro
-    entrypoint: ["/bin/sh", "-c"]
-    command: ["tail -f /dev/null"]
-    networks:
-      - scanner-net
-    restart: unless-stopped
-
-  sqlmap:
-    image: googlesky/sqlmap:latest
-    container_name: security-scanner-sqlmap
-    volumes:
-      - ./outputs:/output:rw
     entrypoint: ["/bin/sh", "-c"]
     command: ["tail -f /dev/null"]
     networks:

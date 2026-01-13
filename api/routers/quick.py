@@ -15,7 +15,7 @@ router = APIRouter()
 @router.get("/nuclei", response_model=CheckResult)
 async def quick_nuclei_scan(
     url: str = Query(..., description="Target URL to scan"),
-    timeout: int = Query(300, ge=30, le=600, description="Timeout in seconds"),
+    timeout: int = Query(300, ge=30, le=3600, description="Timeout in seconds"),
 ) -> CheckResult:
     """
     Run quick Nuclei vulnerability scan.
@@ -32,7 +32,7 @@ async def quick_nuclei_scan(
 @router.get("/nikto", response_model=CheckResult)
 async def quick_nikto_scan(
     url: str = Query(..., description="Target URL to scan"),
-    timeout: int = Query(600, ge=30, le=1200, description="Timeout in seconds"),
+    timeout: int = Query(600, ge=30, le=3600, description="Timeout in seconds"),
 ) -> CheckResult:
     """
     Run Nikto web server scan.

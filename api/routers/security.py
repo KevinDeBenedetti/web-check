@@ -13,7 +13,7 @@ router = APIRouter()
 async def security_ffuf_scan(
     url: str = Query(..., description="Target URL to fuzz"),
     wordlist: str = Query("common.txt", description="Wordlist to use for fuzzing"),
-    timeout: int = Query(600, ge=60, le=1800, description="Timeout in seconds"),
+    timeout: int = Query(600, ge=60, le=3600, description="Timeout in seconds"),
 ) -> CheckResult:
     """
     Run FFUF directory/file fuzzing scan.
@@ -41,16 +41,12 @@ async def security_ffuf_scan(
                 "-w",
                 f"/wordlists/{wordlist}",
                 "-o",
-                "/output/ffuf.json",
+                f"/output/ffuf_{int(time.time())}.json",
                 "-of",
                 "json",
                 "-mc",
                 "200,204,301,302,307,401,403",
             ],
-            volumes={
-                "outputs/temp": "/output",
-                "config/wordlists": "/wordlists:ro",
-            },
             timeout=timeout,
             container_name="security-scanner-ffuf",
         )
@@ -126,7 +122,6 @@ async def security_sqlmap_scan(
                 "--random-agent",
                 "--output-dir=/output",
             ],
-            volumes={"outputs/temp": "/output"},
             timeout=timeout,
             container_name="security-scanner-sqlmap",
         )

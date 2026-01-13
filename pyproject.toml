@@ -6,7 +6,7 @@ authors = [
     {name = "Kevin De Benedetti", email = "kevin@example.com"},
 ]
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.13",
     "uvicorn[standard]>=0.34.0",
@@ -15,9 +15,13 @@ dependencies = [
     "httpx>=0.28.1",
     "structlog>=25.5.0",
     "python-json-logger>=4.0.0",
-    "sqlalchemy>=2.0.36",
+    "sqlalchemy>=2.0.28,<2.1",
     "alembic>=1.14.0",
     "aiosqlite>=0.20.0",
+    "python-owasp-zap-v2.4>=0.0.22",
+    "sslyze>=6.0.0",
+    "sqlmap>=1.8.11",
+    "wapiti3>=3.2.0",
 ]
 
 [dependency-groups]
@@ -38,7 +42,7 @@ packages = ["api"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = [
@@ -63,7 +67,7 @@ line-ending = "auto"
 [tool.pyright]
 include = ["api"]
 exclude = ["**/__pycache__", "**/node_modules", ".venv", "outputs"]
-pythonVersion = "3.11"
+pythonVersion = "3.12"
 pythonPlatform = "All"
 typeCheckingMode = "strict"
 reportMissingImports = "error"

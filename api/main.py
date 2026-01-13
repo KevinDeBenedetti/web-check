@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from api.routers import deep, health, quick, scans, security
+from api.routers import advanced, deep, health, quick, scans, security
 
 logger = structlog.get_logger()
 
@@ -27,6 +27,7 @@ app = FastAPI(
     description="Docker-based security scanning toolkit for web applications",
     version="0.1.0",
     lifespan=lifespan,
+    redirect_slashes=False,
 )
 
 # CORS middleware
@@ -77,6 +78,7 @@ app.include_router(health.router, prefix="/api", tags=["Health"])
 app.include_router(quick.router, prefix="/api/quick", tags=["Quick Scans"])
 app.include_router(deep.router, prefix="/api/deep", tags=["Deep Scans"])
 app.include_router(security.router, prefix="/api/security", tags=["Security Scans"])
+app.include_router(advanced.router, prefix="/api/advanced", tags=["Advanced Security"])
 app.include_router(scans.router, prefix="/api/scans", tags=["Scan Management"])
 
 
