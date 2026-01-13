@@ -59,14 +59,14 @@ async def run_zap_scan(target: str, timeout: int = 900, scan_id: str | None = No
         def _run_scan() -> dict[str, Any]:
             # Access the target URL
             logger.info("zap_accessing_url", target=target)
-            zap.urlopen(target)  # type: ignore[no-untyped-call]
+            zap.urlopen(target)
 
             # Spider scan to discover URLs
             logger.info("zap_starting_spider", target=target)
-            spider_id = zap.spider.scan(target)  # type: ignore[no-untyped-call]
+            spider_id = zap.spider.scan(target)
 
             # Wait for spider to complete
-            while int(zap.spider.status(spider_id)) < 100:  # type: ignore[no-untyped-call]
+            while int(zap.spider.status(spider_id)) < 100:
                 time.sleep(2)
                 if time.time() - start > timeout / 2:  # Use half timeout for spider
                     break
@@ -75,17 +75,17 @@ async def run_zap_scan(target: str, timeout: int = 900, scan_id: str | None = No
 
             # Active scan
             logger.info("zap_starting_active_scan", target=target)
-            scan_id_zap = zap.ascan.scan(target)  # type: ignore[no-untyped-call]
+            scan_id_zap = zap.ascan.scan(target)
 
             # Wait for active scan to complete
-            while int(zap.ascan.status(scan_id_zap)) < 100:  # type: ignore[no-untyped-call]
+            while int(zap.ascan.status(scan_id_zap)) < 100:
                 time.sleep(5)
                 if time.time() - start > timeout:
                     logger.warning("zap_scan_timeout", target=target)
                     break
 
             # Get alerts
-            alerts = zap.core.alerts(baseurl=target)  # type: ignore[no-untyped-call]
+            alerts = zap.core.alerts(baseurl=target)
             return {"alerts": alerts}
 
         # Run blocking ZAP operations in thread pool
