@@ -121,7 +121,7 @@ def _parse_nikto_output(output: str) -> list[Finding]:
                 severity = "medium"
 
             finding = Finding(
-                severity=severity,  # type: ignore[arg-type]
+                severity=severity,
                 title="Nikto Finding",
                 description=description,
                 reference="https://cirt.net/nikto2",

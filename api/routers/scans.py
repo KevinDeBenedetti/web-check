@@ -48,7 +48,7 @@ async def start_scan(
     from api.services.log_streamer import log_streamer
 
     # Initialize scan status
-    log_streamer._scan_status[scan_id] = "running"  # type: ignore[attr-defined]
+    log_streamer._scan_status[scan_id] = "running"
 
     # Start scans in background
     asyncio.create_task(_run_scans(scan_id, request))

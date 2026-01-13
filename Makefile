@@ -119,7 +119,7 @@ check: ## Run all code quality checks
 	@echo "$(GREEN)✅ Running all checks...$(NC)"
 	@uv run ruff format --check api/ tests/
 	@uv run ruff check api/ tests/
-	@uv run pyright api/
+	@uv run ty check api/
 	@echo "$(GREEN)✅ All checks passed!$(NC)"
 
 ci: ## Test all CI workflow steps locally
@@ -139,8 +139,9 @@ ci: ## Test all CI workflow steps locally
 	@uv run ruff format --check --target-version=py312 api/
 	@echo "$(GREEN)✅ Python format check passed$(NC)"
 	@echo ""
-	@echo "$(YELLOW)📋 Step 4/11: Python Type Check (Pyright)$(NC)"
-	@uv run pyright api/ || { echo "$(RED)⚠️  Type check failed (continuing...)$(NC)"; }
+	@echo "$(YELLOW)📋 Step 4/11: Python Type Check (ty)$(NC)"
+	@uv run ty check api/
+	@echo "$(GREEN)✅ Python type check passed$(NC)"
 	@echo ""
 	@echo "$(YELLOW)📋 Step 5/11: Python Tests (Pytest)$(NC)"
 	@uv run pytest api/tests/ --cov=api --cov-report=term-missing -v
