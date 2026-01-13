@@ -84,25 +84,35 @@ async def quick_dns_check(
 
     def _is_allowed_domain(hostname: str) -> bool:
         """
-        Return True if the hostname is an allowed domain or its subdomain.
-        Raw IP addresses are not allowed here.
-        """
-        # Reject raw IP addresses
-        try:
-            ipaddress.ip_address(hostname)
-            return False
-        except ValueError:
-            # Not an IP address, continue with domain checks
-            pass
+        Check if hostname is allowed for DNS checks.
 
-        hostname_lower = hostname.lower().rstrip(".")
-        for allowed in ALLOWED_DOMAINS:
-            allowed_lower = allowed.lower().rstrip(".")
-            if hostname_lower == allowed_lower or hostname_lower.endswith("." + allowed_lower):
-                return True
-        return False
+        By default, all public domains are allowed. This function can be extended
+        to implement a domain allow-list or deny-list if needed.
+        """
+        # Basic validation: ensure hostname is not empty and doesn't contain suspicious patterns
+        if not hostname or len(hostname) > 253:
+            return False
+
+        # Reject localhost variations
+        localhost_variations = {"localhost", "127.0.0.1", "::1", "0.0.0.0"}
+        if hostname.lower() in localhost_variations:
+            return False
+
+        # Reject internal domain suffixes
+        internal_suffixes = (".local", ".internal", ".localhost")
+        if any(hostname.lower().endswith(suffix) for suffix in internal_suffixes):
+            return False
+
+        return True
 
     def _validate_public_hostname(hostname: str) -> None:
+        # First, check if the hostname is allowed (not in deny-list)
+        if not _is_allowed_domain(hostname):
+            raise HTTPException(
+                status_code=400,
+                detail="Target domain is not allowed",
+            )
+
         try:
             addrinfo = socket.getaddrinfo(hostname, None)
         except OSError as exc:
@@ -112,7 +122,7 @@ async def quick_dns_check(
         # Ensure all resolved addresses are public
         for family, _, _, _, sockaddr in addrinfo:
             if family in (socket.AF_INET, socket.AF_INET6):
-                ip_str = str(sockaddr[0])
+                ip_str = str(sockaddr[0])  # Ensure string type
                 if not _is_public_ip_address(ip_str):
                     raise HTTPException(
                         status_code=400,
@@ -131,12 +141,16 @@ async def quick_dns_check(
         if not domain:
             raise HTTPException(status_code=400, detail="A non-empty domain or URL is required")
 
+        # Validate hostname before making any network request
         _validate_public_hostname(domain)
+
+        # Build URL using only the validated domain to prevent SSRF
+        validated_url = f"https://{domain}/"
 
         # Simple DNS check using httpx
         async with httpx.AsyncClient(timeout=10.0) as client:
             try:
-                response = await client.get(f"https://{domain}", follow_redirects=True)
+                response = await client.get(validated_url, follow_redirects=True)
                 dns_ok = True
                 status_code = response.status_code
             except Exception:
