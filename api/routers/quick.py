@@ -1,12 +1,12 @@
 """Quick scan endpoints."""
 
-import ipaddress
-import socket
 from datetime import UTC
+from ipaddress import IPv4Address, IPv6Address
 from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
+from httpx_secure import httpx_ssrf_protection
 
 from api.models import CheckResult
 from api.services.nikto import run_nikto_scan
@@ -76,11 +76,27 @@ async def quick_dns_check(
     # Replace or extend this tuple with the domains that are acceptable in your deployment.
     ALLOWED_DOMAINS = ("example.com",)
 
-    def _is_public_ip_address(ip_str: str) -> bool:
-        ip = ipaddress.ip_address(ip_str)
-        return not (
-            ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved
-        )
+    def _custom_ssrf_validator(hostname: str, ip: IPv4Address | IPv6Address, port: int) -> bool:
+        """
+        Custom validator for httpx-secure SSRF protection.
+
+        Args:
+            hostname: The hostname being accessed
+            ip: The resolved IP address
+            port: The port being accessed
+
+        Returns:
+            True if the request should be allowed, False otherwise
+        """
+        # Check if hostname is in the allow-list
+        hostname_lc = hostname.lower().strip(".")
+
+        for allowed_domain in ALLOWED_DOMAINS:
+            allowed_domain_lc = allowed_domain.lower().strip(".")
+            if hostname_lc == allowed_domain_lc or hostname_lc.endswith("." + allowed_domain_lc):
+                return True
+
+        return False
 
     def _is_allowed_domain(hostname: str) -> bool:
         """
@@ -116,30 +132,6 @@ async def quick_dns_check(
 
         return allowed
 
-    def _validate_public_hostname(hostname: str) -> None:
-        # First, check if the hostname is allowed (not in deny-list)
-        if not _is_allowed_domain(hostname):
-            raise HTTPException(
-                status_code=400,
-                detail="Target domain is not allowed",
-            )
-
-        try:
-            addrinfo = socket.getaddrinfo(hostname, None)
-        except OSError as exc:
-            # Hostname cannot be resolved at all
-            raise HTTPException(status_code=400, detail=f"Unresolvable domain: {hostname}") from exc
-
-        # Ensure all resolved addresses are public
-        for family, _, _, _, sockaddr in addrinfo:
-            if family in (socket.AF_INET, socket.AF_INET6):
-                ip_str = str(sockaddr[0])  # Ensure string type
-                if not _is_public_ip_address(ip_str):
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Target domain resolves to a non-public IP address and is not allowed",
-                    )
-
     try:
         # Extract and validate domain from URL or hostname
         domain = _extract_hostname(url)
@@ -147,13 +139,23 @@ async def quick_dns_check(
             raise HTTPException(status_code=400, detail="A non-empty domain or URL is required")
 
         # Validate hostname before making any network request
-        _validate_public_hostname(domain)
+        if not _is_allowed_domain(domain):
+            raise HTTPException(
+                status_code=400,
+                detail="Target domain is not allowed",
+            )
 
         # Build URL using only the validated domain to prevent SSRF
         validated_url = f"https://{domain}/"
 
-        # Simple DNS check using httpx
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        # Simple DNS check using httpx with SSRF protection
+        base_client = httpx.AsyncClient(timeout=10.0)
+        async with httpx_ssrf_protection(
+            base_client,
+            custom_validator=_custom_ssrf_validator,
+            dns_cache_size=1000,
+            dns_cache_ttl=600,
+        ) as client:
             try:
                 # Do not follow redirects to avoid being redirected to unintended hosts.
                 response = await client.get(validated_url, follow_redirects=False)
