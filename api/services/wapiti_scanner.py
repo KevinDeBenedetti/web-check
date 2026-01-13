@@ -13,7 +13,9 @@ from api.models import CheckResult, Finding
 logger = structlog.get_logger()
 
 
-async def run_wapiti_scan(target: str, timeout: int = 600, scan_id: str | None = None) -> CheckResult:
+async def run_wapiti_scan(
+    target: str, timeout: int = 600, scan_id: str | None = None
+) -> CheckResult:
     """
     Run Wapiti web vulnerability scanner against a target using Python library.
 
@@ -62,12 +64,8 @@ async def run_wapiti_scan(target: str, timeout: int = 600, scan_id: str | None =
         )
 
         try:
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                process.communicate(), timeout=timeout
-            )
-            stdout = stdout_bytes.decode("utf-8", errors="ignore")
-            stderr = stderr_bytes.decode("utf-8", errors="ignore")
-        except asyncio.TimeoutError:
+            await asyncio.wait_for(process.communicate(), timeout=timeout)
+        except TimeoutError:
             process.kill()
             await process.wait()
             return CheckResult(

@@ -83,6 +83,7 @@ async def docker_run(
     # Stream logs if scan_id provided
     if scan_id:
         from api.services.log_streamer import log_streamer
+
         await log_streamer.send_log(
             scan_id,
             {
@@ -108,6 +109,7 @@ async def docker_run(
 
             if scan_id:
                 from api.services.log_streamer import log_streamer
+
                 await log_streamer.send_log(
                     scan_id,
                     {
@@ -135,6 +137,7 @@ async def docker_run(
 
         if scan_id:
             from api.services.log_streamer import log_streamer
+
             await log_streamer.send_log(
                 scan_id,
                 {

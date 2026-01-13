@@ -19,7 +19,12 @@ function App() {
   const queryClient = useQueryClient();
 
   // Récupérer la liste des scans existants
-  const { data: savedScans, isLoading: isLoadingScans, error: scansError, isSuccess } = useQuery({
+  const {
+    data: savedScans,
+    isLoading: isLoadingScans,
+    error: scansError,
+    isSuccess,
+  } = useQuery({
     queryKey: ["scans"],
     queryFn: async () => {
       console.log("Fetching scans...");
@@ -147,7 +152,10 @@ function App() {
               <Card className="border-destructive bg-destructive/10">
                 <CardContent className="pt-6">
                   <p className="text-sm text-destructive">
-                    Erreur: {scansError instanceof Error ? scansError.message : "Impossible de charger les scans"}
+                    Erreur:{" "}
+                    {scansError instanceof Error
+                      ? scansError.message
+                      : "Impossible de charger les scans"}
                   </p>
                 </CardContent>
               </Card>
@@ -265,26 +273,23 @@ function App() {
 
             {/* Message "Aucun résultat" uniquement si vraiment rien n'est en cours */}
             {results.length === 0 &&
-             !startFullScan.isPending &&
-             !activeScanId &&
-             !isLoadingScan &&
-             !selectedScanId && (
-              <Card className="border-slate-700">
-                <CardContent className="p-12 text-center">
-                  <span className="text-6xl mb-4 block">🔍</span>
-                  <h3 className="text-xl font-semibold mb-2">Aucun résultat</h3>
-                  <p className="text-muted-foreground">
-                    Lancez un scan pour commencer à analyser votre cible
-                  </p>
-                </CardContent>
-              </Card>
-            )}
+              !startFullScan.isPending &&
+              !activeScanId &&
+              !isLoadingScan &&
+              !selectedScanId && (
+                <Card className="border-slate-700">
+                  <CardContent className="p-12 text-center">
+                    <span className="text-6xl mb-4 block">🔍</span>
+                    <h3 className="text-xl font-semibold mb-2">Aucun résultat</h3>
+                    <p className="text-muted-foreground">
+                      Lancez un scan pour commencer à analyser votre cible
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
 
             {/* Message si scan sélectionné mais aucun résultat */}
-            {results.length === 0 &&
-             selectedScanId &&
-             !isLoadingScan &&
-             !activeScanId && (
+            {results.length === 0 && selectedScanId && !isLoadingScan && !activeScanId && (
               <Card className="border-slate-700">
                 <CardContent className="p-12 text-center">
                   <span className="text-6xl mb-4 block">📭</span>

@@ -12,7 +12,9 @@ from api.models import CheckResult, Finding
 logger = structlog.get_logger()
 
 
-async def run_xsstrike_scan(target: str, timeout: int = 300, scan_id: str | None = None) -> CheckResult:
+async def run_xsstrike_scan(
+    target: str, timeout: int = 300, scan_id: str | None = None
+) -> CheckResult:
     """
     Run XSStrike XSS vulnerability scanner against a target using subprocess.
 
@@ -72,12 +74,9 @@ async def run_xsstrike_scan(target: str, timeout: int = 300, scan_id: str | None
         )
 
         try:
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                process.communicate(), timeout=timeout
-            )
+            stdout_bytes, _ = await asyncio.wait_for(process.communicate(), timeout=timeout)
             stdout = stdout_bytes.decode("utf-8", errors="ignore")
-            stderr = stderr_bytes.decode("utf-8", errors="ignore")
-        except asyncio.TimeoutError:
+        except TimeoutError:
             process.kill()
             await process.wait()
             return CheckResult(

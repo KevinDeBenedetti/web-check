@@ -111,16 +111,21 @@ export function ScanLogStream({ scanId, onComplete }: ScanLogStreamProps) {
 
   // Extraire les informations de timeline depuis les logs
   const timelineSteps = useMemo(() => {
-    const modulesMap = new Map<string, {
-      module: string;
-      status: "pending" | "running" | "success" | "error";
-      startTime?: string;
-      endTime?: string;
-      findingsCount?: number;
-    }>();
+    const modulesMap = new Map<
+      string,
+      {
+        module: string;
+        status: "pending" | "running" | "success" | "error";
+        startTime?: string;
+        endTime?: string;
+        findingsCount?: number;
+      }
+    >();
 
     // Extraire les modules du message initial
-    const infoLog = logs.find((l) => l.type === "info" && l.message?.includes("Starting scan with modules"));
+    const infoLog = logs.find(
+      (l) => l.type === "info" && l.message?.includes("Starting scan with modules")
+    );
     if (infoLog) {
       const match = infoLog.message.match(/modules: (.+)/);
       if (match) {
@@ -178,84 +183,87 @@ export function ScanLogStream({ scanId, onComplete }: ScanLogStreamProps) {
       {timelineSteps.length > 0 && <ScanTimeline steps={timelineSteps} />}
 
       {/* Logs */}
-    <Card className="border-slate-700">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>Logs en Temps Réel</CardTitle>
-            <CardDescription>Scan ID: {scanId}</CardDescription>
+      <Card className="border-slate-700">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Logs en Temps Réel</CardTitle>
+              <CardDescription>Scan ID: {scanId}</CardDescription>
+            </div>
+            {isConnected ? (
+              <Badge variant="secondary" className="text-green-400 gap-2">
+                <span className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                </span>
+                Connecté
+              </Badge>
+            ) : (
+              <Badge variant="outline">Déconnecté</Badge>
+            )}
           </div>
-          {isConnected ? (
-            <Badge variant="secondary" className="text-green-400 gap-2">
-              <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-              </span>
-              Connecté
-            </Badge>
-          ) : (
-            <Badge variant="outline">Déconnecté</Badge>
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          {/* Error */}
+          {error && (
+            <div className="bg-destructive/20 border border-destructive rounded-lg p-3">
+              <p className="text-sm text-destructive">{error}</p>
+            </div>
           )}
-        </div>
-      </CardHeader>
 
-      <CardContent className="space-y-4">
-        {/* Error */}
-        {error && (
-          <div className="bg-destructive/20 border border-destructive rounded-lg p-3">
-            <p className="text-sm text-destructive">{error}</p>
-          </div>
-        )}
-
-        {/* Logs Container */}
-        <div
-          ref={logsContainerRef}
-          className="bg-slate-900 rounded-lg border border-slate-700 p-4 h-96 overflow-y-auto font-mono text-sm space-y-2"
-        >
-          {logs.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">En attente des logs...</p>
-          ) : (
-            logs.map((log, idx) => (
-              <div key={idx} className="flex items-start gap-2 group hover:bg-slate-800/50 p-1 rounded">
-                <span className="text-muted-foreground text-xs mt-0.5 w-20 flex-shrink-0">
-                  {log.timestamp
-                    ? new Date(log.timestamp).toLocaleTimeString("fr-FR")
-                    : "--:--:--"}
-                </span>
-                <span className={cn("mt-0.5", logTypeColors[log.type])}>
-                  <LogIcon type={log.type} />
-                </span>
-                <div className="flex-1 min-w-0">
-                  <span className={logTypeColors[log.type]}>
-                    {log.module && (
-                      <Badge variant="outline" className="font-mono text-xs mr-2">
-                        {log.module}
+          {/* Logs Container */}
+          <div
+            ref={logsContainerRef}
+            className="bg-slate-900 rounded-lg border border-slate-700 p-4 h-96 overflow-y-auto font-mono text-sm space-y-2"
+          >
+            {logs.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">En attente des logs...</p>
+            ) : (
+              logs.map((log, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-start gap-2 group hover:bg-slate-800/50 p-1 rounded"
+                >
+                  <span className="text-muted-foreground text-xs mt-0.5 w-20 flex-shrink-0">
+                    {log.timestamp
+                      ? new Date(log.timestamp).toLocaleTimeString("fr-FR")
+                      : "--:--:--"}
+                  </span>
+                  <span className={cn("mt-0.5", logTypeColors[log.type])}>
+                    <LogIcon type={log.type} />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <span className={logTypeColors[log.type]}>
+                      {log.module && (
+                        <Badge variant="outline" className="font-mono text-xs mr-2">
+                          {log.module}
+                        </Badge>
+                      )}
+                      {log.message}
+                    </span>
+                    {log.command && (
+                      <div className="text-xs text-muted-foreground mt-1 ml-4 opacity-70">
+                        $ {log.command}
+                      </div>
+                    )}
+                    {log.findings_count !== undefined && (
+                      <Badge variant="secondary" className="text-xs ml-2">
+                        {log.findings_count} vulnérabilités
                       </Badge>
                     )}
-                    {log.message}
-                  </span>
-                  {log.command && (
-                    <div className="text-xs text-muted-foreground mt-1 ml-4 opacity-70">
-                      $ {log.command}
-                    </div>
-                  )}
-                  {log.findings_count !== undefined && (
-                    <Badge variant="secondary" className="text-xs ml-2">
-                      {log.findings_count} vulnérabilités
-                    </Badge>
-                  )}
+                  </div>
                 </div>
-              </div>
-            ))
-          )}
-        </div>
+              ))
+            )}
+          </div>
 
-        {/* Stats */}
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{logs.length} événements</span>
-        </div>
-      </CardContent>
-    </Card>
+          {/* Stats */}
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>{logs.length} événements</span>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
