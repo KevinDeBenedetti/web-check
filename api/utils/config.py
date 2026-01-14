@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     docker_network: str = "scanner-net"
     output_base_dir: Path = Path("outputs")
 
+    # Database Configuration
+    database_path: Path = Path("data/web-check.db")
+
     # Scan Defaults
     default_timeout: int = 300
     max_timeout: int = 3600
