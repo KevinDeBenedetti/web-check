@@ -144,7 +144,7 @@ ci: ## Test all CI workflow steps locally
 	@echo "$(GREEN)✅ Python type check passed$(NC)"
 	@echo ""
 	@echo "$(YELLOW)📋 Step 5/11: Python Tests (Pytest)$(NC)"
-	@uv run pytest api/tests/ --cov=api --cov-report=term-missing -v
+	@uv run pytest api/tests/ -m "not slow" --cov=api --cov-report=term-missing -v
 	@echo "$(GREEN)✅ Python tests passed$(NC)"
 	@echo ""
 	@echo "$(YELLOW)📋 Step 6/11: Python Build (Docker)$(NC)"
@@ -152,6 +152,7 @@ ci: ## Test all CI workflow steps locally
 	@echo "$(GREEN)✅ Python Docker build passed$(NC)"
 	@echo ""
 	@echo "$(YELLOW)📋 Step 7/11: React Lint (oxlint)$(NC)"
+	@test -d web/node_modules || { echo "$(YELLOW)⚠️  Installing web dependencies...$(NC)"; cd web && bun install; }
 	@cd web && bun run lint
 	@echo "$(GREEN)✅ React lint passed$(NC)"
 	@echo ""

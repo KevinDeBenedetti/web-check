@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from api.database import Base, engine
 from api.routers import advanced, deep, health, quick, scans, security
 
 logger = structlog.get_logger()
@@ -18,6 +19,12 @@ logger = structlog.get_logger()
 async def lifespan(app: FastAPI):
     """Handle application startup and shutdown."""
     logger.info("Starting Web-Check Security Scanner API")
+
+    # Create database tables if they don't exist
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database tables created successfully")
+
     yield
     logger.info("Shutting down Web-Check Security Scanner API")
 

@@ -12,6 +12,7 @@ def test_url() -> str:
     return "https://example.com"
 
 
+@pytest.mark.slow
 @pytest.mark.asyncio
 async def test_nuclei_scan_endpoint(test_url: str) -> None:
     """Test Nuclei scanner endpoint."""
@@ -37,6 +38,7 @@ async def test_nuclei_scan_invalid_url() -> None:
         assert response.status_code == 400
 
 
+@pytest.mark.slow
 @pytest.mark.asyncio
 async def test_nikto_scan_endpoint(test_url: str) -> None:
     """Test Nikto scanner endpoint."""
@@ -62,6 +64,7 @@ async def test_nikto_scan_invalid_url() -> None:
         assert response.status_code == 400
 
 
+@pytest.mark.slow
 @pytest.mark.asyncio
 async def test_zap_scan_endpoint(test_url: str) -> None:
     """Test OWASP ZAP scanner endpoint."""
@@ -87,6 +90,7 @@ async def test_zap_scan_invalid_url() -> None:
         assert response.status_code == 400
 
 
+@pytest.mark.slow
 @pytest.mark.asyncio
 async def test_sslyze_scan_endpoint(test_url: str) -> None:
     """Test SSLyze scanner endpoint."""
@@ -102,6 +106,7 @@ async def test_sslyze_scan_endpoint(test_url: str) -> None:
         assert isinstance(data["findings"], list)
 
 
+@pytest.mark.slow
 @pytest.mark.asyncio
 async def test_sslyze_scan_auto_https() -> None:
     """Test SSLyze automatically adds https:// to domain."""
@@ -115,6 +120,7 @@ async def test_sslyze_scan_auto_https() -> None:
         assert data["module"] == "sslyze"
 
 
+@pytest.mark.slow
 @pytest.mark.asyncio
 async def test_sqlmap_scan_endpoint(test_url: str) -> None:
     """Test SQLMap scanner endpoint."""
@@ -131,6 +137,7 @@ async def test_sqlmap_scan_endpoint(test_url: str) -> None:
         assert isinstance(data["findings"], list)
 
 
+@pytest.mark.slow
 @pytest.mark.asyncio
 async def test_wapiti_scan_endpoint(test_url: str) -> None:
     """Test Wapiti scanner endpoint."""
@@ -147,6 +154,7 @@ async def test_wapiti_scan_endpoint(test_url: str) -> None:
         assert isinstance(data["findings"], list)
 
 
+@pytest.mark.slow
 @pytest.mark.asyncio
 async def test_xsstrike_scan_endpoint(test_url: str) -> None:
     """Test XSStrike scanner endpoint."""

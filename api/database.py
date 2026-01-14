@@ -6,7 +6,15 @@ from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
-DATABASE_URL = "sqlite+aiosqlite:///./web-check.db"
+from api.utils.config import get_settings
+
+settings = get_settings()
+
+# Ensure database directory exists
+db_path = settings.database_path
+db_path.parent.mkdir(parents=True, exist_ok=True)
+
+DATABASE_URL = f"sqlite+aiosqlite:///{db_path}"
 
 engine = create_async_engine(
     DATABASE_URL,
