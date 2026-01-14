@@ -89,4 +89,9 @@ respect-ignore-files = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests"]
+testpaths = ["api/tests"]
+markers = [
+    "slow: marks tests as slow (deselected by default in CI)",
+    "integration: marks tests as integration tests",
+]
+addopts = "-v"
