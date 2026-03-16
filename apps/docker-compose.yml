@@ -13,7 +13,7 @@ services:
   # ==========================================================================
   web:
     build:
-      context: ./web
+      context: ../web
       dockerfile: Dockerfile
     container_name: web-check-web
     ports:
@@ -38,7 +38,7 @@ services:
     ports:
       - "${WEB_PORT:-3000}:3000"
     volumes:
-      - ./web:/app
+      - ../web:/app
       - /app/node_modules
     command: sh -c "bun install && bun run dev -- --host"
     environment:
@@ -54,7 +54,9 @@ services:
   # API Server
   # ==========================================================================
   api:
-    build: .
+    build:
+      context: ..
+      dockerfile: apps/Dockerfile
     container_name: web-check-api
     ports:
       - "${API_PORT:-8000}:8000"

@@ -1,0 +1,16 @@
+issues:
+  - github_id: ~
+    type: feat
+    title: Add a CLI all in one tool
+    status: in-progress
+    priority: medium
+    assignees:
+      - KevinDeBenedetti
+    body: |
+      ## Goal
+      Create a CLI tool that can be used to purge old deployments and workflow runs in GitHub Actions. This tool should be reusable and configurable, allowing users to specify how many recent deployments and workflow runs to keep.
+
+      ## Acceptance criteria
+      - [ ] The CLI tool should be able to connect to the GitHub API and authenticate using a personal access token.
+      - [ ] The tool should allow users to specify the repository and the number of recent deployments and workflow runs to keep.
+      - [ ] The tool should delete old deployments and workflow runs that exceed the specified number

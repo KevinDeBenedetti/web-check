@@ -25,9 +25,9 @@ COPY uv.lock ./
 RUN uv sync --frozen --no-install-project --no-dev
 
 # Copy application code
-COPY api/ ./api/
-COPY alembic/ ./alembic/
-COPY alembic.ini ./
+COPY apps/api/ ./api/
+COPY apps/alembic/ ./alembic/
+COPY apps/alembic.ini ./
 
 # Install project
 RUN uv sync --frozen --no-dev
@@ -40,7 +40,7 @@ WORKDIR /app
 
 # Create outputs directory and copy config
 RUN mkdir -p outputs/temp
-COPY config/ ./config/
+COPY apps/config/ ./config/
 
 # Place executables in the environment at the front of the path
 ENV PATH="/app/.venv/bin:$PATH"
