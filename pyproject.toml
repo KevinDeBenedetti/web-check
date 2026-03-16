@@ -22,7 +22,12 @@ dependencies = [
     "python-owasp-zap-v2.4>=0.0.22",
     "sslyze>=6.0.0",
     "sqlmap>=1.8.11",
+    "typer[all]>=0.12.0",
+    "rich>=13.7.0",
 ]
+
+[project.scripts]
+web-check = "cli.main:app"
 
 [dependency-groups]
 dev = [
@@ -39,7 +44,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["api"]
+packages = ["apps/api", "apps/cli"]
 
 [tool.ruff]
 line-length = 100
@@ -69,7 +74,7 @@ line-ending = "auto"
 python-version = "3.12"
 python = ".venv"
 python-platform = "all"
-root = ["api"]
+root = ["apps/api"]
 
 [tool.ty.rules]
 # Critical errors
@@ -83,13 +88,13 @@ unused-ignore-comment = "warn"
 redundant-cast = "warn"
 
 [tool.ty.src]
-include = ["api"]
+include = ["apps/api"]
 exclude = ["**/__pycache__", "**/node_modules", ".venv", "outputs"]
 respect-ignore-files = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["api/tests"]
+testpaths = ["apps/api/tests"]
 markers = [
     "slow: marks tests as slow (deselected by default in CI)",
     "integration: marks tests as integration tests",
