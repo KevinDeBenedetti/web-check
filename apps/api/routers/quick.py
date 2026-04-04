@@ -5,12 +5,12 @@ from ipaddress import IPv4Address, IPv6Address
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query
-from httpx_secure import httpx_ssrf_protection
-
 from api.models import CheckResult
 from api.services.nikto import run_nikto_scan
 from api.services.nuclei import run_nuclei_scan
+from api.utils.config import get_settings
+from fastapi import APIRouter, HTTPException, Query
+from httpx_secure import httpx_ssrf_protection
 
 router = APIRouter()
 
@@ -74,7 +74,7 @@ async def quick_dns_check(
 
     # Domains that this endpoint is allowed to contact.
     # Replace or extend this tuple with the domains that are acceptable in your deployment.
-    ALLOWED_DOMAINS = ("example.com",)
+    ALLOWED_DOMAINS = tuple(get_settings().get_allowed_domains())
 
     def _custom_ssrf_validator(hostname: str, ip: IPv4Address | IPv6Address, port: int) -> bool:
         """

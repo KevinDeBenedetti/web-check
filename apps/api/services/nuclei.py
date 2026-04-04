@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 import structlog
-
 from api.models import CheckResult, Finding
 from api.services.docker_runner import docker_run, load_jsonl_output
 
@@ -124,9 +123,11 @@ def _parse_nuclei_output(data: list[dict[str, Any]]) -> list[Finding]:
         severity_str: str = str(info.get("severity", "info")).lower()
 
         finding = Finding(
-            severity=severity_str
-            if severity_str in ["critical", "high", "medium", "low", "info"]
-            else "info",  # type: ignore[arg-type]
+            severity=(
+                severity_str
+                if severity_str in ["critical", "high", "medium", "low", "info"]
+                else "info"
+            ),  # ty: ignore[invalid-argument-type]
             title=str(info.get("name", "Nuclei Finding")),
             description=str(info.get("description", "No description available")),
             reference=str(info.get("reference")) if info.get("reference") else None,

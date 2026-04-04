@@ -3,10 +3,9 @@
 from datetime import UTC, datetime
 from typing import Any
 
+from api.database import Base
 from sqlalchemy import JSON, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
-
-from api.database import Base
 
 
 class Scan(Base):

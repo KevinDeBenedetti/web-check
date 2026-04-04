@@ -7,8 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
-
-from api.models import CheckResult, Finding
+from api.models import CheckResult, Finding, Severity
 
 logger = structlog.get_logger()
 
@@ -92,7 +91,7 @@ async def run_wapiti_scan(
                         severity_str = _map_wapiti_severity(vuln.get("level", 1))
                         findings.append(
                             Finding(
-                                severity=severity_str,  # type: ignore[arg-type]
+                                severity=severity_str,
                                 title=f"Wapiti: {vuln_type}",
                                 description=vuln.get("info", "No description available"),
                                 reference=vuln.get("wstg", [None])[0] if vuln.get("wstg") else None,
@@ -156,7 +155,7 @@ async def run_wapiti_scan(
         )
 
 
-def _map_wapiti_severity(level: int) -> str:
+def _map_wapiti_severity(level: int) -> "Severity":
     """Map Wapiti severity level to our severity levels."""
     if level == 3:
         return "critical"

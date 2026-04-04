@@ -6,9 +6,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 import structlog
-from zapv2 import ZAPv2
-
 from api.models import CheckResult, Finding
+from zapv2 import ZAPv2
 
 logger = structlog.get_logger()
 

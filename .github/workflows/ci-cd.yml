@@ -1,0 +1,95 @@
+name: CI / CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches:
+      - "**"
+      - "!release/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # ── CI — Python (lint, format, typecheck, test) ───────────────────────────
+  python:
+    name: Python CI
+    if: github.event_name == 'pull_request'
+    uses: KevinDeBenedetti/github-workflows/.github/workflows/ci-python.yml@main
+    with:
+      python-version: "3.12"
+      working-directory: "."
+      run-lint: true
+      run-format: true
+      run-typecheck: true
+      run-test: true
+      run-coverage: false
+
+  # ── CI — Security (secret scan + Python audit) ────────────────────────────
+  security:
+    name: Security
+    if: github.event_name == 'pull_request'
+    uses: KevinDeBenedetti/github-workflows/.github/workflows/security.yml@main
+    with:
+      run-node-audit: false
+      run-python-audit: true
+      python-working-directory: "."
+      run-secret-scan: true
+      run-codeql: false
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+      pull-requests: read
+
+  # ── CI — Bot commit guard ─────────────────────────────────────────────────
+  bot-check:
+    name: Bot check
+    if: github.event_name == 'pull_request'
+    uses: KevinDeBenedetti/github-workflows/.github/workflows/check-bot-commits.yml@main
+    with:
+      allowed-bots: '["dependabot[bot]"]'
+    permissions:
+      contents: read
+      pull-requests: read
+
+  # ── CI — Gate (all required checks passed) ────────────────────────────────
+  ci-passed:
+    name: CI Passed
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    needs: [python]
+    steps:
+      - name: All checks passed
+        run: echo "✅ All CI checks passed successfully!"
+
+  # ── CD — Release Please ───────────────────────────────────────────────────
+  release:
+    name: Release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: KevinDeBenedetti/github-workflows/.github/workflows/release.yml@main
+    secrets: inherit
+
+  # ── CD — Build & push API Docker image (on release) ───────────────────────
+  deploy-api:
+    name: Deploy API
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    uses: KevinDeBenedetti/github-workflows/.github/workflows/cd-docker.yml@main
+    with:
+      image-name: web-check-api
+      context: "."
+      dockerfile: Dockerfile
+      tag-latest: true
+      version: ${{ needs.release.outputs.tag }}
+    secrets: inherit
+
+  # ── CD — Sync docs → kevindebenedetti.github.io ───────────────────────────
+  deploy-docs:
+    name: Sync docs → central repo
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: KevinDeBenedetti/github-workflows/.github/workflows/cd-docs.yml@main
+    secrets: inherit

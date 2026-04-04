@@ -1,6 +1,5 @@
 """CLI configuration and settings."""
 
-from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,6 +16,7 @@ class CLISettings(BaseSettings):
         env_file=".env",
         env_prefix="WEB_CHECK_CLI_",
         case_sensitive=False,
+        extra="ignore",
     )
 
 

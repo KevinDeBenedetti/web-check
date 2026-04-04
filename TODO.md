@@ -1,4 +1,5 @@
 # TODO
 
 - FEAT: add documentation for web-check
-- FEAT: add a chat bot using copilot sdk with UI
+- FEAT: update CLI to have a complete workflow for checking a website
+- FEAT: use copilot sdk for the CLI tool

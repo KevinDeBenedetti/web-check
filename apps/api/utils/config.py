@@ -1,5 +1,6 @@
 """Configuration management for Web-Check."""
 
+import json
 from functools import lru_cache
 from pathlib import Path
 
@@ -27,6 +28,17 @@ class Settings(BaseSettings):
 
     # Logging
     log_level: str = "INFO"
+
+    # SSRF / domain allowlist — comma-separated string.
+    # Set ALLOWED_DOMAINS="example.com,yourdomain.com" in .env or environment.
+    allowed_domains: str = "example.com"
+
+    def get_allowed_domains(self) -> list[str]:
+        """Return allowed_domains as a parsed list (comma-separated or JSON array)."""
+        v = self.allowed_domains.strip()
+        if v.startswith("["):
+            return json.loads(v)
+        return [d.strip() for d in v.split(",") if d.strip()]
 
     model_config = SettingsConfigDict(
         env_file=".env",

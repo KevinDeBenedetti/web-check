@@ -3,9 +3,8 @@
 from datetime import datetime
 
 import pytest
-from pydantic import ValidationError
-
 from api.models import CheckResult, Finding, ScanRequest
+from pydantic import ValidationError
 
 
 def test_finding_model():
@@ -28,7 +27,7 @@ def test_finding_invalid_severity():
     """Test that invalid severity is rejected."""
     with pytest.raises(ValidationError):
         Finding(
-            severity="invalid",  # type: ignore[arg-type]
+            severity="invalid",  # ty: ignore[invalid-argument-type]
             title="Test",
             description="Test",
             reference=None,

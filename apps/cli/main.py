@@ -1,14 +1,14 @@
 """Web-Check CLI main application."""
 
-import sys
-
 import structlog
 import typer
-from rich.console import Console
-
 from cli import __version__
 from cli.commands import config_app, results_app, scan_app
-from cli.utils import CLISettings
+from cli.commands.scan import _display_result
+from cli.utils import APIClient, CLISettings
+from rich.console import Console
+from rich.prompt import Prompt
+from rich.rule import Rule
 
 logger = structlog.get_logger()
 console = Console()
@@ -16,6 +16,7 @@ console = Console()
 app = typer.Typer(
     help="Web-Check Security Scanner CLI",
     pretty_exceptions_enable=False,
+    invoke_without_command=True,
 )
 
 # Register subcommands
@@ -26,6 +27,7 @@ app.add_typer(config_app, name="config", help="Configuration operations")
 
 @app.callback()
 def main(
+    ctx: typer.Context,
     version: bool = typer.Option(
         None,
         "--version",
@@ -42,6 +44,9 @@ def main(
                 structlog.processors.JSONRenderer(),
             ]
         )
+    # No subcommand given → launch interactive guide
+    if ctx.invoked_subcommand is None:
+        guide()
 
 
 def _show_version(value: bool) -> None:
@@ -51,9 +56,140 @@ def _show_version(value: bool) -> None:
         raise typer.Exit()
 
 
+_SCAN_DESCRIPTIONS = {
+    "full": "Complete scan — nuclei + nikto + zap (async, with live progress)",
+    "quick": "DNS + reachability check (fast)",
+    "ssl": "SSL/TLS configuration analysis",
+    "nuclei": "Nuclei CVE & vulnerability templates",
+    "nikto": "Web server misconfiguration scan",
+}
+
+_SCAN_ENDPOINTS = {
+    "quick": "/api/quick/dns",
+    "ssl": "/api/deep/sslyze",
+    "nuclei": "/api/quick/nuclei",
+    "nikto": "/api/quick/nikto",
+}
+
+
 @app.command()
-def health() -> None:
-    """Check API health status."""
+def guide() -> None:
+    """Interactive guided wizard — choose a scan or check health."""
+    console.print()
+    console.print(Rule("[bold cyan]🔒  Web-Check Security Scanner[/bold cyan]"))
+    console.print()
+
+    # ── Step 1: top-level action ──────────────────────────────────────────
+    action = Prompt.ask(
+        "[bold]What would you like to do?[/bold]",
+        choices=["scan", "health", "quit"],
+        default="scan",
+    )
+
+    if action == "quit":
+        console.print("[dim]Bye![/dim]")
+        raise typer.Exit()
+
+    if action == "health":
+        _run_health()
+        return
+
+    # ── Step 2: scan type ─────────────────────────────────────────────────
+    console.print()
+    for name, desc in _SCAN_DESCRIPTIONS.items():
+        console.print(f"  [cyan]{name:<8}[/cyan] {desc}")
+    console.print()
+
+    scan_type = Prompt.ask(
+        "[bold]Select scan type[/bold]",
+        choices=list(_SCAN_DESCRIPTIONS),
+        default="full",
+    )
+
+    # ── Step 3: target URL ────────────────────────────────────────────────
+    url = Prompt.ask("[bold]Target URL[/bold]", default="https://example.com")
+
+    # ── Step 4: output format ─────────────────────────────────────────────
+    fmt = Prompt.ask(
+        "[bold]Output format[/bold]",
+        choices=["table", "json"],
+        default="table",
+    )
+
+    # ── Execute ───────────────────────────────────────────────────────────
+    console.print()
+
+    # Full scan delegates to the `scan full` command logic
+    if scan_type == "full":
+        import time
+
+        from cli.commands.scan import _DEFAULT_MODULES, _display_full_summary
+
+        settings = CLISettings()
+        client = APIClient(settings.api_url, settings.api_timeout)
+        try:
+            console.print(f"[bold cyan]🔍 Starting full scan on {url}[/bold cyan]")
+            console.print(f"   Modules : [cyan]{', '.join(_DEFAULT_MODULES)}[/cyan]\n")
+
+            response = client.post(
+                "/api/scans/start",
+                json={"target": url, "modules": _DEFAULT_MODULES, "timeout": 300},
+            )
+            scan_id = response.get("scan_id")
+            if not scan_id:
+                console.print("[red]✗ Failed to start scan[/red]")
+                raise typer.Exit(1)
+
+            last_count = 0
+            with console.status("[bold green]Scanning…") as status:
+                for _ in range(300):
+                    time.sleep(5)
+                    scan = client.get(f"/api/scans/{scan_id}")
+                    results = scan.get("results", [])
+                    if len(results) > last_count:
+                        for r in results[last_count:]:
+                            icon = "✓" if r.get("status") == "success" else "✗"
+                            color = "green" if r.get("status") == "success" else "yellow"
+                            findings_n = len(r.get("findings", []))
+                            console.log(
+                                f"[{color}][{icon}][/{color}] [bold]{r.get('module', '?')}[/bold]  "
+                                f"[dim]{r.get('duration_ms', 0)}ms[/dim]  "
+                                f"[yellow]{findings_n} finding(s)[/yellow]"
+                            )
+                            status.update(f"[green]Completed {len(results)} module(s)…[/green]")
+                        last_count = len(results)
+                    if scan.get("status") != "running":
+                        break
+
+            scan = client.get(f"/api/scans/{scan_id}")
+            if fmt == "json":
+                _display_result(scan, "json")
+            else:
+                _display_full_summary(scan_id, url, scan.get("results", []))
+        except Exception as e:
+            console.print(f"[red]✗ Scan failed: {e}[/red]")
+            raise typer.Exit(1) from None
+        finally:
+            client.close()
+        return
+
+    endpoint = _SCAN_ENDPOINTS[scan_type]
+    settings = CLISettings()
+    client = APIClient(settings.api_url, settings.api_timeout)
+
+    try:
+        with console.status(f"[bold green]Running {scan_type} scan on {url}…"):
+            result = client.get(endpoint, url=url)
+        _display_result(result, fmt)
+    except Exception as e:
+        console.print(f"[red]✗ Scan failed: {e}[/red]")
+        raise typer.Exit(1) from None
+    finally:
+        client.close()
+
+
+def _run_health() -> None:
+    """Health check helper (shared by guide and health command)."""
     settings = CLISettings()
     try:
         import httpx
@@ -61,15 +197,20 @@ def health() -> None:
         with httpx.Client(timeout=5) as client:
             response = client.get(f"{settings.api_url}/api/health")
             response.raise_for_status()
-            health = response.json()
+            health_data = response.json()
 
-        status = health.get("status", "unknown")
-        status_color = "green" if status == "healthy" else "yellow"
-        console.print(f"[{status_color}]API Status: {status}[/{status_color}]")
-
+        status = health_data.get("status", "unknown")
+        color = "green" if status == "healthy" else "yellow"
+        console.print(f"[{color}]● API Status: {status}[/{color}]")
     except Exception as e:
         console.print(f"[red]✗ API unreachable: {e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
+
+
+@app.command()
+def health() -> None:
+    """Check API health status."""
+    _run_health()
 
 
 if __name__ == "__main__":

@@ -6,7 +6,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
-
 from api.models import CheckResult, Finding
 
 logger = structlog.get_logger()
