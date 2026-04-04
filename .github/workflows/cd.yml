@@ -1,69 +1,63 @@
-name: CD - Release Please
+name: CD
 
 on:
   push:
     branches:
       - main
+  pull_request_target:
+    types: [opened, synchronize]
 
-permissions:
-  contents: write
-  issues: write
-  pull-requests: write
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  release-please:
-    runs-on: ubuntu-latest
-    outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
-      version: ${{ steps.release.outputs.version }}
-    steps:
-      - name: Release Please
-        id: release
-        uses: googleapis/release-please-action@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          config-file: .github/release/release-please-config.json
-          manifest-file: .github/release/.release-please-manifest.json
+  # 1. Release Please
+  release:
+    name: Release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: KevinDeBenedetti/github-workflows/.github/workflows/release.yml@main
+    secrets: inherit
 
-  build-and-push:
-    needs: release-please
-    if: ${{ needs.release-please.outputs.release_created }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  # 2. Build & push API Docker image (on release)
+  deploy-api:
+    name: Deploy API
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    uses: KevinDeBenedetti/github-workflows/.github/workflows/cd-docker.yml@main
+    with:
+      image-name: web-check-api
+      context: "."
+      dockerfile: Dockerfile
+      tag-latest: true
+      version: ${{ needs.release.outputs.tag }}
+    secrets: inherit
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+  # 3. Build & push Web Docker image (on release)
+  deploy-web:
+    name: Deploy Web
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    uses: KevinDeBenedetti/github-workflows/.github/workflows/cd-docker.yml@main
+    with:
+      image-name: web-check-web
+      context: "./apps/web"
+      dockerfile: Dockerfile
+      tag-latest: true
+      version: ${{ needs.release.outputs.tag }}
+    secrets: inherit
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+  # 4. Sync docs → kevindebenedetti.github.io
+  deploy-docs:
+    name: Sync docs → central repo
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: KevinDeBenedetti/github-workflows/.github/workflows/cd-docs.yml@main
+    secrets: inherit
 
-      - name: Build and push API image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/api:${{ needs.release-please.outputs.version }}
-            ghcr.io/${{ github.repository }}/api:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build and push Web image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./web
-          file: ./web/Dockerfile
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}/web:${{ needs.release-please.outputs.version }}
-            ghcr.io/${{ github.repository }}/web:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+  # 5. Bot commit guard on PRs
+  bot-check:
+    name: Check bot commits
+    if: github.event_name == 'pull_request_target'
+    uses: KevinDeBenedetti/github-workflows/.github/workflows/check-bot-commits.yml@main
+    with:
+      allowed-bots: '["dependabot[bot]"]'
