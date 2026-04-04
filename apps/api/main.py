@@ -5,12 +5,11 @@ from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 
 import structlog
+from api.database import Base, engine
+from api.routers import advanced, deep, health, quick, scans, security
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-
-from api.database import Base, engine
-from api.routers import advanced, deep, health, quick, scans, security
 
 logger = structlog.get_logger()
 
@@ -39,7 +38,7 @@ app = FastAPI(
 
 # CORS middleware
 app.add_middleware(
-    CORSMiddleware,  # ty: ignore[invalid-argument-type]
+    CORSMiddleware,
     allow_origins=["*"],  # Configure appropriately for production
     allow_credentials=True,
     allow_methods=["*"],

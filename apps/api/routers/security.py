@@ -2,9 +2,8 @@
 
 from datetime import UTC
 
-from fastapi import APIRouter, HTTPException, Query
-
 from api.models import CheckResult
+from fastapi import APIRouter, HTTPException, Query
 
 router = APIRouter()
 

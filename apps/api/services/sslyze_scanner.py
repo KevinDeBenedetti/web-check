@@ -6,13 +6,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 import structlog
+from api.models import CheckResult, Finding
 from sslyze.plugins.scan_commands import ScanCommand
 from sslyze.scanner.models import ServerScanRequest, ServerScanStatusEnum
 from sslyze.scanner.scan_command_attempt import ScanCommandAttemptStatusEnum
 from sslyze.scanner.scanner import Scanner
 from sslyze.server_setting import ServerNetworkLocation
-
-from api.models import CheckResult, Finding
 
 logger = structlog.get_logger()
 

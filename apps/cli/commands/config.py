@@ -2,10 +2,9 @@
 
 import structlog
 import typer
+from cli.utils import CLISettings
 from rich.console import Console
 from rich.table import Table
-
-from cli.utils import CLISettings
 
 logger = structlog.get_logger()
 console = Console()
@@ -57,4 +56,4 @@ def validate() -> None:
     except Exception as e:
         logger.error("api_connection_failed", api_url=settings.api_url, error=str(e))
         console.print(f"[red]✗ API connection failed: {e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None

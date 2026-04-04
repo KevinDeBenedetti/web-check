@@ -1,11 +1,10 @@
 """Advanced security scanning endpoints (SQLMap, Wapiti, XSStrike)."""
 
-from fastapi import APIRouter, Query
-
 from api.models import CheckResult
 from api.services.sqlmap_scanner import run_sqlmap_scan
 from api.services.wapiti_scanner import run_wapiti_scan
 from api.services.xsstrike_scanner import run_xsstrike_scan
+from fastapi import APIRouter, Query
 
 router = APIRouter()
 

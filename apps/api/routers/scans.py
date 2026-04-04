@@ -4,14 +4,13 @@ import asyncio
 from datetime import UTC, datetime
 from typing import cast
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from api.database import get_session
 from api.models.results import CheckResult, ScanRequest, ScanResponse
 from api.services import db_service
 from api.services.log_streamer import log_streamer
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 

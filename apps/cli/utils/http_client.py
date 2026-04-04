@@ -1,6 +1,5 @@
 """HTTP client utilities for API communication."""
 
-import json
 from typing import Any
 
 import httpx
@@ -26,19 +25,20 @@ class APIClient:
         self.timeout = timeout
         self.client = httpx.Client(timeout=timeout, follow_redirects=True)
 
-    def post(self, endpoint: str, **params: Any) -> dict[str, Any]:
+    def post(self, endpoint: str, json: dict | None = None, **params: Any) -> dict[str, Any]:
         """Make POST request to API.
 
         Args:
             endpoint: API endpoint path
-            **params: Query or body parameters
+            json: Optional JSON body
+            **params: Query parameters
 
         Returns:
             Response JSON
         """
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
         try:
-            response = self.client.post(url, params=params)
+            response = self.client.post(url, json=json, params=params if params else None)
             response.raise_for_status()
             return response.json()
         except httpx.HTTPError as e:
@@ -46,7 +46,7 @@ class APIClient:
             console.print(f"[red]Error: {e}[/red]")
             raise
 
-    def get(self, endpoint: str, **params: Any) -> dict[str, Any]:
+    def get(self, endpoint: str, **params: Any) -> Any:
         """Make GET request to API.
 
         Args:
@@ -54,7 +54,7 @@ class APIClient:
             **params: Query parameters
 
         Returns:
-            Response JSON
+            Response JSON (dict or list depending on endpoint)
         """
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
         try:

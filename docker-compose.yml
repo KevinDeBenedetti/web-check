@@ -2,54 +2,12 @@
 # Web-Check Security Scanner - Docker Compose Configuration
 # ==============================================================================
 # Usage:
-#   Production:  docker compose up -d
-#   Development: docker compose --profile dev up -d
+#   Start:  docker compose up -d
+#   Tools:  docker compose --profile tools up -d
 #
 # Copy .env.example to .env and customize as needed
 
 services:
-  # ==========================================================================
-  # Web Interface (Production Build)
-  # ==========================================================================
-  web:
-    build:
-      context: ./apps/web
-      dockerfile: Dockerfile
-    container_name: web-check-web
-    ports:
-      - "${WEB_PORT:-3000}:80"
-    environment:
-      - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
-    networks:
-      - scanner-net
-    restart: unless-stopped
-    depends_on:
-      - api
-    profiles:
-      - prod
-
-  # ==========================================================================
-  # Web Interface (Development with Hot-Reload)
-  # ==========================================================================
-  web-dev:
-    image: oven/bun:1.1-alpine
-    container_name: web-check-web-dev
-    working_dir: /app
-    ports:
-      - "${WEB_PORT:-3000}:3000"
-    volumes:
-      - ./apps/web:/app
-      - /app/node_modules
-    command: sh -c "bun install && bun run dev -- --host"
-    environment:
-      - VITE_API_URL=http://api:8000
-    networks:
-      - scanner-net
-    depends_on:
-      - api
-    profiles:
-      - dev
-
   # ==========================================================================
   # API Server
   # ==========================================================================
@@ -64,13 +22,14 @@ services:
       - ./apps/api:/app/api:ro
       - ./outputs:/app/outputs:rw
       - ./apps/config:/app/config:ro
-      - ./web-check.db:/app/web-check.db:rw
+      - ./data:/app/data:rw
       - ./apps/alembic:/app/alembic:ro
       - ./apps/alembic.ini:/app/alembic.ini:ro
     environment:
       - DEBUG=${DEBUG:-false}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - DOCKER_NETWORK=${DOCKER_NETWORK:-scanner-net}
+      - ALLOWED_DOMAINS=${ALLOWED_DOMAINS:-example.com}
     networks:
       - scanner-net
     restart: unless-stopped
@@ -120,9 +79,10 @@ services:
       - scanner-net
     restart: unless-stopped
 
-  # Nikto (Web Server Scanner)
+  # Nikto (Web Server Scanner) — amd64 only, runs via Rosetta on Apple Silicon
   nikto:
     image: alpine/nikto:latest
+    platform: linux/amd64
     container_name: security-scanner-nikto
     volumes:
       - ./outputs:/output:rw

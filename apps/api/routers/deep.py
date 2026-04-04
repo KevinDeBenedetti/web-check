@@ -1,10 +1,9 @@
 """Deep scan endpoints."""
 
-from fastapi import APIRouter, HTTPException, Query
-
 from api.models import CheckResult
 from api.services.sslyze_scanner import run_sslyze_scan
 from api.services.zap_native import run_zap_scan
+from fastapi import APIRouter, HTTPException, Query
 
 router = APIRouter()
 

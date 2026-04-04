@@ -4,7 +4,6 @@ import time
 from datetime import UTC, datetime
 
 import structlog
-
 from api.models import CheckResult, Finding
 from api.services.docker_runner import docker_run
 

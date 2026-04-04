@@ -3,9 +3,8 @@
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
-
 from api.models.findings import Finding
+from pydantic import BaseModel, Field
 
 ScanStatus = Literal["success", "error", "timeout", "running"]
 ScanCategory = Literal["quick", "deep", "security"]

@@ -2,11 +2,10 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from api.models import CheckResult
 from api.models.db_models import Finding, Scan, ScanResult
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def create_scan(

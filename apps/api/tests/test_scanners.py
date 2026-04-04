@@ -1,9 +1,8 @@
 """Tests for security scanner endpoints."""
 
 import pytest
-from httpx import ASGITransport, AsyncClient
-
 from api.main import app
+from httpx import ASGITransport, AsyncClient
 
 
 @pytest.fixture
