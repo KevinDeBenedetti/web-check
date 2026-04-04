@@ -13,7 +13,7 @@ services:
   # ==========================================================================
   web:
     build:
-      context: ../web
+      context: ./apps/web
       dockerfile: Dockerfile
     container_name: web-check-web
     ports:
@@ -38,7 +38,7 @@ services:
     ports:
       - "${WEB_PORT:-3000}:3000"
     volumes:
-      - ../web:/app
+      - ./apps/web:/app
       - /app/node_modules
     command: sh -c "bun install && bun run dev -- --host"
     environment:
@@ -55,18 +55,18 @@ services:
   # ==========================================================================
   api:
     build:
-      context: ..
-      dockerfile: apps/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     container_name: web-check-api
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
-      - ./api:/app/api:ro
+      - ./apps/api:/app/api:ro
       - ./outputs:/app/outputs:rw
-      - ./config:/app/config:ro
+      - ./apps/config:/app/config:ro
       - ./web-check.db:/app/web-check.db:rw
-      - ./alembic:/app/alembic:ro
-      - ./alembic.ini:/app/alembic.ini:ro
+      - ./apps/alembic:/app/alembic:ro
+      - ./apps/alembic.ini:/app/alembic.ini:ro
     environment:
       - DEBUG=${DEBUG:-false}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
