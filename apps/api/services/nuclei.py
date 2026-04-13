@@ -62,6 +62,19 @@ async def run_nuclei_scan(target: str, timeout: int = 300) -> CheckResult:
                 error="Scan timed out",
             )
 
+        if result["exit_code"] == -1:
+            return CheckResult(
+                module="nuclei",
+                category="quick",
+                target=target,
+                timestamp=datetime.now(UTC),
+                duration_ms=int((time.time() - start) * 1000),
+                status="error",
+                data=None,
+                findings=[],
+                error=f"Docker exec failed: {result['stderr']}",
+            )
+
         # Parse JSONL output
         data = await load_jsonl_output(output_file)
         if data:

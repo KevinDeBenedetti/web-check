@@ -4,6 +4,7 @@ import time
 
 import structlog
 import typer
+from cli.report import normalise_full_scan, normalise_single, save_report
 from cli.utils import APIClient, CLISettings, format_findings, format_json
 from rich.console import Console
 from rich.table import Table
@@ -23,6 +24,7 @@ def nuclei(
     url: str = typer.Argument(..., help="Target URL to scan"),
     timeout: int = typer.Option(300, help="Timeout in seconds (30-600)"),
     output_format: str = typer.Option("table", help="Output format (table, json)"),
+    report: bool = typer.Option(False, "--report", help="Save a Markdown report to outputs/"),
 ) -> None:
     """Run Nuclei vulnerability scan.
 
@@ -40,6 +42,8 @@ def nuclei(
             )
 
         _display_result(result, output_format)
+        if report:
+            save_report(url, normalise_single(result), scan_type="nuclei")
     except Exception as e:
         logger.error("nuclei_scan_failed", error=str(e))
         console.print(f"[red]✗ Nuclei scan failed: {e}[/red]")
@@ -53,6 +57,7 @@ def nikto(
     url: str = typer.Argument(..., help="Target URL to scan"),
     timeout: int = typer.Option(600, help="Timeout in seconds (30-600)"),
     output_format: str = typer.Option("table", help="Output format (table, json)"),
+    report: bool = typer.Option(False, "--report", help="Save a Markdown report to outputs/"),
 ) -> None:
     """Run Nikto web server scan.
 
@@ -70,6 +75,8 @@ def nikto(
             )
 
         _display_result(result, output_format)
+        if report:
+            save_report(url, normalise_single(result), scan_type="nikto")
     except Exception as e:
         logger.error("nikto_scan_failed", error=str(e))
         console.print(f"[red]✗ Nikto scan failed: {e}[/red]")
@@ -82,6 +89,7 @@ def nikto(
 def quick(
     url: str = typer.Argument(..., help="Target URL to scan"),
     output_format: str = typer.Option("table", help="Output format (table, json)"),
+    report: bool = typer.Option(False, "--report", help="Save a Markdown report to outputs/"),
 ) -> None:
     """Run quick DNS + reachability check."""
     settings = CLISettings()
@@ -92,6 +100,8 @@ def quick(
             result = client.get("/api/quick/dns", url=url)
 
         _display_result(result, output_format)
+        if report:
+            save_report(url, normalise_single(result), scan_type="quick")
     except Exception as e:
         logger.error("quick_scan_failed", error=str(e))
         console.print(f"[red]✗ Quick scan failed: {e}[/red]")
@@ -105,6 +115,7 @@ def ssl(
     url: str = typer.Argument(..., help="Target URL to scan"),
     timeout: int = typer.Option(300, help="Timeout in seconds (30-600)"),
     output_format: str = typer.Option("table", help="Output format (table, json)"),
+    report: bool = typer.Option(False, "--report", help="Save a Markdown report to outputs/"),
 ) -> None:
     """Run SSL/TLS security assessment.
 
@@ -122,6 +133,8 @@ def ssl(
             )
 
         _display_result(result, output_format)
+        if report:
+            save_report(url, normalise_single(result), scan_type="ssl")
     except Exception as e:
         logger.error("ssl_scan_failed", error=str(e))
         console.print(f"[red]✗ SSL scan failed: {e}[/red]")
@@ -140,6 +153,7 @@ def full(
     all_modules: bool = typer.Option(False, "--all", help="Run every available module"),
     timeout: int = typer.Option(300, help="Timeout per module in seconds (30-3600)"),
     output_format: str = typer.Option("table", help="Output format (table, json)"),
+    report: bool = typer.Option(False, "--report", help="Save a Markdown report to outputs/"),
 ) -> None:
     """Run a complete multi-module security scan (async, with live progress).
 
@@ -221,6 +235,9 @@ def full(
 
         console.print()
         _display_full_summary(scan_id, url, results)
+
+        if report:
+            save_report(url, normalise_full_scan(scan), scan_type="full")
 
     except Exception as e:
         logger.error("full_scan_failed", error=str(e))

@@ -27,6 +27,9 @@ def show() -> None:
     table.add_row("Debug", "Yes" if settings.debug else "No")
     table.add_row("Log Level", settings.log_level)
 
+    domains = settings.domains
+    table.add_row("Allowed Domains", ", ".join(domains) if domains else "[dim]none[/dim]")
+
     console.print(table)
     console.print("\n[dim]Environment Variables:[/dim]")
     console.print("  WEB_CHECK_CLI_API_URL")

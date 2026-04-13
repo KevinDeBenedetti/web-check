@@ -6,6 +6,8 @@ from urllib.parse import urlparse
 
 import httpx
 from api.models import CheckResult
+from api.services.dns_enum import run_dns_enum
+from api.services.headers_scanner import run_headers_scan
 from api.services.nikto import run_nikto_scan
 from api.services.nuclei import run_nuclei_scan
 from api.utils.config import get_settings
@@ -197,3 +199,39 @@ async def quick_dns_check(
             findings=[],
             error=str(e),
         )
+
+
+@router.get("/headers", response_model=CheckResult)
+async def quick_headers_scan(
+    url: str = Query(..., description="Target URL to scan"),
+    timeout: int = Query(30, ge=5, le=120, description="Timeout in seconds"),
+) -> CheckResult:
+    """
+    Scan HTTP security headers.
+
+    Checks for missing/misconfigured security headers (CSP, HSTS, X-Frame-Options, etc.),
+    CORS policy, cookie flags, and server information disclosure.
+    Average duration: < 5 seconds.
+    """
+    if not url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="URL must start with http:// or https://")
+
+    return await run_headers_scan(url, timeout)
+
+
+@router.get("/dns-enum", response_model=CheckResult)
+async def quick_dns_enum(
+    url: str = Query(..., description="Domain or URL to enumerate"),
+    timeout: int = Query(30, ge=5, le=120, description="Timeout in seconds"),
+) -> CheckResult:
+    """
+    Full DNS record enumeration.
+
+    Enumerates A, AAAA, MX, NS, TXT, SOA, CNAME records and checks email security
+    controls (SPF, DMARC, DKIM) and zone transfer exposure.
+    Average duration: < 15 seconds.
+    """
+    if not url.startswith(("http://", "https://")):
+        url = f"https://{url}"
+
+    return await run_dns_enum(url, timeout)

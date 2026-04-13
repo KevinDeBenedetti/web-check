@@ -1,0 +1,33 @@
+{
+  "web": {
+    "enabled_checks": [
+      "web-tls",
+      "web-headers",
+      "web-dns",
+      "web-ports",
+      "web-redirects",
+      "web-subdomain-takeover"
+    ],
+    "timeout": 30,
+    "ports": [80, 443, 8080, 8443, 3000, 3443, 9090]
+  },
+  "k8s": {
+    "enabled_checks": [
+      "k8s-rbac",
+      "k8s-workloads",
+      "k8s-network-policies",
+      "k8s-secrets",
+      "k8s-images",
+      "k8s-kube-bench",
+      "k8s-trivy",
+      "k8s-polaris",
+      "k8s-falco"
+    ],
+    "timeout": 60
+  },
+  "output": {
+    "formats": ["terminal", "markdown"],
+    "output_dir": "outputs",
+    "sarif": false
+  }
+}

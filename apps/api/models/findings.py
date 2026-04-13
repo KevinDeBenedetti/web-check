@@ -16,6 +16,7 @@ class Finding(BaseModel):
     reference: str | None = Field(None, description="URL or reference for more information")
     cve: str | None = Field(None, description="CVE identifier if applicable")
     cvss_score: float | None = Field(None, ge=0.0, le=10.0, description="CVSS score if applicable")
+    remediation: str | None = Field(None, description="Recommended remediation steps")
 
     model_config = {
         "json_schema_extra": {

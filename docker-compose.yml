@@ -25,6 +25,7 @@ services:
       - ./data:/app/data:rw
       - ./apps/alembic:/app/alembic:ro
       - ./apps/alembic.ini:/app/alembic.ini:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - DEBUG=${DEBUG:-false}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}

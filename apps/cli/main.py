@@ -3,7 +3,8 @@
 import structlog
 import typer
 from cli import __version__
-from cli.commands import config_app, results_app, scan_app
+from cli.commands import check_app, config_app, domains_app, results_app, scan_app
+from cli.commands.check import _pick_domain
 from cli.commands.scan import _display_result
 from cli.utils import APIClient, CLISettings
 from rich.console import Console
@@ -20,9 +21,11 @@ app = typer.Typer(
 )
 
 # Register subcommands
+app.add_typer(check_app, name="check", help="Complete security check workflow")
 app.add_typer(scan_app, name="scan", help="Scan operations")
 app.add_typer(results_app, name="results", help="Results operations")
 app.add_typer(config_app, name="config", help="Configuration operations")
+app.add_typer(domains_app, name="domains", help="Manage allowed domains")
 
 
 @app.callback()
@@ -82,8 +85,8 @@ def guide() -> None:
     # ── Step 1: top-level action ──────────────────────────────────────────
     action = Prompt.ask(
         "[bold]What would you like to do?[/bold]",
-        choices=["scan", "health", "quit"],
-        default="scan",
+        choices=["check", "scan", "health", "quit"],
+        default="check",
     )
 
     if action == "quit":
@@ -92,6 +95,24 @@ def guide() -> None:
 
     if action == "health":
         _run_health()
+        return
+
+    if action == "check":
+        console.print("\n[dim]Running complete security check (DNS → SSL → Nuclei → Nikto)[/dim]")
+        url = _pick_domain(None)
+        fmt = Prompt.ask(
+            "[bold]Output format[/bold]",
+            choices=["table", "json"],
+            default="table",
+        )
+        save = Prompt.ask(
+            "[bold]Save Markdown report?[/bold]",
+            choices=["yes", "no"],
+            default="yes",
+        )
+        from cli.commands.check import run_check
+
+        run_check(url, skip_set=set(), output_format=fmt, save_report=(save == "yes"))
         return
 
     # ── Step 2: scan type ─────────────────────────────────────────────────
@@ -107,7 +128,7 @@ def guide() -> None:
     )
 
     # ── Step 3: target URL ────────────────────────────────────────────────
-    url = Prompt.ask("[bold]Target URL[/bold]", default="https://example.com")
+    url = _pick_domain(None)
 
     # ── Step 4: output format ─────────────────────────────────────────────
     fmt = Prompt.ask(
@@ -115,6 +136,14 @@ def guide() -> None:
         choices=["table", "json"],
         default="table",
     )
+
+    # ── Step 5: save report ───────────────────────────────────────────────
+    save = Prompt.ask(
+        "[bold]Save Markdown report?[/bold]",
+        choices=["yes", "no"],
+        default="yes",
+    )
+    do_report = save == "yes"
 
     # ── Execute ───────────────────────────────────────────────────────────
     console.print()
@@ -124,6 +153,7 @@ def guide() -> None:
         import time
 
         from cli.commands.scan import _DEFAULT_MODULES, _display_full_summary
+        from cli.report import normalise_full_scan, save_report
 
         settings = CLISettings()
         client = APIClient(settings.api_url, settings.api_timeout)
@@ -166,6 +196,8 @@ def guide() -> None:
                 _display_result(scan, "json")
             else:
                 _display_full_summary(scan_id, url, scan.get("results", []))
+            if do_report:
+                save_report(url, normalise_full_scan(scan), scan_type="full")
         except Exception as e:
             console.print(f"[red]✗ Scan failed: {e}[/red]")
             raise typer.Exit(1) from None
@@ -181,6 +213,9 @@ def guide() -> None:
         with console.status(f"[bold green]Running {scan_type} scan on {url}…"):
             result = client.get(endpoint, url=url)
         _display_result(result, fmt)
+        if do_report:
+            from cli.report import normalise_single, save_report
+            save_report(url, normalise_single(result), scan_type=scan_type)
     except Exception as e:
         console.print(f"[red]✗ Scan failed: {e}[/red]")
         raise typer.Exit(1) from None
