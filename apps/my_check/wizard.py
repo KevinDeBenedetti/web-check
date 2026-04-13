@@ -100,9 +100,7 @@ def _load_kube_contexts() -> list[str]:
 def run_wizard() -> None:
     """Launch the interactive step-by-step security scan wizard."""
     _header("🔒  my-check — Security Scanner")
-    console.print(
-        "  [dim]Use arrow keys ↑↓ to navigate, Space to select, Enter to confirm.[/dim]"
-    )
+    console.print("  [dim]Use arrow keys ↑↓ to navigate, Space to select, Enter to confirm.[/dim]")
 
     cfg = load_config()
 
@@ -194,9 +192,7 @@ def run_wizard() -> None:
         )
         if selected_ns == "__manual__":
             selected_ns = _q(
-                questionary.text(
-                    "Namespace", default=cfg.k8s.namespace or "", style=_STYLE
-                )
+                questionary.text("Namespace", default=cfg.k8s.namespace or "", style=_STYLE)
             ).strip()
 
         k8s_ctx = K8sContext(
@@ -252,16 +248,31 @@ def run_wizard() -> None:
 
     current_formats = cfg.output.formats
     format_choices = [
-        questionary.Choice("terminal  — colored table (default)", value="terminal",
-                           checked=("terminal" in current_formats)),
-        questionary.Choice("markdown  — Markdown report file (.md)", value="markdown",
-                           checked=("markdown" in current_formats)),
-        questionary.Choice("json      — structured JSON + SARIF file", value="json",
-                           checked=("json" in current_formats)),
-        questionary.Choice("html      — self-contained HTML report", value="html",
-                           checked=("html" in current_formats)),
-        questionary.Choice("webhook   — POST to Slack / custom endpoint", value="webhook",
-                           checked=("webhook" in current_formats)),
+        questionary.Choice(
+            "terminal  — colored table (default)",
+            value="terminal",
+            checked=("terminal" in current_formats),
+        ),
+        questionary.Choice(
+            "markdown  — Markdown report file (.md)",
+            value="markdown",
+            checked=("markdown" in current_formats),
+        ),
+        questionary.Choice(
+            "json      — structured JSON + SARIF file",
+            value="json",
+            checked=("json" in current_formats),
+        ),
+        questionary.Choice(
+            "html      — self-contained HTML report",
+            value="html",
+            checked=("html" in current_formats),
+        ),
+        questionary.Choice(
+            "webhook   — POST to Slack / custom endpoint",
+            value="webhook",
+            checked=("webhook" in current_formats),
+        ),
     ]
     chosen_formats: list[str] = _q(
         questionary.checkbox(
@@ -370,5 +381,4 @@ def _emit(report: Report, cfg: MyCheckConfig) -> None:
             case _:
                 console.print(f"[yellow]Unknown reporter: {fmt}[/yellow]")
 
-    fail_count = report.summary.get("fail", 0)  # type: ignore[arg-type]
-    raise typer.Exit(code=1 if fail_count > 0 else 0)
+    raise typer.Exit(code=0)

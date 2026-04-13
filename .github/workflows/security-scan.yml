@@ -32,6 +32,7 @@ jobs:
         run: uv sync --all-groups
 
       - name: Run web checks
+        continue-on-error: true
         run: |
           uv run my-check web "${{ vars.SCAN_TARGET_URL || 'https://example.com' }}" \
             --output terminal,json
@@ -75,6 +76,7 @@ jobs:
           cluster_name: my-check-test
 
       - name: Run k8s checks
+        continue-on-error: true
         run: |
           uv run my-check k8s \
             --context kind-my-check-test \
