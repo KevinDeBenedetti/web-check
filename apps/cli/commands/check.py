@@ -15,12 +15,12 @@ console = Console()
 check_app = typer.Typer(help="Run a complete security check workflow")
 
 _CHECK_STEPS = [
-    ("dns",         "DNS & Reachability",         "/api/quick/dns",      None),
-    ("dns_enum",    "DNS Record Enumeration",      "/api/quick/dns-enum", None),
-    ("headers",     "HTTP Security Headers",       "/api/quick/headers",  None),
-    ("ssl",         "SSL/TLS Assessment",          "/api/deep/sslyze",    300),
-    ("nuclei",      "Vulnerability Scan (Nuclei)", "/api/quick/nuclei",   300),
-    ("nikto",       "Web Server Scan (Nikto)",     "/api/quick/nikto",    600),
+    ("dns", "DNS & Reachability", "/api/quick/dns", None),
+    ("dns_enum", "DNS Record Enumeration", "/api/quick/dns-enum", None),
+    ("headers", "HTTP Security Headers", "/api/quick/headers", None),
+    ("ssl", "SSL/TLS Assessment", "/api/deep/sslyze", 300),
+    ("nuclei", "Vulnerability Scan (Nuclei)", "/api/quick/nuclei", 300),
+    ("nikto", "Web Server Scan (Nikto)", "/api/quick/nikto", 600),
 ]
 
 _SEVERITY_COLORS = {
@@ -90,7 +90,13 @@ def check(
     run_check(url, skip_set=skip_set, output_format=output_format, save_report=report)
 
 
-def run_check(url: str, *, skip_set: set[str] | None = None, output_format: str = "table", save_report: bool = False) -> None:
+def run_check(
+    url: str,
+    *,
+    skip_set: set[str] | None = None,
+    output_format: str = "table",
+    save_report: bool = False,
+) -> None:
     """Execute the complete security check workflow.
 
     Args:
@@ -263,7 +269,9 @@ def _display_check_report(url: str, step_results: list[dict]) -> None:
         findings = r.get("findings", [])
         all_findings.extend({**f, "_step": r["_label"]} for f in findings)
 
-        detail = _step_hints(r.get("_step", ""), r) or (r.get("error", "") if status != "success" else "")
+        detail = _step_hints(r.get("_step", ""), r) or (
+            r.get("error", "") if status != "success" else ""
+        )
 
         summary.add_row(
             r.get("_label", "?"),
@@ -289,13 +297,22 @@ def _display_check_report(url: str, step_results: list[dict]) -> None:
                 f"  Resolvable: {data.get('resolvable', 'N/A')}",
                 f"  HTTP Code:  {data.get('http_status', 'N/A')}",
             ]
-            console.print(Panel("\n".join(lines), title=f"[cyan]{label}[/cyan]", border_style="dim", expand=False))
+            console.print(
+                Panel(
+                    "\n".join(lines),
+                    title=f"[cyan]{label}[/cyan]",
+                    border_style="dim",
+                    expand=False,
+                )
+            )
 
         elif key == "dns_enum" and data:
             rec = data.get("records") or {}
             lines = [f"  Domain:     {data.get('domain', 'N/A')}"]
             for rtype, vals in rec.items():
-                lines.append(f"  {rtype}:{'':>6}{', '.join(vals[:2])}{'…' if len(vals) > 2 else ''}")
+                lines.append(
+                    f"  {rtype}:{'':>6}{', '.join(vals[:2])}{'…' if len(vals) > 2 else ''}"
+                )
             spf = data.get("spf")
             dmarc = data.get("dmarc")
             dkim = data.get("dkim_found")
@@ -304,7 +321,14 @@ def _display_check_report(url: str, step_results: list[dict]) -> None:
                 f"  DMARC:      {'✓ present' if dmarc else '✗ missing'}",
                 f"  DKIM:       {'✓ found' if dkim else '✗ not found'}",
             ]
-            console.print(Panel("\n".join(lines), title=f"[cyan]{label}[/cyan]", border_style="dim", expand=False))
+            console.print(
+                Panel(
+                    "\n".join(lines),
+                    title=f"[cyan]{label}[/cyan]",
+                    border_style="dim",
+                    expand=False,
+                )
+            )
 
         elif key == "headers" and data:
             missing = data.get("headers_missing") or []
@@ -314,11 +338,20 @@ def _display_check_report(url: str, step_results: list[dict]) -> None:
                 f"  Missing headers:  {len(missing)}",
             ]
             if missing:
-                lines.append(f"  Missing:  {', '.join(missing[:4])}{'…' if len(missing) > 4 else ''}")
+                lines.append(
+                    f"  Missing:  {', '.join(missing[:4])}{'…' if len(missing) > 4 else ''}"
+                )
             srv = data.get("server")
             if srv:
                 lines.append(f"  Server:   {srv}")
-            console.print(Panel("\n".join(lines), title=f"[cyan]{label}[/cyan]", border_style="dim", expand=False))
+            console.print(
+                Panel(
+                    "\n".join(lines),
+                    title=f"[cyan]{label}[/cyan]",
+                    border_style="dim",
+                    expand=False,
+                )
+            )
 
         elif key == "ssl":
             lines = []
@@ -330,7 +363,14 @@ def _display_check_report(url: str, step_results: list[dict]) -> None:
             elif error_msg:
                 lines.append(f"  Error: {error_msg}")
             if lines:
-                console.print(Panel("\n".join(lines), title=f"[cyan]{label}[/cyan]", border_style="dim", expand=False))
+                console.print(
+                    Panel(
+                        "\n".join(lines),
+                        title=f"[cyan]{label}[/cyan]",
+                        border_style="dim",
+                        expand=False,
+                    )
+                )
 
         elif key == "nuclei":
             lines = []
@@ -341,7 +381,14 @@ def _display_check_report(url: str, step_results: list[dict]) -> None:
             elif error_msg:
                 lines.append(f"  Error: {error_msg}")
             if lines:
-                console.print(Panel("\n".join(lines), title=f"[cyan]{label}[/cyan]", border_style="dim", expand=False))
+                console.print(
+                    Panel(
+                        "\n".join(lines),
+                        title=f"[cyan]{label}[/cyan]",
+                        border_style="dim",
+                        expand=False,
+                    )
+                )
 
         elif key == "nikto":
             lines = []
@@ -352,7 +399,14 @@ def _display_check_report(url: str, step_results: list[dict]) -> None:
             elif error_msg:
                 lines.append(f"  Error: {error_msg}")
             if lines:
-                console.print(Panel("\n".join(lines), title=f"[cyan]{label}[/cyan]", border_style="dim", expand=False))
+                console.print(
+                    Panel(
+                        "\n".join(lines),
+                        title=f"[cyan]{label}[/cyan]",
+                        border_style="dim",
+                        expand=False,
+                    )
+                )
 
     # ── Detailed findings ──
     if all_findings:
@@ -423,5 +477,3 @@ def _display_findings_table(findings: list[dict]) -> None:
 def _save_markdown_report(url: str, step_results: list[dict]) -> None:
     """Delegate to shared report module."""
     save_report(url, step_results, scan_type="check")
-
-

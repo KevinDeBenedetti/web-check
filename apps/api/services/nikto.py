@@ -119,7 +119,12 @@ def _parse_nikto_output(output: str) -> list[Finding]:
             continue
 
         description = line[1:].strip()
-        if not description or description.startswith("Target ") or description.startswith("Start Time") or description.startswith("---"):
+        if (
+            not description
+            or description.startswith("Target ")
+            or description.startswith("Start Time")
+            or description.startswith("---")
+        ):
             continue
 
         # Extract OSVDB reference if present (e.g. "OSVDB-3233: ...")
@@ -127,7 +132,7 @@ def _parse_nikto_output(output: str) -> list[Finding]:
         osvdb_match = re.match(r"^(OSVDB-\d+):\s*", description)
         if osvdb_match:
             osvdb_ref = osvdb_match.group(1)
-            description = description[osvdb_match.end():]
+            description = description[osvdb_match.end() :]
 
         # Build a short title from the first meaningful sentence / clause
         title = _nikto_title_from_description(description)
@@ -135,12 +140,30 @@ def _parse_nikto_output(output: str) -> list[Finding]:
         # Determine severity based on keywords
         severity = "info"
         desc_lower = description.lower()
-        if any(kw in desc_lower for kw in ["vulnerability", "exploit", "critical", "heartbleed", "shellshock"]):
+        if any(
+            kw in desc_lower
+            for kw in ["vulnerability", "exploit", "critical", "heartbleed", "shellshock"]
+        ):
             severity = "high"
-        elif any(kw in desc_lower for kw in ["outdated", "misconfiguration", "warning", "vulnerable", "injection", "xss", "sql"]):
+        elif any(
+            kw in desc_lower
+            for kw in [
+                "outdated",
+                "misconfiguration",
+                "warning",
+                "vulnerable",
+                "injection",
+                "xss",
+                "sql",
+            ]
+        ):
             severity = "medium"
 
-        reference = f"https://www.oswdb.org/vulndb/{osvdb_ref}" if osvdb_ref and osvdb_ref != "OSVDB-0" else "https://cirt.net/nikto2"
+        reference = (
+            f"https://www.oswdb.org/vulndb/{osvdb_ref}"
+            if osvdb_ref and osvdb_ref != "OSVDB-0"
+            else "https://cirt.net/nikto2"
+        )
         cve = osvdb_ref if osvdb_ref and osvdb_ref != "OSVDB-0" else None
 
         findings.append(
@@ -160,10 +183,11 @@ def _parse_nikto_output(output: str) -> list[Finding]:
 def _nikto_title_from_description(description: str) -> str:
     """Derive a short title from a Nikto finding description."""
     import re as _re
+
     # Strip URI prefix like "/path HTTP method: description"
     uri_prefix = _re.match(r"^/\S+\s+[A-Z]+:\s*", description)
     if uri_prefix:
-        rest = description[uri_prefix.end():]
+        rest = description[uri_prefix.end() :]
         title = rest[:80].split(".")[0].split(",")[0].strip()
         return title if title else description[:80]
     # First sentence / up to first period or 80 chars

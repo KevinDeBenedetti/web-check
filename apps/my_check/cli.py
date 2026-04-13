@@ -69,6 +69,10 @@ OptVerbose = Annotated[
     bool,
     typer.Option("--verbose", "-v", help="Enable verbose logging"),
 ]
+OptStrict = Annotated[
+    bool,
+    typer.Option("--strict", help="Exit with code 1 when any check fails (useful for CI)"),
+]
 
 
 # ---------------------------------------------------------------------------
@@ -131,10 +135,10 @@ async def _emit_reports(report: Report, cfg: MyCheckConfig) -> None:
                 console.print(f"[yellow]Unknown reporter: {fmt}[/yellow]")
 
 
-def _run(report: Report, cfg: MyCheckConfig) -> None:
+def _run(report: Report, cfg: MyCheckConfig, *, strict: bool = False) -> None:
     asyncio.run(_emit_reports(report, cfg))
     fail_count = report.summary.get("fail", 0)  # type: ignore[arg-type]
-    raise typer.Exit(code=1 if fail_count > 0 else 0)
+    raise typer.Exit(code=1 if strict and fail_count > 0 else 0)
 
 
 # ---------------------------------------------------------------------------
@@ -148,6 +152,7 @@ def web(
     output: OptOutput = "terminal",
     config: OptConfig = None,
     verbose: OptVerbose = False,
+    strict: OptStrict = False,
 ) -> None:
     """Run web security checks against a URL."""
     _setup_logging(verbose)
@@ -158,7 +163,7 @@ def web(
     scheduler = Scheduler(checks=checks, timeout=cfg.web.timeout)
     enabled = set(cfg.web.enabled_checks)
     report = asyncio.run(scheduler.run(target=url, enabled_ids=enabled, category=CheckCategory.WEB))
-    _run(report, cfg)
+    _run(report, cfg, strict=strict)
 
 
 @app.command()
@@ -169,6 +174,7 @@ def k8s(
     output: OptOutput = "terminal",
     config: OptConfig = None,
     verbose: OptVerbose = False,
+    strict: OptStrict = False,
 ) -> None:
     """Run Kubernetes security checks."""
     _setup_logging(verbose)
@@ -182,7 +188,7 @@ def k8s(
     report = asyncio.run(
         scheduler.run(k8s_ctx=k8s_ctx, enabled_ids=enabled, category=CheckCategory.K8S)
     )
-    _run(report, cfg)
+    _run(report, cfg, strict=strict)
 
 
 @app.command(name="all")
@@ -194,6 +200,7 @@ def all_checks(
     output: OptOutput = "terminal",
     config: OptConfig = None,
     verbose: OptVerbose = False,
+    strict: OptStrict = False,
 ) -> None:
     """Run all web and Kubernetes security checks."""
     _setup_logging(verbose)
@@ -205,7 +212,7 @@ def all_checks(
     scheduler = Scheduler(checks=checks, timeout=max(cfg.web.timeout, cfg.k8s.timeout))
     enabled = set(cfg.web.enabled_checks) | set(cfg.k8s.enabled_checks)
     report = asyncio.run(scheduler.run(target=url, k8s_ctx=k8s_ctx, enabled_ids=enabled))
-    _run(report, cfg)
+    _run(report, cfg, strict=strict)
 
 
 # ---------------------------------------------------------------------------

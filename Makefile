@@ -43,7 +43,7 @@ install: ## Install dev dependencies (requires uv)
 	@echo "✅ Ready"
 
 cli: ## Launch the interactive security scanner wizard
-	-@uv run my-check $(ARGS)
+	@uv run my-check $(ARGS)
 
 test: ## Run tests
 	@uv run pytest -q

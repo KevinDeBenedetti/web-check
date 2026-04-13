@@ -215,6 +215,7 @@ def guide() -> None:
         _display_result(result, fmt)
         if do_report:
             from cli.report import normalise_single, save_report
+
             save_report(url, normalise_single(result), scan_type=scan_type)
     except Exception as e:
         console.print(f"[red]✗ Scan failed: {e}[/red]")
