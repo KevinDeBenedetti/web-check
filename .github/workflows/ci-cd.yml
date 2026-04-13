@@ -27,6 +27,8 @@ jobs:
       run-typecheck: true
       run-test: true
       run-coverage: false
+    permissions:
+      contents: read
 
   # ── CI — Security (secret scan + Python audit) ────────────────────────────
   security:
@@ -62,6 +64,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     needs: [python]
+    permissions: {}
     steps:
       - name: All checks passed
         run: echo "✅ All CI checks passed successfully!"
@@ -72,6 +75,9 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     uses: KevinDeBenedetti/github-workflows/.github/workflows/release.yml@main
     secrets: inherit
+    permissions:
+      contents: write
+      pull-requests: write
 
   # ── CD — Build & push API Docker image (on release) ───────────────────────
   deploy-api:
@@ -86,6 +92,9 @@ jobs:
       tag-latest: true
       version: ${{ needs.release.outputs.tag }}
     secrets: inherit
+    permissions:
+      contents: read
+      packages: write
 
   # ── CD — Sync docs → kevindebenedetti.github.io ───────────────────────────
   deploy-docs:
@@ -93,3 +102,5 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     uses: KevinDeBenedetti/github-workflows/.github/workflows/cd-docs.yml@main
     secrets: inherit
+    permissions:
+      contents: read
