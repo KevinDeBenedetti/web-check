@@ -4,7 +4,6 @@
 
 - [Docker](https://docs.docker.com/get-docker/) + Docker Compose v2
 - [uv](https://docs.astral.sh/uv/) — Python package manager
-- [Bun](https://bun.sh/) — JavaScript runtime & package manager
 - Python 3.12+
 
 ## Quick start (Docker)
@@ -13,17 +12,16 @@
 # Copy and customise environment
 cp .env.example .env
 
-# Start API + all scanners (development mode with hot-reload)
-docker compose --profile dev up -d
+# Start API + all scanners
+docker compose up -d
 
-# Start API + all scanners (production build)
-docker compose --profile prod up -d
+# Start with optional fuzzer (FFUF)
+docker compose --profile tools up -d
 ```
 
 | URL | Service |
 |-----|---------|
-| http://localhost:3000 | React UI |
-| http://localhost:8000 | FastAPI (Swagger at `/docs`) |
+| http://localhost:8001 | FastAPI (Swagger at `/docs`) |
 | http://localhost:8090 | ZAP API |
 
 ## Local API development (without Docker)
@@ -40,18 +38,6 @@ uv run uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 > **Note:** Scanner sidecars (ZAP, Nuclei, Nikto) must be running via Docker for scan features to work.
-
-## Local frontend development
-
-```bash
-cd apps/web
-
-# Install dependencies
-bun install
-
-# Start dev server (connects to API at VITE_API_URL)
-VITE_API_URL=http://localhost:8000 bun run dev
-```
 
 ## Running tests
 
@@ -80,9 +66,6 @@ uv run ruff check --fix . && uv run ruff format .
 
 # Type check
 uv run ty check
-
-# Frontend lint + format
-cd apps/web && bun run lint && bun run format:check
 ```
 
 Pre-commit hooks are configured via `.pre-commit-config.yaml`:
