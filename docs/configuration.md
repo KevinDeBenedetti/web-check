@@ -16,29 +16,20 @@ Copy `.env.example` to `.env` and adjust as needed.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `API_PORT` | `8000` | Host port for the FastAPI server |
-| `WEB_PORT` | `3000` | Host port for the React UI |
-
-### Frontend
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `VITE_API_URL` | `http://localhost:8000` | URL of the FastAPI backend (must be reachable from the browser) |
+| `API_PORT` | `8001` | Host port for the FastAPI server |
 
 ## Docker Compose profiles
 
 | Profile | Services started |
 |---------|-----------------|
 | *(none)* | `api`, `zap`, `nuclei`, `nikto` |
-| `dev` | + `web-dev` (Vite hot-reload) |
-| `prod` | + `web` (Nginx production build) |
 | `tools` | + `ffuf` (directory fuzzer) |
 
 Example:
 
 ```bash
-# API + scanners + dev UI + fuzzer
-docker compose --profile dev --profile tools up -d
+# API + scanners + fuzzer
+docker compose --profile tools up -d
 ```
 
 ## Scanner configuration

@@ -8,11 +8,11 @@ Web Check is a **monorepo** containing a Python/FastAPI backend, a React/Vite fr
 web-check/
 ├── apps/
 │   ├── api/          # FastAPI application (Python 3.12, uv)
-│   ├── cli/          # Typer CLI (thin wrapper around the API)
+│   ├── cli/          # Typer CLI entry point
+│   ├── my_check/     # Core security checks and reporters
 │   ├── alembic/      # Database migrations
 │   ├── alembic.ini   # Alembic config (SQLite by default)
-│   ├── config/       # Static config (wordlists, settings)
-│   └── web/          # React + Vite + Bun frontend
+│   └── config/       # Static config (wordlists, settings)
 ├── Dockerfile        # API image (multi-stage, uv + Python 3.12)
 ├── docker-compose.yml
 ├── pyproject.toml    # Python project config (uv, ruff, pytest, ty)
@@ -24,12 +24,10 @@ web-check/
 | Service | Image | Purpose |
 |---------|-------|---------|
 | `api` | Custom (repo Dockerfile) | FastAPI REST API + scan orchestrator |
-| `web` | Custom (`apps/web/Dockerfile`) | Production Nginx-served React UI |
-| `web-dev` | `oven/bun:1.1-alpine` | Hot-reload dev server |
 | `zap` | `zaproxy/zap-stable` | OWASP ZAP dynamic analysis proxy |
 | `nuclei` | `projectdiscovery/nuclei` | Template-based vulnerability scanner |
 | `nikto` | `alpine/nikto` | Web server misconfiguration scanner |
-| `ffuf` | `secsi/ffuf` | Directory/path fuzzer (optional profile) |
+| `ffuf` | `secsi/ffuf` | Directory/path fuzzer (`tools` profile) |
 
 ## Networking
 
@@ -52,4 +50,4 @@ Database: SQLite via SQLAlchemy async + Alembic migrations (auto-run on startup)
 
 ## Frontend
 
-React 18 SPA built with Vite, styled with Tailwind CSS and Radix UI primitives. Communicates with the API via `VITE_API_URL` (defaults to `http://localhost:8000`). Production: served by Nginx. Development: Vite dev server with HMR.
+The project no longer ships a bundled frontend. Interact with the API via the Swagger UI at `http://localhost:8001/docs`, the `my-check` CLI, or any HTTP client.
