@@ -23,6 +23,7 @@ def _extract_hostname(target: str) -> str:
 def _get_certificate(hostname: str, port: int = 443, timeout: float = 10.0) -> dict:
     """Connect via TLS and return the peer certificate dict."""
     ctx = ssl.create_default_context()
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
     with socket.create_connection((hostname, port), timeout=timeout) as sock:
         with ctx.wrap_socket(sock, server_hostname=hostname) as tls:
             cert = tls.getpeercert()
@@ -44,6 +45,7 @@ def _days_until_expiry(cert: dict) -> int:
 def _check_chain(hostname: str, port: int = 443, timeout: float = 10.0) -> bool:
     """Validate the full certificate chain against system trust store."""
     ctx = ssl.create_default_context()
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
     ctx.verify_mode = ssl.CERT_REQUIRED
     ctx.check_hostname = True
     try:
