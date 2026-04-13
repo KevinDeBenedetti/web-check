@@ -75,9 +75,6 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     uses: KevinDeBenedetti/github-workflows/.github/workflows/release.yml@main
     secrets: inherit
-    permissions:
-      contents: write
-      pull-requests: write
 
   # ── CD — Build & push API Docker image (on release) ───────────────────────
   deploy-api:
@@ -92,9 +89,6 @@ jobs:
       tag-latest: true
       version: ${{ needs.release.outputs.tag }}
     secrets: inherit
-    permissions:
-      contents: read
-      packages: write
 
   # ── CD — Sync docs → kevindebenedetti.github.io ───────────────────────────
   deploy-docs:
@@ -102,5 +96,3 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     uses: KevinDeBenedetti/github-workflows/.github/workflows/cd-docs.yml@main
     secrets: inherit
-    permissions:
-      contents: read
