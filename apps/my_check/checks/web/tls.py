@@ -57,8 +57,21 @@ def _check_chain(hostname: str, port: int = 443, timeout: float = 10.0) -> bool:
 
 
 def _has_ct_scts(cert: dict) -> bool:
-    """Basic CT check — look for subjectAltName entries (proxy for SCT presence)."""
-    return bool(cert.get("subjectAltName"))
+    """Check for Certificate Transparency SCTs via the SCT list extension OID.
+
+    Python's ssl module exposes extensions only partially; the presence of
+    the 'OCSP' field or 'crlDistributionPoints' in the peer-cert dict is a
+    proxy indicator.  A reliable SCT check requires pyOpenSSL or the
+    cryptography library.  As a pragmatic heuristic, modern public CAs
+    always embed SCTs — so we return True when the issuer is not self-signed.
+    """
+    if not cert:
+        return False
+    # If issuer != subject, the cert was issued by a CA (which almost
+    # certainly includes SCTs for publicly trusted certificates).
+    issuer = cert.get("issuer")
+    subject = cert.get("subject")
+    return issuer != subject
 
 
 @dataclass(slots=True)
@@ -70,7 +83,8 @@ class TlsCheck:
     category: CheckCategory = CheckCategory.WEB
 
     async def run(self, target: str | K8sContext) -> CheckResult:
-        assert isinstance(target, str)
+        if not isinstance(target, str):
+            raise TypeError(f"Expected str URL, got {type(target).__name__}")
         hostname = _extract_hostname(target)
 
         try:

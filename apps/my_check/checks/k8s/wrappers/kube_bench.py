@@ -21,7 +21,8 @@ class KubeBenchCheck:
     category: CheckCategory = CheckCategory.K8S
 
     async def run(self, target: str | K8sContext) -> CheckResult:
-        assert isinstance(target, K8sContext)
+        if not isinstance(target, K8sContext):
+            raise TypeError(f"Expected K8sContext, got {type(target).__name__}")
 
         try:
             result = await run_subprocess(["kube-bench", "run", "--json"], timeout=120.0)

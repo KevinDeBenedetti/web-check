@@ -47,7 +47,8 @@ class PortsCheck:
     ports: list[int] = field(default_factory=lambda: list(DEFAULT_PORTS))
 
     async def run(self, target: str | K8sContext) -> CheckResult:
-        assert isinstance(target, str)
+        if not isinstance(target, str):
+            raise TypeError(f"Expected str URL, got {type(target).__name__}")
         hostname = _extract_hostname(target)
 
         tasks = {port: _check_port(hostname, port, CONNECT_TIMEOUT) for port in self.ports}

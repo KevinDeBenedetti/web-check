@@ -22,7 +22,8 @@ class RedirectsCheck:
     category: CheckCategory = CheckCategory.WEB
 
     async def run(self, target: str | K8sContext) -> CheckResult:
-        assert isinstance(target, str)
+        if not isinstance(target, str):
+            raise TypeError(f"Expected str URL, got {type(target).__name__}")
 
         chain: list[dict[str, str | int]] = []
         current_url = target

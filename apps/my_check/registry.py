@@ -7,6 +7,9 @@ from my_check.types import Check
 
 def get_web_checks() -> list[Check]:
     """Return all web check instances."""
+    from my_check.checks.web.cookies import CookieSecurityCheck
+    from my_check.checks.web.cors import CorsCheck
+    from my_check.checks.web.csp import CspCheck
     from my_check.checks.web.dns import DnsCheck
     from my_check.checks.web.headers import HeadersCheck
     from my_check.checks.web.ports import PortsCheck
@@ -17,6 +20,9 @@ def get_web_checks() -> list[Check]:
     return [
         TlsCheck(),
         HeadersCheck(),
+        CspCheck(),
+        CorsCheck(),
+        CookieSecurityCheck(),
         DnsCheck(),
         PortsCheck(),
         RedirectsCheck(),
@@ -26,8 +32,10 @@ def get_web_checks() -> list[Check]:
 
 def get_k8s_checks() -> list[Check]:
     """Return all Kubernetes check instances."""
+    from my_check.checks.k8s.etcd_encryption import EtcdEncryptionCheck
     from my_check.checks.k8s.images import ImagesCheck
     from my_check.checks.k8s.network_policies import NetworkPoliciesCheck
+    from my_check.checks.k8s.pss_compliance import PssComplianceCheck
     from my_check.checks.k8s.rbac import RbacCheck
     from my_check.checks.k8s.secrets import SecretsCheck
     from my_check.checks.k8s.workloads import WorkloadsCheck
@@ -42,6 +50,8 @@ def get_k8s_checks() -> list[Check]:
         NetworkPoliciesCheck(),
         SecretsCheck(),
         ImagesCheck(),
+        PssComplianceCheck(),
+        EtcdEncryptionCheck(),
         KubeBenchCheck(),
         TrivyCheck(),
         PolarisCheck(),

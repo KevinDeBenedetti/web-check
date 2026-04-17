@@ -70,6 +70,24 @@ class Scheduler:
             logger.warning("No checks selected to run")
             return report
 
+        # Pre-flight: if any K8s checks are selected, verify connectivity first
+        # so we fail in ~10s instead of waiting for each check to timeout individually.
+        has_k8s = any(c.category == CheckCategory.K8S for c in selected)
+        k8s_reachable = True
+        k8s_error: str | None = None
+        if has_k8s and k8s_ctx:
+            from my_check.checks.k8s import preflight_check
+
+            console_pre = Console()
+            console_pre.print("[dim]Checking cluster connectivity…[/dim]")
+            loop = asyncio.get_running_loop()
+            k8s_error = await loop.run_in_executor(None, preflight_check, k8s_ctx)
+            if k8s_error:
+                k8s_reachable = False
+                console_pre.print(f"[red]✗ {k8s_error}[/red]")
+                console_pre.print("[yellow]K8s checks will be skipped.[/yellow]")
+                console_pre.print()
+
         # Live progress state per check
         progress: dict[str, tuple[str, str]] = {c.id: ("⏳ running…", "dim") for c in selected}
         console = Console()
@@ -84,7 +102,14 @@ class Scheduler:
             return tbl
 
         tasks = [
-            self._run_one(check, target=target, k8s_ctx=k8s_ctx, progress=progress)
+            self._run_one(
+                check,
+                target=target,
+                k8s_ctx=k8s_ctx,
+                progress=progress,
+                k8s_reachable=k8s_reachable,
+                k8s_error=k8s_error,
+            )
             for check in selected
         ]
 
@@ -130,6 +155,8 @@ class Scheduler:
         target: str | None,
         k8s_ctx: K8sContext | None,
         progress: dict[str, tuple[str, str]],
+        k8s_reachable: bool = True,
+        k8s_error: str | None = None,
     ) -> CheckResult:
         arg: str | K8sContext
         if check.category == CheckCategory.K8S:
@@ -139,6 +166,13 @@ class Scheduler:
                     status=CheckStatus.INFO,
                     score=0,
                     message="Skipped — no Kubernetes context provided",
+                )
+            if not k8s_reachable:
+                progress[check.id] = ("🔌 unreachable", "red")
+                return CheckResult(
+                    status=CheckStatus.FAIL,
+                    score=0,
+                    message=f"Cluster unreachable — {k8s_error or 'connectivity check failed'}",
                 )
             arg = k8s_ctx
         else:

@@ -1,8 +1,19 @@
 """Tests for Web-Check Security Scanner."""
 
+import os
+
 import pytest
-from api.main import app
 from httpx import ASGITransport, AsyncClient
+
+# Ensure test-friendly ALLOWED_DOMAINS before importing the app
+# (the router reads settings at module-import time via lru_cache).
+os.environ["ALLOWED_DOMAINS"] = "example.com"
+
+from api.utils.config import get_settings  # noqa: E402
+
+get_settings.cache_clear()
+
+from api.main import app  # noqa: E402
 
 
 @pytest.fixture

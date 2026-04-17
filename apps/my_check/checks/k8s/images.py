@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from kubernetes import client
@@ -13,6 +14,28 @@ from my_check.types import (
     K8sContext,
 )
 
+# Pattern matching a semver-ish tag like v1.2.3, 2.0.0-rc1, etc.
+_VERSIONED_TAG_RE = re.compile(r"^v?\d+\.\d+")
+
+
+def _classify_image(image: str) -> str:
+    """Classify an image string into a risk category.
+
+    Returns one of: "pinned", "versioned", "latest_or_untagged".
+    """
+    if "@sha256:" in image:
+        return "pinned"
+    # Extract the tag portion after the last colon (ignoring registry port numbers)
+    name_part = image.rsplit("/", 1)[-1]
+    if ":" not in name_part:
+        return "latest_or_untagged"
+    tag = name_part.split(":", 1)[1]
+    if tag == "latest":
+        return "latest_or_untagged"
+    if _VERSIONED_TAG_RE.match(tag):
+        return "versioned"
+    return "latest_or_untagged"
+
 
 @dataclass(slots=True)
 class ImagesCheck:
@@ -21,7 +44,8 @@ class ImagesCheck:
     category: CheckCategory = CheckCategory.K8S
 
     async def run(self, target: str | K8sContext) -> CheckResult:
-        assert isinstance(target, K8sContext)
+        if not isinstance(target, K8sContext):
+            raise TypeError(f"Expected K8sContext, got {type(target).__name__}")
         api_client = _load_client(target)
         core = client.CoreV1Api(api_client)
 
@@ -30,35 +54,42 @@ class ImagesCheck:
         else:
             pods = core.list_pod_for_all_namespaces().items
 
-        issues: list[dict[str, str]] = []
+        critical_issues: list[dict[str, str]] = []
+        warning_issues: list[dict[str, str]] = []
         total_images = 0
+        pinned = 0
+        versioned = 0
 
         for pod in pods:
             containers = (pod.spec.containers or []) + (pod.spec.init_containers or [])
             for container in containers:
                 image = container.image or ""
                 total_images += 1
+                category = _classify_image(image)
 
-                # Check for :latest tag
-                if image.endswith(":latest") or ":" not in image.rsplit("/", 1)[-1]:
-                    issues.append(
+                if category == "pinned":
+                    pinned += 1
+                elif category == "versioned":
+                    versioned += 1
+                    warning_issues.append(
                         {
                             "namespace": pod.metadata.namespace,
                             "pod": pod.metadata.name,
                             "container": container.name,
                             "image": image,
-                            "reason": "uses :latest or untagged image",
+                            "severity": "low",
+                            "reason": "uses versioned tag — consider pinning by SHA digest",
                         }
                     )
-                # Check for missing SHA digest pin
-                elif "@sha256:" not in image:
-                    issues.append(
+                else:
+                    critical_issues.append(
                         {
                             "namespace": pod.metadata.namespace,
                             "pod": pod.metadata.name,
                             "container": container.name,
                             "image": image,
-                            "reason": "not pinned by SHA digest (@sha256:...)",
+                            "severity": "high",
+                            "reason": "uses :latest or untagged image",
                         }
                     )
 
@@ -69,28 +100,34 @@ class ImagesCheck:
                 message="No container images found to evaluate.",
             )
 
-        pinned = total_images - len(issues)
-        score = max(0, int((pinned / total_images) * 100))
+        # Scoring: pinned=full credit, versioned tag=80% credit, latest/untagged=0
+        weighted = pinned * 1.0 + versioned * 0.8
+        score = max(0, min(100, int((weighted / total_images) * 100)))
 
-        if not issues:
+        all_issues = critical_issues + warning_issues
+        if not all_issues:
             return CheckResult(
                 status=CheckStatus.PASS,
                 score=100,
                 message=f"All {total_images} container image(s) are pinned by digest.",
             )
 
-        status = CheckStatus.FAIL if score < 50 else CheckStatus.WARN
+        parts: list[str] = []
+        parts.append(f"{pinned}/{total_images} pinned by digest.")
+        if versioned:
+            parts.append(f"{versioned} use versioned tags.")
+        if critical_issues:
+            parts.append(f"{len(critical_issues)} use :latest or are untagged.")
+
+        status = CheckStatus.FAIL if critical_issues else CheckStatus.WARN
         return CheckResult(
             status=status,
             score=score,
-            message=(
-                f"{pinned}/{total_images} image(s) properly pinned. "
-                f"{len(issues)} image(s) need attention."
-            ),
-            details=issues,
+            message=" ".join(parts),
+            details=all_issues,
             remediation=(
-                "Pin all container images to a specific SHA digest "
-                "(e.g. image@sha256:abc123...) instead of mutable tags. "
-                "Never use :latest in production."
+                "Pin container images to a SHA digest (image@sha256:...) for "
+                "maximum reproducibility. At minimum, use versioned tags "
+                "(e.g. :v1.2.3) — never use :latest or untagged images."
             ),
         )

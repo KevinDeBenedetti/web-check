@@ -81,7 +81,8 @@ class DnsCheck:
     category: CheckCategory = CheckCategory.WEB
 
     async def run(self, target: str | K8sContext) -> CheckResult:
-        assert isinstance(target, str)
+        if not isinstance(target, str):
+            raise TypeError(f"Expected str URL, got {type(target).__name__}")
         domain = _extract_domain(target)
 
         dnssec = _check_dnssec(domain)

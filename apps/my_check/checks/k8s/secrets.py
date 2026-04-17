@@ -16,6 +16,20 @@ from my_check.types import (
 
 log = logging.getLogger(__name__)
 
+# Env var names injected by Kubernetes itself — never user-managed secrets.
+_K8S_SYSTEM_ENV_VARS = frozenset(
+    {
+        "kubernetes_service_host",
+        "kubernetes_service_port",
+        "kubernetes_service_port_https",
+        "kubernetes_port",
+        "kubernetes_port_443_tcp",
+        "kubernetes_port_443_tcp_proto",
+        "kubernetes_port_443_tcp_port",
+        "kubernetes_port_443_tcp_addr",
+    }
+)
+
 
 def _has_sealed_or_external_secrets(api_client: client.ApiClient) -> bool:
     """Return *True* if SealedSecret or ExternalSecret CRDs are installed."""
@@ -39,7 +53,8 @@ class SecretsCheck:
     category: CheckCategory = CheckCategory.K8S
 
     async def run(self, target: str | K8sContext) -> CheckResult:
-        assert isinstance(target, K8sContext)
+        if not isinstance(target, K8sContext):
+            raise TypeError(f"Expected K8sContext, got {type(target).__name__}")
         api_client = _load_client(target)
         core = client.CoreV1Api(api_client)
 
@@ -63,6 +78,9 @@ class SecretsCheck:
                     # no valueFrom, but name looks secret-ish)
                     if env_var.value and not env_var.value_from:
                         name_lower = env_var.name.lower()
+                        # Skip well-known Kubernetes-injected env vars
+                        if name_lower in _K8S_SYSTEM_ENV_VARS:
+                            continue
                         if any(
                             kw in name_lower
                             for kw in ("secret", "password", "token", "api_key", "apikey")

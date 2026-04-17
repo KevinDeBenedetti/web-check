@@ -35,14 +35,23 @@ def _score_style(score: float) -> str:
 
 
 def _normalize_issues(details: Any) -> list[dict[str, str]]:
-    """Normalise the various shapes details can take into a flat list of dicts."""
+    """Normalise the various shapes details can take into a flat list of dicts.
+
+    Issues with a ``severity`` key are sorted so that *high* and *critical*
+    items appear first, giving the most important findings terminal real estate.
+    """
+    items: list[dict[str, str]] = []
     if isinstance(details, list):
-        return [d for d in details if isinstance(d, dict)]
-    if isinstance(details, dict):
-        # e.g. secrets check: {"issues": [...], "external_secret_crds": bool}
+        items = [d for d in details if isinstance(d, dict)]
+    elif isinstance(details, dict):
         if "issues" in details and isinstance(details["issues"], list):
-            return [d for d in details["issues"] if isinstance(d, dict)]
-    return []
+            items = [d for d in details["issues"] if isinstance(d, dict)]
+
+    # Sort by severity (critical/high first) when the field exists
+    _SEV_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+    if items and any("severity" in d for d in items):
+        items.sort(key=lambda d: _SEV_ORDER.get(d.get("severity", "low"), 3))
+    return items
 
 
 def _build_issue_table(issues: list[dict[str, str]], limit: int = _DETAIL_LIMIT) -> Table:

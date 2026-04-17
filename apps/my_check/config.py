@@ -26,6 +26,9 @@ logger = logging.getLogger(__name__)
 _DEFAULT_WEB_CHECKS = [
     "web-tls",
     "web-headers",
+    "web-csp",
+    "web-cors",
+    "web-cookies",
     "web-dns",
     "web-ports",
     "web-redirects",
@@ -38,6 +41,8 @@ _DEFAULT_K8S_CHECKS = [
     "k8s-network-policies",
     "k8s-secrets",
     "k8s-images",
+    "k8s-pss-compliance",
+    "k8s-etcd-encryption",
     "k8s-kube-bench",
     "k8s-trivy",
     "k8s-polaris",

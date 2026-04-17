@@ -23,7 +23,8 @@ class FalcoCheck:
     category: CheckCategory = CheckCategory.K8S
 
     async def run(self, target: str | K8sContext) -> CheckResult:
-        assert isinstance(target, K8sContext)
+        if not isinstance(target, K8sContext):
+            raise TypeError(f"Expected K8sContext, got {type(target).__name__}")
         api_client = _load_client(target)
         apps = client.AppsV1Api(api_client)
 

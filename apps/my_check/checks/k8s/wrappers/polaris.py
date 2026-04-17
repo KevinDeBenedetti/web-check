@@ -21,7 +21,8 @@ class PolarisCheck:
     category: CheckCategory = CheckCategory.K8S
 
     async def run(self, target: str | K8sContext) -> CheckResult:
-        assert isinstance(target, K8sContext)
+        if not isinstance(target, K8sContext):
+            raise TypeError(f"Expected K8sContext, got {type(target).__name__}")
 
         try:
             result = await run_subprocess(
@@ -79,20 +80,24 @@ class PolarisCheck:
                 )
             )
             for _cname, checks in container_results.items():
-                if isinstance(checks, dict):
-                    results_map = checks.get("Results", checks.get("results", {}))
-                    if isinstance(results_map, dict):
-                        for _check_id, check_detail in results_map.items():
-                            severity = check_detail.get(
-                                "Severity", check_detail.get("severity", "")
-                            ).lower()
-                            success = check_detail.get("Success", check_detail.get("success"))
-                            if success:
-                                passing += 1
-                            elif severity == "danger":
-                                danger += 1
-                            else:
-                                warning += 1
+                if not isinstance(checks, dict):
+                    continue
+                results_map = checks.get("Results", checks.get("results", {}))
+                if not isinstance(results_map, dict):
+                    continue
+                for _check_id, check_detail in results_map.items():
+                    if not isinstance(check_detail, dict):
+                        continue
+                    severity = check_detail.get(
+                        "Severity", check_detail.get("severity", "")
+                    ).lower()
+                    success = check_detail.get("Success", check_detail.get("success"))
+                    if success:
+                        passing += 1
+                    elif severity == "danger":
+                        danger += 1
+                    else:
+                        warning += 1
 
         total = passing + warning + danger
         score = int((passing / total) * 100) if total else 100

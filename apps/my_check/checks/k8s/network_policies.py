@@ -25,7 +25,8 @@ class NetworkPoliciesCheck:
     category: CheckCategory = CheckCategory.K8S
 
     async def run(self, target: str | K8sContext) -> CheckResult:
-        assert isinstance(target, K8sContext)
+        if not isinstance(target, K8sContext):
+            raise TypeError(f"Expected K8sContext, got {type(target).__name__}")
         api_client = _load_client(target)
         core = client.CoreV1Api(api_client)
         networking = client.NetworkingV1Api(api_client)
@@ -49,6 +50,8 @@ class NetworkPoliciesCheck:
             )
 
         uncovered: list[str] = []
+        no_default_deny: list[str] = []
+        no_egress: list[str] = []
         admin_exposure: list[dict[str, str]] = []
 
         for ns in namespaces:
@@ -57,37 +60,73 @@ class NetworkPoliciesCheck:
                 uncovered.append(ns)
                 continue
 
-            # Check ingress rules exposing admin paths
+            # Check for default-deny policy (empty podSelector + no ingress/egress rules)
+            has_default_deny = False
+            has_egress_policy = False
             for pol in policies:
-                if not pol.spec or not pol.spec.ingress:
+                spec = pol.spec
+                if not spec:
                     continue
-                for _ingress_rule in pol.spec.ingress:
-                    # NetworkPolicy doesn't natively have path rules, but
-                    # annotations or labels may hint at it. We inspect metadata
-                    # annotations for common ingress-path patterns.
-                    annotations = pol.metadata.annotations or {}
-                    for key, value in annotations.items():
-                        if "path" in key.lower():
-                            for prefix in ADMIN_PATH_PREFIXES:
-                                if prefix in value:
-                                    admin_exposure.append(
-                                        {
-                                            "namespace": ns,
-                                            "policy": pol.metadata.name,
-                                            "annotation": f"{key}={value}",
-                                        }
-                                    )
+                # Default deny = empty podSelector with empty ingress/egress
+                pod_sel = spec.pod_selector
+                is_match_all = not pod_sel or not pod_sel.match_labels
+                if is_match_all and spec.policy_types:
+                    if "Ingress" in spec.policy_types and not spec.ingress:
+                        has_default_deny = True
+                    if "Egress" in spec.policy_types and not spec.egress:
+                        has_default_deny = True
+                if spec.egress is not None:
+                    has_egress_policy = True
+
+            if not has_default_deny:
+                no_default_deny.append(ns)
+            if not has_egress_policy:
+                no_egress.append(ns)
+
+        # Check Ingress resources for exposed admin paths
+        for ns in namespaces:
+            try:
+                ingresses = networking.list_namespaced_ingress(ns).items
+            except Exception:
+                continue
+            for ing in ingresses:
+                if not ing.spec or not ing.spec.rules:
+                    continue
+                for rule in ing.spec.rules:
+                    if not rule.http or not rule.http.paths:
+                        continue
+                    for path_entry in rule.http.paths:
+                        path = path_entry.path or ""
+                        for prefix in ADMIN_PATH_PREFIXES:
+                            if path.startswith(prefix):
+                                admin_exposure.append(
+                                    {
+                                        "namespace": ns,
+                                        "ingress": ing.metadata.name,
+                                        "host": rule.host or "*",
+                                        "path": path,
+                                    }
+                                )
 
         covered = len(namespaces) - len(uncovered)
         pct = (covered / len(namespaces)) * 100 if namespaces else 100
         score = max(0, min(100, int(pct)))
 
-        # Additional deduction for admin exposure
-        score = max(0, score - len(admin_exposure) * 5)
+        # Deductions for missing best practices
+        if no_default_deny:
+            score = max(0, score - len(no_default_deny) * 3)
+        if no_egress:
+            score = max(0, score - len(no_egress) * 2)
+        if admin_exposure:
+            score = max(0, score - len(admin_exposure) * 5)
 
         issues: dict[str, object] = {}
         if uncovered:
             issues["namespaces_without_policies"] = uncovered
+        if no_default_deny:
+            issues["namespaces_without_default_deny"] = no_default_deny
+        if no_egress:
+            issues["namespaces_without_egress_policies"] = no_egress
         if admin_exposure:
             issues["admin_path_exposure"] = admin_exposure
 
@@ -98,18 +137,25 @@ class NetworkPoliciesCheck:
                 message=f"All {len(namespaces)} namespace(s) have NetworkPolicies configured.",
             )
 
+        messages: list[str] = []
+        messages.append(f"{covered}/{len(namespaces)} namespace(s) have NetworkPolicies.")
+        if no_default_deny:
+            messages.append(f"{len(no_default_deny)} missing default-deny.")
+        if no_egress:
+            messages.append(f"{len(no_egress)} missing egress policies.")
+        if admin_exposure:
+            messages.append(f"{len(admin_exposure)} admin-path exposure(s) via Ingress.")
+
         status = CheckStatus.FAIL if score < 50 else CheckStatus.WARN
         return CheckResult(
             status=status,
             score=score,
-            message=(
-                f"{covered}/{len(namespaces)} namespace(s) have NetworkPolicies. "
-                f"{len(admin_exposure)} admin-path exposure(s) detected."
-            ),
+            message=" ".join(messages),
             details=issues,
             remediation=(
                 "Create default-deny NetworkPolicies for every namespace and "
-                "explicitly allow only required traffic. Restrict admin paths to "
-                "internal networks only."
+                "explicitly allow only required traffic. Add egress policies to "
+                "control outbound connections. Restrict admin paths in Ingress "
+                "resources to internal networks only."
             ),
         )

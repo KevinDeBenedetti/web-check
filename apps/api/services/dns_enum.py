@@ -3,8 +3,11 @@
 import time
 from datetime import UTC, datetime
 
+import dns.exception
+import dns.query
 import dns.resolver
 import dns.reversename
+import dns.zone
 from api.models import CheckResult, Finding
 
 _RECORD_TYPES = ["A", "AAAA", "MX", "NS", "TXT", "SOA", "CNAME"]

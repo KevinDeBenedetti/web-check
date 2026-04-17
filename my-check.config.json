@@ -3,6 +3,9 @@
     "enabled_checks": [
       "web-tls",
       "web-headers",
+      "web-csp",
+      "web-cors",
+      "web-cookies",
       "web-dns",
       "web-ports",
       "web-redirects",
@@ -18,6 +21,8 @@
       "k8s-network-policies",
       "k8s-secrets",
       "k8s-images",
+      "k8s-pss-compliance",
+      "k8s-etcd-encryption",
       "k8s-kube-bench",
       "k8s-trivy",
       "k8s-polaris",

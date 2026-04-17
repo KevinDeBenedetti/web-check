@@ -77,7 +77,9 @@ class Report:
 
     @property
     def global_score(self) -> float:
-        scores = [r.score for r in self.results.values()]
+        # Exclude INFO-only results (e.g. tool-not-installed) from the average
+        # so optional checks don't drag down the score.
+        scores = [r.score for r in self.results.values() if r.status != CheckStatus.INFO]
         return sum(scores) / len(scores) if scores else 0.0
 
     @property

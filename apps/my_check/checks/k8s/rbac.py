@@ -48,7 +48,8 @@ class RbacCheck:
     category: CheckCategory = CheckCategory.K8S
 
     async def run(self, target: str | K8sContext) -> CheckResult:
-        assert isinstance(target, K8sContext)
+        if not isinstance(target, K8sContext):
+            raise TypeError(f"Expected K8sContext, got {type(target).__name__}")
         api_client = _load_client(target)
         rbac = client.RbacAuthorizationV1Api(api_client)
 
@@ -98,6 +99,44 @@ class RbacCheck:
                             }
                         )
                         score = max(0, score - 20)
+
+        # --- namespace-scoped RoleBindings with wildcard verbs ---
+        ns_filter = target.namespace
+        if ns_filter:
+            role_bindings = rbac.list_namespaced_role_binding(ns_filter).items
+        else:
+            role_bindings = rbac.list_role_binding_for_all_namespaces().items
+
+        for rb in role_bindings:
+            role_ref = rb.role_ref
+            role_name = role_ref.name
+            if _is_system_role(role_name):
+                continue
+            ns = rb.metadata.namespace or ""
+            try:
+                if role_ref.kind == "ClusterRole":
+                    role_obj = cluster_roles.get(role_name)
+                else:
+                    role_obj = rbac.read_namespaced_role(role_name, ns)
+            except Exception:
+                continue
+            if role_obj and role_obj.rules:
+                for rule in role_obj.rules:
+                    if rule.verbs and "*" in rule.verbs:
+                        issues.append(
+                            {
+                                "type": "wildcard_verbs_ns",
+                                "namespace": ns,
+                                "binding": rb.metadata.name,
+                                "role": role_name,
+                                "remediation": (
+                                    f"Replace wildcard verbs in Role '{role_name}' (ns: {ns}) "
+                                    "with explicit verbs (get, list, watch, etc.)."
+                                ),
+                            }
+                        )
+                        score = max(0, score - 10)
+                        break
 
         # --- ServiceAccounts with automountServiceAccountToken ---
         core = client.CoreV1Api(api_client)
