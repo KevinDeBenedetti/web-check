@@ -17,7 +17,8 @@ services:
       dockerfile: Dockerfile
     container_name: web-check-api
     ports:
-      - "${API_PORT:-8000}:8000"
+      # Bound to localhost by default — set API_BIND=0.0.0.0 (and API_KEY!) to expose it.
+      - "${API_BIND:-127.0.0.1}:${API_PORT:-8000}:8000"
     volumes:
       - ./apps/api:/app/api:ro
       - ./outputs:/app/outputs:rw
@@ -31,6 +32,12 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - DOCKER_NETWORK=${DOCKER_NETWORK:-scanner-net}
       - ALLOWED_DOMAINS=${ALLOWED_DOMAINS:-example.com}
+      - ALLOW_PRIVATE_TARGETS=${ALLOW_PRIVATE_TARGETS:-false}
+      - API_KEY=${API_KEY:-}
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
+      - ZAP_HOST=zap
+      - ZAP_PORT=8090
+      - ZAP_API_KEY=${ZAP_API_KEY:?ZAP_API_KEY must be set in .env (e.g. openssl rand -hex 32)}
     networks:
       - scanner-net
     restart: unless-stopped
@@ -54,7 +61,7 @@ services:
       - ./outputs:/zap/wrk:rw
     command: >
       zap.sh -daemon -host 0.0.0.0 -port 8090
-      -config api.disablekey=true
+      -config api.key=${ZAP_API_KEY:?ZAP_API_KEY must be set in .env (e.g. openssl rand -hex 32)}
       -config api.addrs.addr.name=.*
       -config api.addrs.addr.regex=true
     networks:
@@ -99,7 +106,7 @@ services:
     container_name: security-scanner-ffuf
     volumes:
       - ./outputs:/output:rw
-      - ./config/wordlists:/wordlists:ro
+      - ./apps/config/wordlists:/wordlists:ro
     entrypoint: ["/bin/sh", "-c"]
     command: ["tail -f /dev/null"]
     networks:

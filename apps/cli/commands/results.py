@@ -21,7 +21,7 @@ def list(
 ) -> None:
     """List recent scan results."""
     settings = CLISettings()
-    client = APIClient(settings.api_url, settings.api_timeout)
+    client = APIClient(settings.api_url, settings.api_timeout, settings.api_key)
 
     try:
         with console.status("[bold green]Fetching results..."):
@@ -67,7 +67,7 @@ def show(
 ) -> None:
     """Display details of a specific scan result."""
     settings = CLISettings()
-    client = APIClient(settings.api_url, settings.api_timeout)
+    client = APIClient(settings.api_url, settings.api_timeout, settings.api_key)
 
     try:
         with console.status("[bold green]Fetching scan result..."):
