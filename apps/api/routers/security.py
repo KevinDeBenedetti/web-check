@@ -26,7 +26,7 @@ async def security_ffuf_scan(
     import time
     from datetime import datetime
 
-    from api.services.docker_runner import docker_run
+    from api.services.docker_runner import docker_run, unique_output_name
 
     start = time.time()
 
@@ -42,7 +42,7 @@ async def security_ffuf_scan(
                 "-w",
                 f"/wordlists/{wordlist}",
                 "-o",
-                f"/output/ffuf_{int(time.time())}.json",
+                f"/output/{unique_output_name('ffuf', 'json')}",
                 "-of",
                 "json",
                 "-mc",

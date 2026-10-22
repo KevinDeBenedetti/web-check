@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 import structlog
 from api.models import CheckResult, Finding
-from api.services.docker_runner import docker_run
+from api.services.docker_runner import docker_run, unique_output_name
 
 logger = structlog.get_logger()
 
@@ -26,7 +26,7 @@ async def run_nikto_scan(target: str, timeout: int = 600) -> CheckResult:
     findings: list[Finding] = []
 
     # Use shared volume mounted in docker-compose
-    output_filename = f"nikto_{int(time.time())}.html"
+    output_filename = unique_output_name("nikto", "html")
 
     try:
         result = await docker_run(

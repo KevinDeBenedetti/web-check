@@ -5,8 +5,9 @@ from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 
 import structlog
-from api.database import Base, engine
+from api.database import Base, engine, get_session_context
 from api.routers import advanced, deep, health, quick, scans, security
+from api.services import db_service
 from api.utils.config import get_settings
 from api.utils.security import require_api_key
 from fastapi import Depends, FastAPI, Request, Response
@@ -34,6 +35,11 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         logger.info("Database tables created successfully")
+
+    # Scans still "running" were interrupted by a restart: their tasks are gone.
+    async with get_session_context() as session:
+        if interrupted := await db_service.fail_interrupted_scans(session):
+            logger.warning("interrupted_scans_marked_failed", count=interrupted)
 
     yield
     logger.info("Shutting down Web-Check Security Scanner API")

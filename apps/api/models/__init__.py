@@ -1,7 +1,14 @@
 """Pydantic models for Web-Check Security Scanner."""
 
 from api.models.findings import Finding, Severity
-from api.models.results import CheckResult, ScanCategory, ScanRequest, ScanResponse, ScanStatus
+from api.models.results import (
+    CheckResult,
+    ScanCategory,
+    ScanModule,
+    ScanRequest,
+    ScanResponse,
+    ScanStatus,
+)
 
 __all__ = [
     "Finding",
@@ -9,6 +16,7 @@ __all__ = [
     "CheckResult",
     "ScanStatus",
     "ScanCategory",
+    "ScanModule",
     "ScanRequest",
     "ScanResponse",
 ]

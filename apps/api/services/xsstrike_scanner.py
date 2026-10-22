@@ -7,6 +7,7 @@ from pathlib import Path
 
 import structlog
 from api.models import CheckResult, Finding
+from api.services.docker_runner import unique_output_name
 
 logger = structlog.get_logger()
 
@@ -31,7 +32,7 @@ async def run_xsstrike_scan(
     # Output directory
     output_dir = Path("outputs")
     output_dir.mkdir(exist_ok=True)
-    output_file = output_dir / f"xsstrike_{int(time.time())}.txt"
+    output_file = output_dir / unique_output_name("xsstrike", "txt")
 
     if scan_id:
         from api.services.log_streamer import log_streamer
