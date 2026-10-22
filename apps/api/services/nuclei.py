@@ -1,5 +1,6 @@
 """Nuclei scanning service."""
 
+import re
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -7,7 +8,7 @@ from typing import Any
 
 import structlog
 from api.models import CheckResult, Finding
-from api.services.docker_runner import docker_run, load_jsonl_output
+from api.services.docker_runner import docker_run, load_jsonl_output, unique_output_name
 
 logger = structlog.get_logger()
 
@@ -29,7 +30,7 @@ async def run_nuclei_scan(target: str, timeout: int = 300) -> CheckResult:
     # Use shared volume mounted in docker-compose
     output_dir = Path("outputs")
     output_dir.mkdir(exist_ok=True)
-    output_file = output_dir / f"nuclei_{int(time.time())}.json"
+    output_file = output_dir / unique_output_name("nuclei", "json")
     output_filename = output_file.name
 
     try:
@@ -132,8 +133,13 @@ def _parse_nuclei_output(data: list[dict[str, Any]]) -> list[Finding]:
         if not item or not isinstance(item, dict):
             continue
 
-        info: dict[str, Any] = item.get("info", {})
+        info: dict[str, Any] = item.get("info") or {}
+        classification: dict[str, Any] = info.get("classification") or {}
         severity_str: str = str(info.get("severity", "info")).lower()
+
+        description = str(info.get("description") or "No description available").strip()
+        if matched_at := item.get("matched-at"):
+            description = f"{description}\n\nMatched at: {matched_at}"
 
         finding = Finding(
             severity=(
@@ -142,11 +148,40 @@ def _parse_nuclei_output(data: list[dict[str, Any]]) -> list[Finding]:
                 else "info"
             ),  # ty: ignore[invalid-argument-type]
             title=str(info.get("name", "Nuclei Finding")),
-            description=str(info.get("description", "No description available")),
-            reference=str(info.get("reference")) if info.get("reference") else None,
-            cve=str(item.get("matched-at")) if "CVE" in str(item.get("template-id", "")) else None,
-            cvss_score=None,
+            description=description,
+            reference=_first(info.get("reference")),
+            cve=_parse_cve(classification.get("cve-id"), str(item.get("template-id", ""))),
+            cvss_score=_parse_cvss(classification.get("cvss-score")),
         )
         findings.append(finding)
 
     return findings
+
+
+def _first(value: Any) -> str | None:
+    """Return the first non-empty entry of a nuclei string-or-list field."""
+    if isinstance(value, list):
+        value = next((v for v in value if v), None)
+    return str(value) if value else None
+
+
+def _parse_cve(cve_ids: Any, template_id: str) -> str | None:
+    """Extract CVE id(s) from classification.cve-id, falling back to a CVE template id."""
+    if isinstance(cve_ids, str):
+        cve_ids = [cve_ids]
+    if isinstance(cve_ids, list):
+        cves = [str(c).upper() for c in cve_ids if c]
+        if cves:
+            return ", ".join(cves)
+    if re.fullmatch(r"cve-\d{4}-\d{4,}", template_id, flags=re.IGNORECASE):
+        return template_id.upper()
+    return None
+
+
+def _parse_cvss(value: Any) -> float | None:
+    """Return a CVSS score in [0, 10], or None."""
+    try:
+        score = float(value)
+    except (TypeError, ValueError):
+        return None
+    return score if 0.0 <= score <= 10.0 else None

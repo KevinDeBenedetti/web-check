@@ -8,6 +8,7 @@ from pathlib import Path
 
 import structlog
 from api.models import CheckResult, Finding, Severity
+from api.services.docker_runner import unique_output_name
 
 logger = structlog.get_logger()
 
@@ -32,7 +33,7 @@ async def run_wapiti_scan(
     # Output directory
     output_dir = Path("outputs")
     output_dir.mkdir(exist_ok=True)
-    output_file = output_dir / f"wapiti_{int(time.time())}.json"
+    output_file = output_dir / unique_output_name("wapiti", "json")
 
     if scan_id:
         from api.services.log_streamer import log_streamer
