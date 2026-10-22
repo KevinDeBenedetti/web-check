@@ -2,8 +2,11 @@
 # Web-Check Security Scanner - Docker Compose Configuration
 # ==============================================================================
 # Usage:
-#   Start:  docker compose up -d
+#   Start:  make start            (or: docker compose up -d)
+#   Dev:    make dev              (live code reload, see docker-compose.dev.yml)
 #   Tools:  docker compose --profile tools up -d
+#
+# Scanner images are pinned; Dependabot (docker-compose ecosystem) bumps them.
 #
 # Copy .env.example to .env and customize as needed
 
@@ -16,18 +19,22 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: web-check-api
+    # Non-root. On Linux set APP_UID/APP_GID to your `id -u`/`id -g` so the
+    # bind-mounted ./outputs and ./data are writable (`make start` does it).
+    user: "${APP_UID:-10001}:${APP_GID:-100}"
+    # Group owning /var/run/docker.sock inside the container (`make start` detects it).
+    group_add:
+      - "${DOCKER_GID:-999}"
     ports:
       # Bound to localhost by default — set API_BIND=0.0.0.0 (and API_KEY!) to expose it.
       - "${API_BIND:-127.0.0.1}:${API_PORT:-8000}:8000"
     volumes:
-      - ./apps/api:/app/api:ro
       - ./outputs:/app/outputs:rw
-      - ./apps/config:/app/config:ro
       - ./data:/app/data:rw
-      - ./apps/alembic:/app/alembic:ro
-      - ./apps/alembic.ini:/app/alembic.ini:ro
+      - ./apps/config:/app/config:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
+      - HOME=/tmp  # writable whatever APP_UID is (sqlmap/wapiti keep state in $HOME)
       - DEBUG=${DEBUG:-false}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - DOCKER_NETWORK=${DOCKER_NETWORK:-scanner-net}
@@ -55,7 +62,7 @@ services:
 
   # ZAP (OWASP Zed Attack Proxy)
   zap:
-    image: zaproxy/zap-stable:latest
+    image: zaproxy/zap-stable:2.17.0
     container_name: security-scanner-zap
     volumes:
       - ./outputs:/zap/wrk:rw
@@ -76,7 +83,7 @@ services:
 
   # Nuclei (Vulnerability Scanner)
   nuclei:
-    image: projectdiscovery/nuclei:latest
+    image: projectdiscovery/nuclei:v3.11.1
     container_name: security-scanner-nuclei
     volumes:
       - ./outputs:/output:rw
@@ -89,7 +96,7 @@ services:
 
   # Nikto (Web Server Scanner) — amd64 only, runs via Rosetta on Apple Silicon
   nikto:
-    image: alpine/nikto:latest
+    image: alpine/nikto:2.2.0
     platform: linux/amd64
     container_name: security-scanner-nikto
     volumes:
@@ -102,7 +109,7 @@ services:
 
   # FFuf (Fuzzer)
   ffuf:
-    image: secsi/ffuf:latest
+    image: secsi/ffuf:2.3.0
     container_name: security-scanner-ffuf
     volumes:
       - ./outputs:/output:rw

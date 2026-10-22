@@ -22,3 +22,25 @@ updates:
       - "ci"
     commit-message:
       prefix: "chore(ci):"
+
+  # Docker — API base image (Dockerfile)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "chore(deps):"
+
+  # Docker Compose — pinned scanner images (zap, nuclei, nikto, ffuf)
+  - package-ecosystem: "docker-compose"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "chore(deps):"

@@ -1,15 +1,21 @@
 # Dockerfile for Web-Check API
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+# Pinned base image — bumped by Dependabot (docker ecosystem).
+FROM ghcr.io/astral-sh/uv:0.9.30-python3.12-bookworm-slim
+
+# XSStrike has no package release on PyPI: pin the git tag and its commit.
+ARG XSSTRIKE_REF=3.1.6
+ARG XSSTRIKE_COMMIT=65dd68ae9051ce7cecf3be23fbda6e329d8580af
 
 WORKDIR /app
 
-# Enable bytecode compilation
-ENV UV_COMPILE_BYTECODE=1
+# The application is imported from /app (api/, alembic/), not installed.
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
+    PATH="/app/.venv/bin:$PATH"
 
-# Copy from the cache instead of linking since it's a mounted volume
-ENV UV_LINK_MODE=copy
-
-# Install system dependencies (git for XSStrike, docker-cli for scanner orchestration)
+# System dependencies: git (XSStrike), curl (healthcheck), docker-cli (scanner orchestration)
 # hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
@@ -23,41 +29,39 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get update && apt-get install -y --no-install-recommends docker-ce-cli \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency files
-COPY pyproject.toml README.md ./
+# Unprivileged runtime user. Access to the host docker socket is granted at
+# runtime via `group_add: ${DOCKER_GID}` in docker-compose.yml.
+RUN useradd --system --create-home --uid 10001 --gid users webcheck
 
-# Copy lockfile for reproducible builds
-COPY uv.lock ./
+# Dependencies only (cached layer). The project itself is not installed: the
+# wheel layout (apps/api…) does not match the image layout (/app/api).
+COPY pyproject.toml README.md uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project
 
-# Install dependencies using uv sync (best practice)
-RUN uv sync --frozen --no-install-project --no-dev
+# XSStrike at a pinned, verified commit
+RUN git clone --depth 1 --branch "${XSSTRIKE_REF}" https://github.com/s0md3v/XSStrike.git /opt/xsstrike \
+    && test "$(git -C /opt/xsstrike rev-parse HEAD)" = "${XSSTRIKE_COMMIT}" \
+    && uv pip install --python /app/.venv/bin/python -r /opt/xsstrike/requirements.txt \
+    && rm -rf /opt/xsstrike/.git \
+    && chown -R 10001:users /opt/xsstrike
 
-# Copy application code
+# Application code
 COPY apps/api/ ./api/
 COPY apps/alembic/ ./alembic/
 COPY apps/alembic.ini ./
-
-# Install project
-RUN uv sync --frozen --no-dev
-
-# Install XSStrike from GitHub (no official package)
-RUN git clone https://github.com/s0md3v/XSStrike.git /opt/xsstrike
-WORKDIR /opt/xsstrike
-RUN uv pip install --python /app/.venv/bin/python -r requirements.txt
-WORKDIR /app
-
-# Create outputs directory and copy config
-RUN mkdir -p outputs/temp
 COPY apps/config/ ./config/
 
-# Place executables in the environment at the front of the path
-ENV PATH="/app/.venv/bin:$PATH"
+RUN mkdir -p outputs/temp data && chown -R webcheck:users outputs data
+
+USER webcheck
 
 # Reset the entrypoint, don't invoke `uv`
 ENTRYPOINT []
 
-# Expose API port
 EXPOSE 8000
 
-# Run with uvicorn
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:8000/api/health || exit 1
+
+# No --reload in the image: use docker-compose.override.yml for development.
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
