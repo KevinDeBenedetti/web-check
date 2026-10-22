@@ -33,11 +33,11 @@ Scan targets must be listed in `ALLOWED_DOMAINS` (see [configuration](docs/confi
 ## Usage
 
 ```sh
-# Start the API + all scanner sidecars
-docker compose up -d
+# Start the API + all scanner sidecars (or `make dev` for live reload)
+make start
 
 # API Swagger UI
-open http://localhost:8001/docs
+open http://localhost:8000/docs
 
 # Interactive CLI wizard
 make cli
