@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 
 from api.models import CheckResult
 from api.models.db_models import Finding, Scan, ScanResult
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -62,6 +62,22 @@ async def update_scan_status(
         if status in ("success", "error", "timeout"):
             scan.completed_at = datetime.now(UTC)
         await session.commit()
+
+
+async def fail_interrupted_scans(session: AsyncSession) -> int:
+    """
+    Mark scans left in "running" state (e.g. by an API restart) as failed.
+
+    Returns:
+        Number of scans updated
+    """
+    result = await session.execute(
+        update(Scan)
+        .where(Scan.status == "running")
+        .values(status="error", completed_at=datetime.now(UTC))
+    )
+    await session.commit()
+    return getattr(result, "rowcount", 0) or 0
 
 
 async def get_scan(session: AsyncSession, scan_id: str) -> Scan | None:

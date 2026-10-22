@@ -2,12 +2,18 @@
 
 import asyncio
 import json
+import uuid
 from pathlib import Path
 from typing import Any
 
 import structlog
 
 logger = structlog.get_logger()
+
+
+def unique_output_name(prefix: str, extension: str) -> str:
+    """Return a collision-free output filename (concurrent scans share ./outputs)."""
+    return f"{prefix}_{uuid.uuid4().hex}.{extension}"
 
 
 async def check_docker_container(container_name: str) -> bool:

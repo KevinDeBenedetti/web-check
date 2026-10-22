@@ -57,11 +57,15 @@ async def run_zap_scan(target: str, timeout: int = 900, scan_id: str | None = No
             logger.info("zap_starting_spider", target=target)
             spider_id = zap.spider.scan(target)
 
-            # Wait for spider to complete
+            # Wait for spider to complete (half the budget), then stop it for real:
+            # breaking out of the loop alone leaves ZAP crawling in the background.
+            timed_out = False
             while int(zap.spider.status(spider_id)) < 100:
-                time.sleep(2)
-                if time.time() - start > timeout / 2:  # Use half timeout for spider
+                if time.time() - start > timeout / 2:
+                    logger.warning("zap_spider_timeout", target=target)
+                    zap.spider.stop(spider_id)
                     break
+                time.sleep(2)
 
             logger.info("zap_spider_completed", target=target, spider_id=spider_id)
 
@@ -71,30 +75,19 @@ async def run_zap_scan(target: str, timeout: int = 900, scan_id: str | None = No
 
             # Wait for active scan to complete
             while int(zap.ascan.status(scan_id_zap)) < 100:
-                time.sleep(5)
                 if time.time() - start > timeout:
                     logger.warning("zap_scan_timeout", target=target)
+                    zap.ascan.stop(scan_id_zap)
+                    timed_out = True
                     break
+                time.sleep(5)
 
-            # Get alerts
+            # Get alerts (partial results when timed out)
             alerts = zap.core.alerts(baseurl=target)
-            return {"alerts": alerts}
+            return {"alerts": alerts, "timed_out": timed_out}
 
         # Run blocking ZAP operations in thread pool
         result = await asyncio.to_thread(_run_scan)
-
-        if time.time() - start >= timeout:
-            return CheckResult(
-                module="zap",
-                category="deep",
-                target=target,
-                timestamp=datetime.now(UTC),
-                duration_ms=int((time.time() - start) * 1000),
-                status="timeout",
-                data=None,
-                findings=[],
-                error="Scan timed out",
-            )
 
         # Parse alerts
         alerts = result.get("alerts", [])
@@ -113,8 +106,9 @@ async def run_zap_scan(target: str, timeout: int = 900, scan_id: str | None = No
             await log_streamer.send_log(
                 scan_id,
                 {
-                    "type": "success",
-                    "message": f"ZAP scan completed - {len(findings)} findings",
+                    "type": "warning" if result["timed_out"] else "success",
+                    "message": f"ZAP scan {'timed out' if result['timed_out'] else 'completed'}"
+                    f" - {len(findings)} findings",
                 },
             )
 
@@ -124,10 +118,10 @@ async def run_zap_scan(target: str, timeout: int = 900, scan_id: str | None = No
             target=target,
             timestamp=datetime.now(UTC),
             duration_ms=int((time.time() - start) * 1000),
-            status="success",
-            data={"alerts_count": len(alerts)},
+            status="timeout" if result["timed_out"] else "success",
+            data={"alerts_count": len(alerts), "partial": result["timed_out"]},
             findings=findings,
-            error=None,
+            error="Scan timed out (partial results)" if result["timed_out"] else None,
         )
 
     except Exception as e:
@@ -137,7 +131,9 @@ async def run_zap_scan(target: str, timeout: int = 900, scan_id: str | None = No
         if "Unable to connect to proxy" in error_msg or "Max retries exceeded" in error_msg:
             error_msg = "ZAP daemon is not accessible. Please ensure the ZAP container is running and healthy."
         elif "not permitted" in error_msg:
-            error_msg = "ZAP API access denied. The container needs to be restarted with proper API permissions."
+            error_msg = (
+                "ZAP API access denied. Check that ZAP_API_KEY matches the ZAP daemon's api.key."
+            )
 
         logger.error("zap_scan_failed", target=target, error=error_msg)
 
