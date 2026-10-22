@@ -6,6 +6,7 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from my_check import __version__
 from my_check.types import CheckStatus, Report
 from rich.console import Console
 
@@ -92,7 +93,7 @@ class JsonReporter:
                     "tool": {
                         "driver": {
                             "name": "my-check",
-                            "version": "0.1.0",
+                            "version": __version__,
                             "rules": rules,
                         }
                     },

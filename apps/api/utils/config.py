@@ -12,8 +12,6 @@ class Settings(BaseSettings):
     """Application settings."""
 
     # API Configuration
-    api_title: str = "Web-Check Security Scanner"
-    api_version: str = "0.1.0"
     debug: bool = False
 
     # Docker Configuration

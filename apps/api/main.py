@@ -1,11 +1,13 @@
 """Main FastAPI application for Web-Check Security Scanner."""
 
+import asyncio
 import time
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 
 import structlog
-from api.database import Base, engine, get_session_context
+from api import __version__
+from api.database import get_session_context, run_migrations
 from api.routers import advanced, deep, health, quick, scans, security
 from api.services import db_service
 from api.utils.config import get_settings
@@ -31,10 +33,9 @@ async def lifespan(app: FastAPI):
     if settings.allow_private_targets:
         logger.warning("private_targets_allowed", message="ALLOW_PRIVATE_TARGETS is enabled")
 
-    # Create database tables if they don't exist
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        logger.info("Database tables created successfully")
+    # Bring the schema up to date (Alembic is the single source of truth)
+    await asyncio.to_thread(run_migrations)
+    logger.info("database_migrated")
 
     # Scans still "running" were interrupted by a restart: their tasks are gone.
     async with get_session_context() as session:
@@ -48,7 +49,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Web-Check Security Scanner",
     description="Docker-based security scanning toolkit for web applications",
-    version="0.1.0",
+    version=__version__,
     lifespan=lifespan,
     redirect_slashes=False,
 )
@@ -117,7 +118,7 @@ async def root():
     """Root endpoint with API information."""
     return {
         "name": "Web-Check Security Scanner",
-        "version": "0.1.0",
+        "version": __version__,
         "docs": "/docs",
         "health": "/api/health",
     }
