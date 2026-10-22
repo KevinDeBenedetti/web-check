@@ -14,16 +14,18 @@ console = Console()
 class APIClient:
     """HTTP client for API communication."""
 
-    def __init__(self, base_url: str, timeout: int = 600):
+    def __init__(self, base_url: str, timeout: int = 600, api_key: str | None = None):
         """Initialize API client.
 
         Args:
             base_url: Base URL of the API
             timeout: Request timeout in seconds
+            api_key: Value for the X-API-Key header (when the API requires one)
         """
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
-        self.client = httpx.Client(timeout=timeout, follow_redirects=True)
+        headers = {"X-API-Key": api_key} if api_key else None
+        self.client = httpx.Client(timeout=timeout, follow_redirects=True, headers=headers)
 
     def post(self, endpoint: str, json: dict | None = None, **params: Any) -> dict[str, Any]:
         """Make POST request to API.

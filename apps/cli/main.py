@@ -156,7 +156,7 @@ def guide() -> None:
         from cli.report import normalise_full_scan, save_report
 
         settings = CLISettings()
-        client = APIClient(settings.api_url, settings.api_timeout)
+        client = APIClient(settings.api_url, settings.api_timeout, settings.api_key)
         try:
             console.print(f"[bold cyan]🔍 Starting full scan on {url}[/bold cyan]")
             console.print(f"   Modules : [cyan]{', '.join(_DEFAULT_MODULES)}[/cyan]\n")
@@ -207,7 +207,7 @@ def guide() -> None:
 
     endpoint = _SCAN_ENDPOINTS[scan_type]
     settings = CLISettings()
-    client = APIClient(settings.api_url, settings.api_timeout)
+    client = APIClient(settings.api_url, settings.api_timeout, settings.api_key)
 
     try:
         with console.status(f"[bold green]Running {scan_type} scan on {url}…"):

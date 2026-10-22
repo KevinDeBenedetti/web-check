@@ -4,14 +4,15 @@ from api.models import CheckResult
 from api.services.sqlmap_scanner import run_sqlmap_scan
 from api.services.wapiti_scanner import run_wapiti_scan
 from api.services.xsstrike_scanner import run_xsstrike_scan
-from fastapi import APIRouter, Query
+from api.utils.security import target_url
+from fastapi import APIRouter, Depends, Query
 
 router = APIRouter()
 
 
 @router.get("/sqlmap", response_model=CheckResult)
 async def scan_with_sqlmap(
-    url: str = Query(..., description="Target URL to scan for SQL injection"),
+    url: str = Depends(target_url),
     timeout: int = Query(900, ge=60, le=1800, description="Timeout in seconds (default: 900)"),
 ) -> CheckResult:
     """
@@ -30,7 +31,7 @@ async def scan_with_sqlmap(
 
 @router.get("/wapiti", response_model=CheckResult)
 async def scan_with_wapiti(
-    url: str = Query(..., description="Target URL to scan for web vulnerabilities"),
+    url: str = Depends(target_url),
     timeout: int = Query(600, ge=60, le=1800, description="Timeout in seconds (default: 600)"),
 ) -> CheckResult:
     """
@@ -51,7 +52,7 @@ async def scan_with_wapiti(
 
 @router.get("/xsstrike", response_model=CheckResult)
 async def scan_with_xsstrike(
-    url: str = Query(..., description="Target URL to scan for XSS vulnerabilities"),
+    url: str = Depends(target_url),
     timeout: int = Query(300, ge=30, le=900, description="Timeout in seconds (default: 300)"),
 ) -> CheckResult:
     """

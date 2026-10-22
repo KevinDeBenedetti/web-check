@@ -3,15 +3,18 @@
 from datetime import UTC
 
 from api.models import CheckResult
-from fastapi import APIRouter, HTTPException, Query
+from api.utils.security import target_url, validate_wordlist
+from fastapi import APIRouter, Depends, Query
 
 router = APIRouter()
 
 
 @router.get("/ffuf", response_model=CheckResult)
 async def security_ffuf_scan(
-    url: str = Query(..., description="Target URL to fuzz"),
-    wordlist: str = Query("common.txt", description="Wordlist to use for fuzzing"),
+    url: str = Depends(target_url),
+    wordlist: str = Query(
+        "common.txt", description="Wordlist filename (from apps/config/wordlists/)"
+    ),
     timeout: int = Query(600, ge=60, le=3600, description="Timeout in seconds"),
 ) -> CheckResult:
     """
@@ -27,8 +30,7 @@ async def security_ffuf_scan(
 
     start = time.time()
 
-    if not url.startswith(("http://", "https://")):
-        raise HTTPException(status_code=400, detail="URL must start with http:// or https://")
+    wordlist = validate_wordlist(wordlist)
 
     try:
         result = await docker_run(
@@ -91,7 +93,7 @@ async def security_ffuf_scan(
 
 @router.get("/sqlmap", response_model=CheckResult)
 async def security_sqlmap_scan(
-    url: str = Query(..., description="Target URL to test for SQL injection"),
+    url: str = Depends(target_url),
     timeout: int = Query(900, ge=300, le=3600, description="Timeout in seconds"),
 ) -> CheckResult:
     """
@@ -106,9 +108,6 @@ async def security_sqlmap_scan(
     from api.services.docker_runner import docker_run
 
     start = time.time()
-
-    if not url.startswith(("http://", "https://")):
-        raise HTTPException(status_code=400, detail="URL must start with http:// or https://")
 
     try:
         result = await docker_run(
