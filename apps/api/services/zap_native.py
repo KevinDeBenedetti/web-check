@@ -7,25 +7,18 @@ from typing import Any
 
 import structlog
 from api.models import CheckResult, Finding
+from api.utils.config import get_settings
 from zapv2 import ZAPv2
 
 logger = structlog.get_logger()
 
-# ZAP daemon configuration
-ZAP_HOST = "zap"  # Container name in docker-compose
-ZAP_PORT = 8090
-ZAP_API_KEY = ""  # No API key needed (api.disablekey=true)
-
 
 def _get_zap_client() -> ZAPv2:
-    """Get ZAP client instance."""
-    return ZAPv2(
-        apikey=ZAP_API_KEY,
-        proxies={
-            "http": f"http://{ZAP_HOST}:{ZAP_PORT}",
-            "https": f"http://{ZAP_HOST}:{ZAP_PORT}",
-        },
-    )
+    """Get ZAP client instance (host, port and API key come from settings)."""
+    settings = get_settings()
+    proxy = f"http://{settings.zap_host}:{settings.zap_port}"
+    apikey = settings.zap_api_key.get_secret_value() if settings.zap_api_key else None
+    return ZAPv2(apikey=apikey, proxies={"http": proxy, "https": proxy})
 
 
 async def run_zap_scan(target: str, timeout: int = 900, scan_id: str | None = None) -> CheckResult:

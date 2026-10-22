@@ -8,6 +8,7 @@ from api.database import get_session
 from api.models.results import CheckResult, ScanRequest, ScanResponse
 from api.services import db_service
 from api.services.log_streamer import log_streamer
+from api.utils.security import validate_target
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +25,8 @@ async def start_scan(
 
     Runs multiple scanners in parallel and tracks progress.
     """
+    target = await validate_target(request.target, require_scheme=False)
+    request = request.model_copy(update={"target": target})
     scan_id = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
 
     # Create scan in database
