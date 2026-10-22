@@ -40,7 +40,7 @@ The last two IP-based rules are lifted by `ALLOW_PRIVATE_TARGETS=true`.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `API_PORT` | `8001` | Host port for the FastAPI server |
+| `API_PORT` | `8000` | Host port for the FastAPI server (the container always listens on 8000) |
 
 ## Docker Compose profiles
 

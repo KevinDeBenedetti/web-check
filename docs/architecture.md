@@ -50,4 +50,4 @@ Database: SQLite via SQLAlchemy async + Alembic migrations (auto-run on startup)
 
 ## Frontend
 
-The project no longer ships a bundled frontend. Interact with the API via the Swagger UI at `http://localhost:8001/docs`, the `my-check` CLI, or any HTTP client.
+The project no longer ships a bundled frontend. Interact with the API via the Swagger UI at `http://localhost:8000/docs`, the `my-check` CLI, or any HTTP client.
