@@ -74,10 +74,13 @@ jobs:
     name: Release
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     uses: KevinDeBenedetti/github-workflows/.github/workflows/release.yml@main
-    with:
-      app-client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
-    secrets:
-      APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+    # No token secret: release-please runs on GITHUB_TOKEN (needs "Allow GitHub
+    # Actions to create and approve pull requests"; CI on the release PR waits
+    # for "Approve workflows to run").
+    permissions:
+      contents: write        # release branch, tags and releases
+      issues: write          # release-please labels the release PR
+      pull-requests: write   # open/update the release PR
 
   # ── CD — Build & push API Docker image (on release) ───────────────────────
   deploy-api:
