@@ -326,19 +326,24 @@ def _parse_sslyze_results(scan_result: Any, domain: str) -> list[Finding]:
     if certinfo_attempt.result:
         cert_result = certinfo_attempt.result
         for cert_deployment in cert_result.certificate_deployments:
-            # Check for certificate validation issues
-            if cert_deployment.path_validation_results:
-                for validation_result in cert_deployment.path_validation_results:
-                    if not validation_result.was_validation_successful:
-                        findings.append(
-                            Finding(
-                                severity="high",
-                                title="Invalid Certificate Chain",
-                                description=f"Certificate validation failed: {validation_result.verify_string or 'Unknown error'}",
-                                reference=None,
-                                cve="CWE-295",
-                                cvss_score=7.4,
-                            )
-                        )
+            # One finding per certificate, not one per trust store that rejects it
+            failed = [
+                result
+                for result in cert_deployment.path_validation_results
+                if not result.was_validation_successful
+            ]
+            if failed:
+                stores = ", ".join(result.trust_store.name for result in failed)
+                error = failed[0].validation_error or "Unknown error"
+                findings.append(
+                    Finding(
+                        severity="high",
+                        title="Invalid Certificate Chain",
+                        description=f"Certificate validation failed ({stores}): {error}",
+                        reference=None,
+                        cve="CWE-295",
+                        cvss_score=7.4,
+                    )
+                )
 
     return findings
