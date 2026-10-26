@@ -109,6 +109,14 @@ jobs:
     name: Deploy API
     needs: release
     if: needs.release.outputs.released == 'true'
+    # A reusable workflow gets at most what its caller grants; cd-docker.yml also
+    # attests the image, and GitHub refuses to start the whole run without these.
+    permissions:
+      contents: read
+      packages: write      # push the image to GHCR
+      deployments: write   # environment record
+      id-token: write      # sign the image attestation (Sigstore)
+      attestations: write  # store the attestation
     uses: KevinDeBenedetti/github-workflows/.github/workflows/cd-docker.yml@main
     with:
       image-name: web-check-api
