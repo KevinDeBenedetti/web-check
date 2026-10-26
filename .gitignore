@@ -28,8 +28,9 @@ docker-compose.override.yml
 # Custom wordlists (may contain sensitive paths)
 config/wordlists/custom*.txt
 
-# Node modules (if any tooling added)
+# Web UI (apps/web)
 node_modules/
+apps/web/dist/
 
 *__pycache__/
 .coverage
