@@ -1,6 +1,7 @@
 .PHONY: help install test lint format check \
         start stop restart logs status \
-        clean clean-all cli
+        clean clean-all cli \
+        ui-install ui-dev ui-build ui-test ui-check
 
 PYTHON_VERSION ?= 3.12
 
@@ -19,7 +20,7 @@ help: ## Display this help
 
 start: ## Start all services (API + scanners)
 	@docker compose up -d
-	@echo "✅ Ready — http://localhost:$${API_PORT:-8001}/docs"
+	@echo "✅ Ready — UI http://localhost:$${API_PORT:-8001}/ui/ · API http://localhost:$${API_PORT:-8001}/docs"
 
 stop: ## Stop all containers
 	@docker compose down
@@ -60,6 +61,28 @@ check: ## Run all quality checks (format + lint + type + test)
 	@uv run ty check
 	@uv run pytest -q
 	@echo "✅ All checks passed"
+
+# ==============================================================================
+##@ Web UI (apps/web)
+# ==============================================================================
+
+ui-install: ## Install web UI dependencies (requires Node.js 22+)
+	@npm --prefix apps/web ci
+
+ui-dev: ## Run the web UI with hot reload on http://localhost:5173/ui/ (API must be running)
+	@npm --prefix apps/web run dev
+
+ui-build: ## Build the web UI into apps/web/dist (served by the API under /ui)
+	@npm --prefix apps/web run build
+
+ui-test: ## Run web UI unit tests
+	@npm --prefix apps/web test
+
+ui-check: ## Typecheck, test and build the web UI
+	@npm --prefix apps/web run typecheck
+	@npm --prefix apps/web test
+	@npm --prefix apps/web run build
+	@echo "✅ Web UI checks passed"
 
 # ==============================================================================
 ##@ Cleanup

@@ -1,4 +1,17 @@
-# Dockerfile for Web-Check API
+# Dockerfile for Web-Check API (serves the web UI under /ui)
+
+# ── Web UI build ────────────────────────────────────────────────────────────
+FROM node:22-bookworm-slim AS web-build
+
+WORKDIR /web
+
+COPY apps/web/package.json apps/web/package-lock.json ./
+RUN npm ci
+
+COPY apps/web/ ./
+RUN npm run build
+
+# ── API ─────────────────────────────────────────────────────────────────────
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
 WORKDIR /app
@@ -49,6 +62,9 @@ WORKDIR /app
 # Create outputs directory and copy config
 RUN mkdir -p outputs/temp
 COPY apps/config/ ./config/
+
+# Built web UI, served by the API under /ui
+COPY --from=web-build /web/dist ./web/dist
 
 # Place executables in the environment at the front of the path
 ENV PATH="/app/.venv/bin:$PATH"

@@ -21,6 +21,7 @@ docker compose --profile tools up -d
 
 | URL | Service |
 |-----|---------|
+| http://localhost:8001/ui/ | Web UI |
 | http://localhost:8001 | FastAPI (Swagger at `/docs`) |
 | http://localhost:8090 | ZAP API |
 
@@ -38,6 +39,20 @@ uv run uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 > **Note:** Scanner sidecars (ZAP, Nuclei, Nikto) must be running via Docker for scan features to work.
+
+## Web UI development
+
+The UI lives in `apps/web` (Node.js 22+). The Vite dev server proxies `/api` to
+the API (`WEB_CHECK_CLI_API_URL`, default `http://localhost:8001`):
+
+```bash
+make ui-install   # npm ci
+make ui-dev       # http://localhost:5173/ui/ with hot reload
+make ui-check     # typecheck, unit tests (Vitest) and production build
+```
+
+`make ui-build` writes `apps/web/dist`, which a locally started API serves under
+`/ui` (override the location with `WEB_DIST_DIR`).
 
 ## Running tests
 

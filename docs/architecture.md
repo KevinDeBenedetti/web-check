@@ -8,6 +8,7 @@ Web Check is a **monorepo** containing a Python/FastAPI backend, a React/Vite fr
 web-check/
 ├── apps/
 │   ├── api/          # FastAPI application (Python 3.12, uv)
+│   ├── web/          # Web UI (React, Vite, TypeScript), served under /ui
 │   ├── cli/          # Typer CLI entry point
 │   ├── my_check/     # Core security checks and reporters
 │   ├── alembic/      # Database migrations
@@ -44,10 +45,46 @@ The FastAPI app exposes scan endpoints under `/api/`:
 | `/api/deep` | Thorough scans (longer runtime) |
 | `/api/security` | Dedicated security tool integrations |
 | `/api/advanced` | Advanced / multi-tool chained scans |
-| `/api/scans` | Scan history and results management |
+| `/api/scans` | Full scans: start, history, findings, comparison, exports, SSE logs |
+| `/api/catalog` | Modules and scan profiles accepted by `/api/scans/start` |
+| `/api/scope` | Scope rules (`ALLOWED_DOMAINS`) and target checks |
+| `/api/services` | State of the scanner containers (via the Docker socket) |
+
+### Full scans
+
+`POST /api/scans/start` takes a `target`, either a `profile` (`quick`, `standard`,
+`full`) or a list of `modules`, and a per-module `timeout`. Targets outside
+`ALLOWED_DOMAINS` are rejected with `403`. Modules run one after the other in a
+background task; each result is stored as soon as it completes and progress is
+streamed over SSE (`GET /api/scans/{id}/logs`, which replays past entries to late
+subscribers).
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/scans/{id}/findings` | Findings deduplicated across modules, with score |
+| `GET /api/scans/{base}/compare/{head}` | New, fixed and unchanged findings |
+| `GET /api/scans/{id}/export?format=json\|markdown\|sarif` | Report download |
+
+The score starts at 100 and loses 25, 10, 4 and 1 points per critical, high,
+medium and low finding (informational findings do not count).
 
 Database: SQLite via SQLAlchemy async + Alembic migrations (auto-run on startup).
 
-## Frontend
+## Web UI
 
-The project no longer ships a bundled frontend. Interact with the API via the Swagger UI at `http://localhost:8001/docs`, the `my-check` CLI, or any HTTP client.
+`apps/web` is a React + Vite + TypeScript single-page app, in French. The Docker
+image builds it and the API serves it under `/ui` (`apps/api/routers/web_ui.py`),
+so `docker compose up -d` is enough to use it at `http://localhost:8001/ui/`.
+
+| Screen | Path |
+|--------|------|
+| Dashboard | `/ui/` |
+| New scan | `/ui/scans/new` |
+| Live scan | `/ui/scans/{id}/live` |
+| Report | `/ui/scans/{id}` |
+| History | `/ui/scans` |
+| Compare | `/ui/compare` |
+| Settings | `/ui/settings` |
+
+The API remains usable directly via the Swagger UI at `http://localhost:8001/docs`,
+the `my-check` CLI, or any HTTP client.
