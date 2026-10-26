@@ -50,6 +50,10 @@ build-backend = "hatchling.build"
 
 [tool.uv]
 no-binary-package = ["sqlmap"]
+# sslyze (latest: 6.3.1) caps cryptography below 47, but every release before 50
+# has known vulnerabilities (pip-audit). sslyze only uses it to parse and verify
+# certificates; drop this once sslyze allows a fixed cryptography.
+override-dependencies = ["cryptography>=50.0.0"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["apps/api", "apps/cli", "apps/my_check"]
