@@ -64,6 +64,25 @@ async def update_scan_status(
         await session.commit()
 
 
+async def fail_interrupted_scans(session: AsyncSession) -> int:
+    """
+    Mark scans left "running" by a previous API process as failed.
+
+    Scans run as background tasks of the API process, so none can still be
+    running when the API starts.
+
+    Returns:
+        Number of scans updated
+    """
+    result = await session.execute(select(Scan).where(Scan.status == "running"))
+    scans = list(result.scalars().all())
+    for scan in scans:
+        scan.status = "error"
+        scan.completed_at = datetime.now(UTC)
+    await session.commit()
+    return len(scans)
+
+
 async def get_scan(session: AsyncSession, scan_id: str) -> Scan | None:
     """
     Get scan by ID.

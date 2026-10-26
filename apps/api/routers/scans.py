@@ -299,6 +299,9 @@ async def _run_scans(scan_id: str, target: str, modules: list[str], timeout: int
             started = time.monotonic()
             try:
                 result = await runners[module](target, timeout)
+                # Some scanners name themselves differently (testssl -> "sslyze",
+                # dns -> "dns_enum"); store results under the requested module id.
+                result = result.model_copy(update={"module": module})
             except Exception as e:
                 info = get_module(module)
                 result = CheckResult(

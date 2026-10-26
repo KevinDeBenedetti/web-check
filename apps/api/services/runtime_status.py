@@ -71,7 +71,10 @@ async def get_container_state(container: str, timeout: float = 5.0) -> ServiceSt
 
     if process.returncode == 0:
         return "running" if stdout.decode().strip() == "running" else "stopped"
-    if b"no such" in stderr.lower():
+    # "No such object/container" means the daemon answered; anything else (socket
+    # missing, permission denied) means Docker itself is unreachable.
+    error = stderr.decode(errors="replace").lower()
+    if "no such object" in error or "no such container" in error:
         return "missing"
     return "unknown"
 

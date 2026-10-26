@@ -4,8 +4,9 @@ from pathlib import Path
 
 import pytest
 from api.database import upgrade_schema
+from api.services import db_service
 from sqlalchemy import inspect, text
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 
 @pytest.mark.asyncio
@@ -34,3 +35,19 @@ async def test_upgrade_schema_adds_remediation_to_existing_database(tmp_path: Pa
 
     assert "remediation" in columns
     assert {"scans", "scan_results", "findings"} <= tables
+
+
+@pytest.mark.asyncio
+async def test_fail_interrupted_scans(session_maker: async_sessionmaker[AsyncSession]) -> None:
+    async with session_maker() as session:
+        await db_service.create_scan(session, "left-running", "https://example.com")
+        await db_service.create_scan(session, "done", "https://example.com")
+        await db_service.update_scan_status(session, "done", "success")
+
+        assert await db_service.fail_interrupted_scans(session) == 1
+
+        interrupted = await db_service.get_scan(session, "left-running")
+        done = await db_service.get_scan(session, "done")
+    assert interrupted is not None and interrupted.status == "error"
+    assert interrupted.completed_at is not None
+    assert done is not None and done.status == "success"

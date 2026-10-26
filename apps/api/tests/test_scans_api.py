@@ -186,7 +186,8 @@ async def test_run_scans_stores_each_result_and_survives_module_errors(
     session_maker: async_sessionmaker[AsyncSession], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     async def ok(target: str, timeout: int) -> CheckResult:
-        return _result("headers", ["finding"])
+        # Scanners may report another module name; results are stored under the requested id
+        return _result("security_headers", ["finding"])
 
     async def boom(target: str, timeout: int) -> CheckResult:
         raise RuntimeError("container not running")

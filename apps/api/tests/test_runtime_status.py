@@ -21,7 +21,16 @@ class _FakeProcess:
         (_FakeProcess(0, b"running\n"), "running"),
         (_FakeProcess(0, b"exited\n"), "stopped"),
         (_FakeProcess(1, stderr=b"Error: No such object: x"), "missing"),
+        (_FakeProcess(1, stderr=b"Error response from daemon: No such container: x"), "missing"),
         (_FakeProcess(1, stderr=b"permission denied"), "unknown"),
+        (
+            _FakeProcess(
+                1,
+                stderr=b"failed to connect to the docker API at unix:///var/run/docker.sock: "
+                b"dial unix /var/run/docker.sock: connect: no such file or directory",
+            ),
+            "unknown",
+        ),
     ],
 )
 @pytest.mark.asyncio

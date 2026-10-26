@@ -5,7 +5,7 @@ from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 
 import structlog
-from api.database import engine, upgrade_schema
+from api.database import engine, get_session_context, upgrade_schema
 from api.routers import (
     advanced,
     catalog,
@@ -18,6 +18,7 @@ from api.routers import (
     services,
     web_ui,
 )
+from api.services import db_service
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -34,6 +35,11 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await upgrade_schema(conn)
         logger.info("Database schema is up to date")
+
+    async with get_session_context() as session:
+        interrupted = await db_service.fail_interrupted_scans(session)
+        if interrupted:
+            logger.warning("interrupted_scans_marked_failed", count=interrupted)
 
     yield
     logger.info("Shutting down Web-Check Security Scanner API")
