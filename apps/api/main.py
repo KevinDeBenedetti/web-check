@@ -5,8 +5,19 @@ from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 
 import structlog
-from api.database import Base, engine
-from api.routers import advanced, deep, health, quick, scans, security
+from api.database import engine, upgrade_schema
+from api.routers import (
+    advanced,
+    catalog,
+    deep,
+    health,
+    quick,
+    scans,
+    scope,
+    security,
+    services,
+    web_ui,
+)
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -19,10 +30,10 @@ async def lifespan(app: FastAPI):
     """Handle application startup and shutdown."""
     logger.info("Starting Web-Check Security Scanner API")
 
-    # Create database tables if they don't exist
+    # Create missing tables and columns
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        logger.info("Database tables created successfully")
+        await upgrade_schema(conn)
+        logger.info("Database schema is up to date")
 
     yield
     logger.info("Shutting down Web-Check Security Scanner API")
@@ -86,6 +97,10 @@ app.include_router(deep.router, prefix="/api/deep", tags=["Deep Scans"])
 app.include_router(security.router, prefix="/api/security", tags=["Security Scans"])
 app.include_router(advanced.router, prefix="/api/advanced", tags=["Advanced Security"])
 app.include_router(scans.router, prefix="/api/scans", tags=["Scan Management"])
+app.include_router(catalog.router, prefix="/api/catalog", tags=["Catalog"])
+app.include_router(scope.router, prefix="/api/scope", tags=["Scope"])
+app.include_router(services.router, prefix="/api/services", tags=["Services"])
+app.include_router(web_ui.router)
 
 
 @app.get("/")
@@ -96,4 +111,5 @@ async def root():
         "version": "0.1.0",
         "docs": "/docs",
         "health": "/api/health",
+        "ui": "/ui/",
     }

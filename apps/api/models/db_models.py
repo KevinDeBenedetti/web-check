@@ -70,6 +70,7 @@ class Finding(Base):
     reference: Mapped[str | None] = mapped_column(String(500), nullable=True)
     cve: Mapped[str | None] = mapped_column(String(50), nullable=True)
     cvss_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    remediation: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     def __repr__(self) -> str:
         """String representation."""

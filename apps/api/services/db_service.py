@@ -133,6 +133,7 @@ async def save_scan_result(
             reference=finding.reference,
             cve=finding.cve,
             cvss_score=finding.cvss_score,
+            remediation=finding.remediation,
         )
         session.add(db_finding)
 

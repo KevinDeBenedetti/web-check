@@ -57,6 +57,9 @@ class ScanRequest(BaseModel):
 
     target: str = Field(..., description="Target URL or domain to scan")
     modules: list[str] | None = Field(None, description="Specific modules to run (default: all)")
+    profile: str | None = Field(
+        None, description="Scan profile (see /api/catalog); ignored when modules are given"
+    )
     timeout: int = Field(300, ge=1, le=3600, description="Timeout in seconds per module")
 
     model_config = {
@@ -77,6 +80,14 @@ class ScanResponse(BaseModel):
     target: str = Field(..., description="Target being scanned")
     status: ScanStatus = Field(..., description="Current status of the scan")
     started_at: datetime = Field(..., description="When the scan started")
+    completed_at: datetime | None = Field(None, description="When the scan finished")
+    modules: list[str] | None = Field(None, description="Modules requested for this scan")
+    score: int | None = Field(
+        None, ge=0, le=100, description="Score computed from the deduplicated findings"
+    )
+    severity_counts: dict[str, int] = Field(
+        default_factory=dict, description="Deduplicated findings per severity"
+    )
     results: list[CheckResult] = Field(default_factory=list, description="Available results so far")
 
     model_config = {

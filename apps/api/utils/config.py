@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     # Database Configuration
     database_path: Path = Path("data/web-check.db")
 
+    # Web UI: directory holding the built front-end (apps/web/dist by default)
+    web_dist_dir: Path | None = None
+
     # Scan Defaults
     default_timeout: int = 300
     max_timeout: int = 3600
