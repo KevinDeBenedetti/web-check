@@ -334,7 +334,7 @@ def _parse_sslyze_results(scan_result: Any, domain: str) -> list[Finding]:
                             Finding(
                                 severity="high",
                                 title="Invalid Certificate Chain",
-                                description=f"Certificate validation failed: {validation_result.verify_string or 'Unknown error'}",
+                                description=f"Certificate validation failed: {validation_result.validation_error or 'Unknown error'}",
                                 reference=None,
                                 cve="CWE-295",
                                 cvss_score=7.4,
