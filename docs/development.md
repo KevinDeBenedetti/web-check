@@ -1,3 +1,7 @@
+---
+title: Development
+---
+
 # Development
 
 ## Prerequisites
@@ -93,10 +97,13 @@ uv run ruff check --fix . && uv run ruff format .
 uv run ty check
 ```
 
-Pre-commit hooks are configured via `.pre-commit-config.yaml`:
+Git hooks are run by [prek](https://github.com/j178/prek) (a dev dependency) from
+`.pre-commit-config.yaml`: whitespace and config-file checks, then ruff with the
+version locked in `uv.lock`, the one CI runs:
 
 ```bash
-pre-commit install
+uv run prek install          # run the hooks on every commit
+uv run prek run --all-files  # run them once on the whole tree
 ```
 
 ## Database migrations
@@ -119,3 +126,36 @@ uv run alembic -c apps/alembic.ini downgrade -1
 # Verify models and migrations are in sync (also covered by the test suite)
 uv run alembic -c apps/alembic.ini check
 ```
+
+## Dependency updates
+
+Dependabot (`.github/dependabot.yml`) looks for updates every Monday at 06:00
+(Europe/Paris) and only proposes releases that are at least 3 days old; security
+updates are never delayed. It covers Python (`pyproject.toml` and `uv.lock`), the
+web UI (`apps/web`), the base images of the `Dockerfile`, the scanner images of
+`docker-compose.yml` and the GitHub Actions of the workflows.
+
+- Minor and patch updates share one pull request per ecosystem, and so do
+  security fixes.
+- Major versions come one per pull request, except the Vite toolchain (`vite`,
+  `vitest`, `@vitejs/*`) and React (`react`, `react-dom` and their types), which
+  are upgraded together.
+- `uv.lock` moves on its own; `pyproject.toml` only changes when a release falls
+  outside a declared range (`sqlalchemy`, `sqlmap`).
+- Node.js majors are not proposed: move to the next LTS line by hand, in the
+  `web-build` stage of the `Dockerfile` and in `node-version` of
+  `.github/workflows/ci-cd.yml`, in the same commit.
+
+A pull request merged on GitHub is recorded with `dependabot[bot]` as the commit
+author. To commit it under your own identity instead, apply it locally once its
+checks are green:
+
+```bash
+git switch main && git pull --ff-only && git fetch origin
+git merge --squash origin/<dependabot-branch>
+git commit -m "<pull request title>"
+git push
+```
+
+Dependabot closes the pull request once it sees the update on `main`; if it stays
+open, comment `@dependabot recreate` and it closes it when nothing is left to do.
