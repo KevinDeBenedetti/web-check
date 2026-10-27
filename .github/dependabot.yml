@@ -12,17 +12,6 @@ updates:
     commit-message:
       prefix: "chore(deps):"
 
-  # Web UI (npm) — apps/web
-  - package-ecosystem: "npm"
-    directory: "/apps/web"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "javascript"
-    commit-message:
-      prefix: "chore(deps):"
-
   # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
