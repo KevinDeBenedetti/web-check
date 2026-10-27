@@ -1211,11 +1211,6 @@ asyncio = [
     { name = "greenlet" },
 ]
 
-[package.optional-dependencies]
-asyncio = [
-    { name = "greenlet" },
-]
-
 [[package]]
 name = "sqlmap"
 version = "1.10.10"
