@@ -52,30 +52,6 @@ Before any scanner runs, the API rejects (HTTP 400) targets that:
 
 The last two IP-based rules are lifted by `ALLOW_PRIVATE_TARGETS=true`.
 
-### Security
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `API_KEY` | *(empty)* | Shared secret required in the `X-API-Key` header on every endpoint except `/api/health` and `/api/ready`. When empty, the API is unauthenticated (a warning is logged at startup) — only acceptable on localhost. |
-| `WEB_CHECK_CLI_API_KEY` | *(empty)* | Key sent by the `web-check` CLI; must match `API_KEY`. |
-| `API_BIND` | `127.0.0.1` | Host interface the API port is published on. Only switch to `0.0.0.0` with `API_KEY` set. |
-| `ALLOWED_DOMAINS` | `example.com` | Comma-separated allowlist. Every scan target must be one of these domains or a subdomain of one. |
-| `ALLOW_PRIVATE_TARGETS` | `false` | Allow targets that are, or resolve to, private/loopback/link-local IPs, and single-label hostnames. Lab use only. |
-| `CORS_ORIGINS` | *(empty)* | Comma-separated allowed origins. Empty disables CORS. |
-| `ZAP_API_KEY` | **required** | Key protecting the internal ZAP daemon API. `docker compose` refuses to start without it (`openssl rand -hex 32`). |
-
-#### Scan target validation
-
-Before any scanner runs, the API rejects (HTTP 400) targets that:
-
-- do not use `http://` or `https://` (bare domains are accepted on `/api/quick/dns`, `/api/quick/dns-enum`, `/api/deep/sslyze` and `/api/scans/start`);
-- are `localhost`, end in `.local`, `.internal`, `.localhost`, `.lan` or `.home.arpa`, or are single-label names such as the `zap` / `nuclei` containers;
-- are non-public IP literals (private, loopback, link-local such as `169.254.169.254`, reserved…);
-- are not covered by `ALLOWED_DOMAINS`;
-- resolve to a non-public IP address.
-
-The last two IP-based rules are lifted by `ALLOW_PRIVATE_TARGETS=true`.
-
 ### Ports
 
 | Variable | Default | Description |
