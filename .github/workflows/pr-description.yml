@@ -18,10 +18,8 @@ permissions: {}
 
 jobs:
   describe:
-    # TEMPORARY: pr-description.yml is not on github-workflows main yet (PR #66,
-    # branch feat/add-pr-description). Pinned to that branch's commit so the
-    # workflow resolves; switch to @main like ci-cd.yml once #66 is merged.
-    uses: KevinDeBenedetti/github-workflows/.github/workflows/pr-description.yml@006ec9cbb57f71a5f11973eb356f1d500323f106 # feat/add-pr-description
+    # @main like the other shared workflows of this repository (ci-cd.yml).
+    uses: KevinDeBenedetti/github-workflows/.github/workflows/pr-description.yml@main
     permissions:
       contents: read          # check out the pull request history
       pull-requests: write    # rewrite the managed block of the PR body
