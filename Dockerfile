@@ -2,6 +2,8 @@
 # Pinned base images — bumped by Dependabot (docker ecosystem).
 
 # ── Web UI build ────────────────────────────────────────────────────────────
+# Node LTS majors are switched by hand, together with node-version in
+# .github/workflows/ci-cd.yml (the CI builds the UI too): Dependabot ignores them.
 FROM node:24-bookworm-slim AS web-build
 
 WORKDIR /web

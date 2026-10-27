@@ -1,61 +1,112 @@
+# Weekly, grouped dependency updates: in a normal week at most one PR per
+# ecosystem (minor + patch together). Majors come one by one, or as a set when
+# packages only work together (Vite toolchain, React), because they are the ones
+# to review. Monday 06:00 Europe/Paris, like the Renovate-managed repositories;
+# a release is proposed once it is 3 days old (security updates never wait).
+#
+# Merging on GitHub makes dependabot[bot] the author of the commit on main:
+# docs/development.md ("Dependency updates") shows how to apply a PR locally.
 version: 2
 
 updates:
-  # Python (pip) — root pyproject.toml
-  - package-ecosystem: "pip"
+  # Python — pyproject.toml + uv.lock
+  - package-ecosystem: "uv"
     directory: "/"
     schedule:
       interval: "weekly"
-    labels:
-      - "dependencies"
-      - "python"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Paris"
+    cooldown:
+      default-days: 3
+    # Move uv.lock only; touch pyproject.toml when a release is outside the
+    # declared range (upper bounds on sqlalchemy and sqlmap).
+    versioning-strategy: "increase-if-necessary"
     commit-message:
       prefix: "chore(deps):"
+    groups:
+      python-security:
+        applies-to: security-updates
+        patterns: ["*"]
+      python:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
 
-  # GitHub Actions
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ci"
-    commit-message:
-      prefix: "chore(ci):"
-
-  # Docker — API base image (Dockerfile)
-  - package-ecosystem: "docker"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "docker"
-    commit-message:
-      prefix: "chore(deps):"
-
-  # Docker Compose — pinned scanner images (zap, nuclei, nikto, ffuf)
-  - package-ecosystem: "docker-compose"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "docker"
-    commit-message:
-      prefix: "chore(deps):"
-
-  # npm — web UI (apps/web)
+  # Web UI — apps/web/package.json + package-lock.json
   - package-ecosystem: "npm"
     directory: "/apps/web"
     schedule:
       interval: "weekly"
-    labels:
-      - "dependencies"
-      - "javascript"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Paris"
+    cooldown:
+      default-days: 3
     commit-message:
       prefix: "chore(deps):"
     groups:
-      web-ui:
-        patterns:
-          - "*"
+      web-security:
+        applies-to: security-updates
+        patterns: ["*"]
+      web:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      vite:
+        patterns: ["vite", "vitest", "@vitejs/*"]
+        update-types: ["major"]
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+        update-types: ["major"]
+
+  # Base images — Dockerfile (node web-build stage, uv + Python API stage)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Paris"
+    cooldown:
+      default-days: 3
+    ignore:
+      # Switched by hand with node-version in ci-cd.yml, on the next LTS line.
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: "chore(deps):"
+    groups:
+      base-images:
+        patterns: ["*"]
+
+  # Scanner images — docker-compose.yml (zap, nuclei, nikto, ffuf)
+  - package-ecosystem: "docker-compose"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Paris"
+    cooldown:
+      default-days: 3
+    commit-message:
+      prefix: "chore(deps):"
+    groups:
+      scanners:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # GitHub Actions — .github/workflows (the reusable workflows stay on @main)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Paris"
+    cooldown:
+      default-days: 3
+    commit-message:
+      prefix: "chore(ci):"
+    groups:
+      actions:
+        patterns: ["*"]
