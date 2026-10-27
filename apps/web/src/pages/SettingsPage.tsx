@@ -1,11 +1,12 @@
 import { type FormEvent, useState } from "react";
-import { api } from "../api/client";
+import { api, getApiKey, setApiKey } from "../api/client";
 import type { ScopeCheckResult, ServiceStatus } from "../api/types";
 import { CodeBlock } from "../components/CopyButton";
 import { ErrorNotice, Loading } from "../components/Feedback";
 import { Icon } from "../components/Icon";
 import { PageHeader } from "../components/PageHeader";
 import { ServicePill } from "../components/StatusPill";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useResource } from "../hooks/useResource";
 
 function startCommand(service: ServiceStatus): string | undefined {
@@ -73,7 +74,47 @@ function ScopeTester() {
   );
 }
 
+function ApiKeyForm() {
+  const [value, setValue] = useState(getApiKey());
+  const [saved, setSaved] = useState(false);
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    setApiKey(value.trim());
+    setSaved(true);
+    window.setTimeout(() => setSaved(false), 2000);
+  };
+
+  return (
+    <form className="stack-xs" onSubmit={submit}>
+      <label htmlFor="api-key" className="field__label">
+        Clé API de ce navigateur
+      </label>
+      <div className="row-wrap">
+        <input
+          id="api-key"
+          type="password"
+          className="input mono grow"
+          placeholder="Valeur de API_KEY (vide si l’API n’en exige pas)"
+          value={value}
+          autoComplete="off"
+          onChange={(event) => setValue(event.target.value)}
+        />
+        <button type="submit" className="btn btn--dark">
+          {saved ? "Enregistrée" : "Enregistrer"}
+        </button>
+      </div>
+      <p className="hint">
+        Envoyée dans l’en-tête <span className="mono">X-API-Key</span> (et en paramètre{" "}
+        <span className="mono">api_key</span> pour les exports et le journal en direct). Elle
+        reste dans ce navigateur, rien n’est stocké côté API.
+      </p>
+    </form>
+  );
+}
+
 export function SettingsPage() {
+  useDocumentTitle("Réglages");
   const scope = useResource(api.scope, []);
   const services = useResource(api.services, [], 15_000);
   const health = useResource(api.health, []);
@@ -153,6 +194,14 @@ export function SettingsPage() {
             </dd>
             <dt>Adresse</dt>
             <dd className="mono">{window.location.origin}</dd>
+            <dt>Clé API</dt>
+            <dd>
+              {getApiKey() ? (
+                <span className="pill pill--ok">renseignée</span>
+              ) : (
+                <span className="pill pill--neutral">aucune</span>
+              )}
+            </dd>
             <dt>Historique</dt>
             <dd className="mono">data/web-check.db</dd>
             <dt>Rapports</dt>
@@ -161,6 +210,7 @@ export function SettingsPage() {
               <span className="mono">GET /api/scans/&#123;id&#125;/export</span>
             </dd>
           </dl>
+          <ApiKeyForm />
         </section>
       </div>
 

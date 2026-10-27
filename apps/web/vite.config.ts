@@ -5,7 +5,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, ".", "");
   // Same variable as the CLI, so one .env setting covers both
-  const apiUrl = env.WEB_CHECK_CLI_API_URL || "http://localhost:8001";
+  const apiUrl = env.WEB_CHECK_CLI_API_URL || "http://localhost:8000";
 
   return {
     // The API serves the built UI under /ui

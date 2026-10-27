@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
-import { api } from "../api/client";
+import { api, isNotFound } from "../api/client";
 import type { CheckResult, LogEntry, ScanResponse } from "../api/types";
 import { EmptyState, ErrorNotice, Loading } from "../components/Feedback";
 import { Icon } from "../components/Icon";
 import { PageHeader } from "../components/PageHeader";
 import { SeverityBadge } from "../components/Severity";
 import { StatusPill } from "../components/StatusPill";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useNow } from "../hooks/useNow";
 import { useResource } from "../hooks/useResource";
 import { type StreamState, useScanLogs } from "../hooks/useScanLogs";
@@ -292,9 +293,10 @@ export function LiveScanPage() {
   useEffect(() => {
     if (scan.data) setRunning(scan.data.status === "running");
   }, [scan.data]);
+  useDocumentTitle(scan.data ? `Scan ${hostnameOf(scan.data.target)}` : "Scan en cours");
 
   if (scan.error) {
-    return scan.error.message === "Scan not found" ? (
+    return isNotFound(scan.error) ? (
       <EmptyState title="Scan introuvable" action={{ to: "/scans", label: "Voir l’historique" }} />
     ) : (
       <ErrorNotice error={scan.error} onRetry={scan.reload} />

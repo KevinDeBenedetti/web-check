@@ -74,7 +74,7 @@ Database: SQLite via SQLAlchemy async + Alembic migrations (auto-run on startup)
 
 `apps/web` is a React + Vite + TypeScript single-page app, in French. The Docker
 image builds it and the API serves it under `/ui` (`apps/api/routers/web_ui.py`),
-so `docker compose up -d` is enough to use it at `http://localhost:8001/ui/`.
+so `docker compose up -d` is enough to use it at `http://localhost:8000/ui/`.
 
 | Screen | Path |
 |--------|------|
@@ -86,5 +86,5 @@ so `docker compose up -d` is enough to use it at `http://localhost:8001/ui/`.
 | Compare | `/ui/compare` |
 | Settings | `/ui/settings` |
 
-The API remains usable directly via the Swagger UI at `http://localhost:8001/docs`,
+The API remains usable directly via the Swagger UI at `http://localhost:8000/docs`,
 the `my-check` CLI, or any HTTP client.

@@ -11,6 +11,7 @@ class CLISettings(BaseSettings):
 
     api_url: str = "http://localhost:8000"
     api_timeout: int = 600
+    api_key: str | None = None  # WEB_CHECK_CLI_API_KEY — must match the API's API_KEY
     output_format: str = "table"  # table, json, yaml
     debug: bool = False
     log_level: str = "INFO"

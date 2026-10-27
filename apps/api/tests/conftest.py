@@ -3,8 +3,9 @@
 from collections.abc import AsyncGenerator, Iterator
 from pathlib import Path
 
+import api.models.db_models  # noqa: F401  (populate Base.metadata)
 import pytest
-from api.database import get_session, upgrade_schema
+from api.database import Base, get_session
 from api.utils.config import get_settings
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -32,7 +33,7 @@ async def session_maker(tmp_path: Path) -> AsyncGenerator[async_sessionmaker[Asy
 
     engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'test.db'}")
     async with engine.begin() as conn:
-        await upgrade_schema(conn)
+        await conn.run_sync(Base.metadata.create_all)
     maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async def override_get_session() -> AsyncGenerator[AsyncSession, None]:

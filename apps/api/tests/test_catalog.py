@@ -1,7 +1,10 @@
 """Tests for the module and profile catalog."""
 
+from typing import get_args
+
 import pytest
 from api.main import app
+from api.models.results import ScanModule
 from api.services.catalog import (
     LEGACY_DEFAULT_MODULES,
     MODULES,
@@ -10,6 +13,11 @@ from api.services.catalog import (
     resolve_modules,
 )
 from httpx import ASGITransport, AsyncClient
+
+
+def test_scan_module_type_matches_catalog() -> None:
+    """ScanRequest validates module ids against the same list the catalog exposes."""
+    assert set(get_args(ScanModule)) == {module.id for module in MODULES}
 
 
 def test_profiles_only_reference_known_modules() -> None:

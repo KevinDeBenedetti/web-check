@@ -7,6 +7,7 @@ import { PageHeader } from "../components/PageHeader";
 import { ScoreValue } from "../components/Score";
 import { SeverityBar, severityShortText } from "../components/Severity";
 import { StatusPill } from "../components/StatusPill";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useResource } from "../hooks/useResource";
 import { formatDateTime, formatDuration, hostnameOf } from "../lib/format";
 
@@ -25,6 +26,7 @@ function duration(scan: ScanResponse): string {
 }
 
 export function ScansPage() {
+  useDocumentTitle("Historique");
   const scans = useResource(api.listScans, [], 10_000);
   const [params, setParams] = useSearchParams();
   const filter = (params.get("status") as Filter | null) ?? "all";

@@ -48,7 +48,12 @@
   "packages": {
     ".": {
       "package-name": "web-check",
-      "changelog-path": "CHANGELOG.md"
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        "apps/api/__init__.py",
+        "apps/cli/__init__.py",
+        "apps/my_check/__init__.py"
+      ]
     }
   },
   "pull-request-title-pattern": "chore: release ${version}",

@@ -1,8 +1,13 @@
 """Tests for security scanner endpoints."""
 
+from types import SimpleNamespace
+
 import pytest
 from api.main import app
+from api.services.sslyze_scanner import _parse_sslyze_results
 from httpx import ASGITransport, AsyncClient
+from sslyze.plugins.certificate_info.trust_stores.trust_store import PathValidationResult
+from sslyze.scanner.scan_command_attempt import ScanCommandAttemptStatusEnum
 
 
 @pytest.fixture
@@ -103,6 +108,36 @@ async def test_sslyze_scan_endpoint(test_url: str) -> None:
         assert data["status"] in ["success", "error", "timeout"]
         assert "findings" in data
         assert isinstance(data["findings"], list)
+
+
+def test_sslyze_parser_reports_untrusted_certificate_chain() -> None:
+    """A failed path validation becomes a finding carrying sslyze's error message."""
+    not_run = SimpleNamespace(status=ScanCommandAttemptStatusEnum.NOT_SCHEDULED, result=None)
+    validation = PathValidationResult(
+        trust_store=SimpleNamespace(name="Mozilla"),  # ty: ignore[invalid-argument-type]
+        verified_certificate_chain=None,
+        validation_error="self-signed certificate",
+    )
+    certificate_info = SimpleNamespace(
+        status=ScanCommandAttemptStatusEnum.COMPLETED,
+        result=SimpleNamespace(
+            certificate_deployments=[SimpleNamespace(path_validation_results=[validation])]
+        ),
+    )
+    scan_result = SimpleNamespace(
+        ssl_2_0_cipher_suites=not_run,
+        ssl_3_0_cipher_suites=not_run,
+        tls_1_0_cipher_suites=not_run,
+        tls_1_1_cipher_suites=not_run,
+        heartbleed=not_run,
+        openssl_ccs_injection=not_run,
+        certificate_info=certificate_info,
+    )
+
+    findings = _parse_sslyze_results(scan_result, "example.com")
+
+    assert [f.title for f in findings] == ["Invalid Certificate Chain"]
+    assert "self-signed certificate" in findings[0].description
 
 
 @pytest.mark.slow

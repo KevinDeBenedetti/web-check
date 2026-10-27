@@ -13,6 +13,7 @@ import {
   severityShortText,
 } from "../components/Severity";
 import { StatusPill } from "../components/StatusPill";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useResource } from "../hooks/useResource";
 import { formatRelative, hostnameOf, plural } from "../lib/format";
 import { moduleLabel } from "../lib/labels";
@@ -30,7 +31,7 @@ function isPartial(scan: ScanResponse): boolean {
   return scan.results.some((result) => result.status !== "success");
 }
 
-function RunningBanner({ scan }: { scan: ScanResponse }) {
+function RunningBanner({ scan, others }: { scan: ScanResponse; others: number }) {
   const progress = Math.round(scanProgress(scan) * 100);
   const total = scan.modules?.length ?? 0;
   const next = scan.modules?.[scan.results.length];
@@ -44,6 +45,14 @@ function RunningBanner({ scan }: { scan: ScanResponse }) {
             {scan.results.length} module{scan.results.length > 1 ? "s" : ""} terminé
             {scan.results.length > 1 ? "s" : ""} sur {total}
             {next ? ` · ${moduleLabel(next)}` : ""}
+            {others > 0 && (
+              <>
+                {" · "}
+                <Link to="/scans?status=running">
+                  {others > 1 ? `${others} autres scans en cours` : "un autre scan en cours"}
+                </Link>
+              </>
+            )}
           </p>
         </div>
       </div>
@@ -272,9 +281,11 @@ function Recurring({ sites }: { sites: SiteSummary[] }) {
 }
 
 export function DashboardPage() {
+  useDocumentTitle("Tableau de bord");
   const scans = useResource(api.listScans, [], 10_000);
   const sites = useMemo(() => groupScansBySite(scans.data ?? []), [scans.data]);
-  const running = scans.data?.find((scan) => scan.status === "running");
+  const runningScans = scans.data?.filter((scan) => scan.status === "running") ?? [];
+  const running = runningScans[0];
 
   return (
     <>
@@ -304,7 +315,7 @@ export function DashboardPage() {
       )}
       {scans.data && scans.data.length > 0 && (
         <>
-          {running && <RunningBanner scan={running} />}
+          {running && <RunningBanner scan={running} others={runningScans.length - 1} />}
           <Kpis sites={sites} scans={scans.data} />
           <SitesTable sites={sites} />
           <div className="columns">

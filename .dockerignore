@@ -1,7 +1,14 @@
-# Keep the build context small and free of local state
+# Keep the build context small and free of secrets / local state
 .git
+.github
 .venv
+venv
 **/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov
 **/node_modules
 apps/web/dist
 outputs
@@ -9,3 +16,10 @@ data
 *.db
 .env
 .env.*
+!.env.example
+docs
+apps/api/tests
+apps/cli
+apps/my_check
+*.md
+!README.md

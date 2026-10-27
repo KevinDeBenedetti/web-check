@@ -1,0 +1,27 @@
+name: PR description
+
+# Claude Code rewrites a managed block at the top of each pull request
+# description, from the commits and the diff, every time the pull request is
+# opened, reopened or pushed to. Text written outside that block is kept.
+#
+# The configuration (model, effort, language, prompt, Claude Code version)
+# lives in KevinDeBenedetti/github-workflows, in pr-description.yml: change it
+# there, not here. Needs the CLAUDE_CODE_OAUTH_TOKEN repository secret, a token
+# from `claude setup-token` tied to the Claude subscription; without it the job
+# only prints a warning. Bot and fork pull requests are skipped. Outside the CI
+# gate on purpose: a missing token or a model error must never block a merge.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions: {}
+
+jobs:
+  describe:
+    # @main like the other shared workflows of this repository (ci-cd.yml).
+    uses: KevinDeBenedetti/github-workflows/.github/workflows/pr-description.yml@main
+    permissions:
+      contents: read          # check out the pull request history
+      pull-requests: write    # rewrite the managed block of the PR body
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

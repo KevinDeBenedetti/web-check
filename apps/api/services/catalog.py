@@ -1,5 +1,7 @@
 """Catalog of scan modules and profiles exposed to clients."""
 
+from collections.abc import Sequence
+
 from api.models.catalog import Catalog, ModuleInfo, ScanProfile
 
 MODULES: tuple[ModuleInfo, ...] = (
@@ -117,7 +119,7 @@ def get_profile(profile_id: str) -> ScanProfile | None:
     return _PROFILES_BY_ID.get(profile_id)
 
 
-def resolve_modules(modules: list[str] | None, profile: str | None) -> list[str]:
+def resolve_modules(modules: Sequence[str] | None, profile: str | None) -> list[str]:
     """Resolve the modules to run for a scan request.
 
     Raises:

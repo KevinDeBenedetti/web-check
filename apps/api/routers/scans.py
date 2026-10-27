@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from typing import cast
 
 import structlog
-from api.database import get_session
+from api.database import get_session, get_session_context
 from api.models import CheckResult, Finding, ScanRequest, ScanResponse
 from api.models.db_models import Scan
 from api.models.findings import Severity
@@ -27,13 +27,16 @@ from api.services.findings import aggregate_findings, compute_score, severity_co
 from api.services.log_streamer import log_streamer
 from api.services.scope import check_scope
 from api.utils.config import get_settings
+from api.utils.security import validate_target
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = structlog.get_logger()
-
 router = APIRouter()
+
+# Strong references to running background scans (see asyncio.create_task docs).
+_background_tasks: set[asyncio.Task[None]] = set()
 
 
 @router.post("/start", response_model=ScanResponse)
@@ -44,8 +47,9 @@ async def start_scan(
     Start a comprehensive security scan.
 
     The target must be an http(s) URL inside the scope configured by
-    ALLOWED_DOMAINS. Modules run one after the other; each result is stored as
-    soon as it is available.
+    ALLOWED_DOMAINS and must not point to a private network. Modules run one
+    after the other; each result is stored as soon as it is available. Follow
+    progress with `GET /api/scans/{scan_id}/logs` (SSE).
     """
     if not request.target.startswith(("http://", "https://")):
         raise HTTPException(status_code=400, detail="Target must start with http:// or https://")
@@ -60,6 +64,9 @@ async def start_scan(
             ),
         )
 
+    # SSRF guard: internal hostnames and non-public IPs, also after DNS resolution.
+    target = await validate_target(request.target)
+
     try:
         modules = resolve_modules(request.modules, request.profile)
     except ValueError as e:
@@ -71,15 +78,20 @@ async def start_scan(
     scan = await db_service.create_scan(
         session=session,
         scan_id=scan_id,
-        target=request.target,
+        target=target,
         modules=modules,
         timeout=request.timeout,
     )
 
-    log_streamer._scan_status[scan_id] = "running"
+    # Record logs from now on so clients connecting later can replay them.
+    log_streamer.register(scan_id)
 
-    # Start scans in background
-    asyncio.create_task(_run_scans(scan_id, request.target, modules, request.timeout))
+    # Keep a strong reference: the event loop only holds weak refs to tasks.
+    task = asyncio.create_task(
+        _run_scans(scan_id, target, modules, request.timeout), name=f"scan-{scan_id}"
+    )
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
     return _to_scan_response(scan, [])
 
@@ -154,14 +166,24 @@ async def export_scan_report(
 
 
 @router.get("/{scan_id}/logs")
-async def stream_scan_logs(scan_id: str) -> StreamingResponse:
+async def stream_scan_logs(
+    scan_id: str, session: AsyncSession = Depends(get_session)
+) -> StreamingResponse:
     """
     Stream real-time logs for a scan using Server-Sent Events (SSE).
 
-    Clients that connect late first receive the logs emitted so far.
+    Clients that connect late first receive the logs emitted so far, then live
+    updates about scan progress, container logs and completion status.
     """
+    finished_status: str | None = None
+    if not log_streamer.is_tracked(scan_id):
+        scan = await db_service.get_scan(session, scan_id)
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found")
+        finished_status = scan.status
+
     return StreamingResponse(
-        log_streamer.subscribe(scan_id),
+        log_streamer.subscribe(scan_id, finished_status=finished_status),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -240,6 +262,7 @@ def _summary(scan: Scan, findings: list[AggregatedFinding]) -> ScanSummary:
 
 
 def _module_runners(scan_id: str) -> dict[str, Callable[[str, int], Awaitable[CheckResult]]]:
+    """Map module ids (see api.services.catalog) to their scanner coroutines."""
     from api.services.dns_enum import run_dns_enum
     from api.services.headers_scanner import run_headers_scan
     from api.services.nikto import run_nikto_scan
@@ -264,27 +287,35 @@ def _module_runners(scan_id: str) -> dict[str, Callable[[str, int], Awaitable[Ch
     }
 
 
-async def _run_scans(scan_id: str, target: str, modules: list[str], timeout: int) -> None:
-    """Run the modules one after the other, storing each result as it completes."""
-    from api.database import get_session_context
-
-    # Small delay to let clients connect to the stream
-    await asyncio.sleep(0.5)
-
-    runners = _module_runners(scan_id)
-    succeeded = 0
-    final_status = "error"
-
-    await log_streamer.send_log(
-        scan_id,
-        {
-            "type": "info",
-            "message": f"Starting scan with modules: {', '.join(modules)}",
-            "modules": modules,
-        },
+def _error_result(module: str, target: str, error: str, started: float) -> CheckResult:
+    """CheckResult for a module that raised instead of returning a result."""
+    info = get_module(module)
+    return CheckResult(
+        module=module,
+        category=info.category if info else "quick",
+        target=target,
+        duration_ms=int((time.monotonic() - started) * 1000),
+        status="error",
+        error=error,
     )
 
+
+async def _run_scans(scan_id: str, target: str, modules: list[str], timeout: int) -> None:
+    """Run the modules one after the other, storing each result as it completes."""
+    runners = _module_runners(scan_id)
+    succeeded = 0
+    final_status: ScanStatus = "error"
+
     try:
+        await log_streamer.send_log(
+            scan_id,
+            {
+                "type": "info",
+                "message": f"Starting scan with modules: {', '.join(modules)}",
+                "modules": modules,
+            },
+        )
+
         for module in modules:
             await log_streamer.send_log(
                 scan_id,
@@ -303,15 +334,8 @@ async def _run_scans(scan_id: str, target: str, modules: list[str], timeout: int
                 # dns -> "dns_enum"); store results under the requested module id.
                 result = result.model_copy(update={"module": module})
             except Exception as e:
-                info = get_module(module)
-                result = CheckResult(
-                    module=module,
-                    category=info.category if info else "quick",
-                    target=target,
-                    duration_ms=int((time.monotonic() - started) * 1000),
-                    status="error",
-                    error=str(e),
-                )
+                logger.exception("scan_module_failed", scan_id=scan_id, module=module)
+                result = _error_result(module, target, str(e), started)
 
             if result.status == "success":
                 succeeded += 1
@@ -341,9 +365,13 @@ async def _run_scans(scan_id: str, target: str, modules: list[str], timeout: int
 
         final_status = "success" if succeeded or not modules else "error"
     except Exception as e:
-        logger.error("scan_failed", scan_id=scan_id, error=str(e))
+        logger.exception("scan_failed", scan_id=scan_id)
         await log_streamer.send_log(scan_id, {"type": "error", "message": f"Scan failed: {e}"})
     finally:
-        async with get_session_context() as session:
-            await db_service.update_scan_status(session, scan_id, final_status)
-        log_streamer.mark_scan_complete(scan_id)
+        # Always leave the scan in a terminal state, even on unexpected errors.
+        try:
+            async with get_session_context() as session:
+                await db_service.update_scan_status(session, scan_id, final_status)
+        except Exception:
+            logger.exception("scan_status_update_failed", scan_id=scan_id)
+        await log_streamer.complete(scan_id, final_status)

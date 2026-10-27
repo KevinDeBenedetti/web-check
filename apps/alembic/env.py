@@ -1,19 +1,28 @@
 from logging.config import fileConfig
 
+# Import the models so Base.metadata is populated (needed for autogenerate)
+import api.models.db_models  # noqa: F401
 from alembic import context
-
-# Import your models here for autogenerate support
-from api.database import Base
+from api.database import Base, sync_database_url
 from sqlalchemy import engine_from_config, pool
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
-if config.config_file_name is not None:
+# Interpret the config file for Python logging — only from the alembic CLI:
+# when the API runs migrations at startup, fileConfig would disable its loggers.
+if config.config_file_name is not None and config.attributes.get("configure_logger", True):
     fileConfig(config.config_file_name)
+
+# Same database as the application (DATABASE_PATH), unless overridden by the caller
+# (api.database.run_migrations) or on the CLI with `-x url=...`.
+config.set_main_option(
+    "sqlalchemy.url",
+    config.attributes.get("url")
+    or context.get_x_argument(as_dictionary=True).get("url")
+    or sync_database_url(),
+)
 
 # add your model's MetaData object here
 # for 'autogenerate' support

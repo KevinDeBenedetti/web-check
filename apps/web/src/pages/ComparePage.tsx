@@ -7,6 +7,7 @@ import { Icon } from "../components/Icon";
 import { PageHeader } from "../components/PageHeader";
 import { ScoreValue } from "../components/Score";
 import { SeverityBadge } from "../components/Severity";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useResource } from "../hooks/useResource";
 import { formatDateTime, hostnameOf, plural } from "../lib/format";
 import { moduleEngine } from "../lib/labels";
@@ -133,6 +134,7 @@ function Diff({ baseId, headId }: { baseId: string; headId: string }) {
 }
 
 export function ComparePage() {
+  useDocumentTitle("Comparer deux scans");
   const scans = useResource(api.listScans, []);
   const [params, setParams] = useSearchParams();
 

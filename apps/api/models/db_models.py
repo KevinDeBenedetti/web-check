@@ -68,7 +68,7 @@ class Finding(Base):
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     reference: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    cve: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    cve: Mapped[str | None] = mapped_column(String(255), nullable=True)
     cvss_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     remediation: Mapped[str | None] = mapped_column(Text, nullable=True)
 

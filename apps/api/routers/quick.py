@@ -1,6 +1,7 @@
 """Quick scan endpoints."""
 
-from datetime import UTC
+import time
+from datetime import UTC, datetime
 from ipaddress import IPv4Address, IPv6Address
 from urllib.parse import urlparse
 
@@ -11,7 +12,8 @@ from api.services.headers_scanner import run_headers_scan
 from api.services.nikto import run_nikto_scan
 from api.services.nuclei import run_nuclei_scan
 from api.utils.config import get_settings
-from fastapi import APIRouter, HTTPException, Query
+from api.utils.security import is_allowed_host, target_host, target_url
+from fastapi import APIRouter, Depends, Query
 from httpx_secure import httpx_ssrf_protection
 
 router = APIRouter()
@@ -19,7 +21,7 @@ router = APIRouter()
 
 @router.get("/nuclei", response_model=CheckResult)
 async def quick_nuclei_scan(
-    url: str = Query(..., description="Target URL to scan"),
+    url: str = Depends(target_url),
     timeout: int = Query(300, ge=30, le=3600, description="Timeout in seconds"),
 ) -> CheckResult:
     """
@@ -28,15 +30,12 @@ async def quick_nuclei_scan(
     This scan uses Nuclei templates to check for known CVEs and vulnerabilities.
     Average duration: 2-5 minutes.
     """
-    if not url.startswith(("http://", "https://")):
-        raise HTTPException(status_code=400, detail="URL must start with http:// or https://")
-
     return await run_nuclei_scan(url, timeout)
 
 
 @router.get("/nikto", response_model=CheckResult)
 async def quick_nikto_scan(
-    url: str = Query(..., description="Target URL to scan"),
+    url: str = Depends(target_url),
     timeout: int = Query(600, ge=30, le=3600, description="Timeout in seconds"),
 ) -> CheckResult:
     """
@@ -45,116 +44,32 @@ async def quick_nikto_scan(
     Scans for web server misconfigurations and outdated software.
     Average duration: 5-10 minutes.
     """
-    if not url.startswith(("http://", "https://")):
-        raise HTTPException(status_code=400, detail="URL must start with http:// or https://")
-
     return await run_nikto_scan(url, timeout)
 
 
 @router.get("/dns", response_model=CheckResult)
-async def quick_dns_check(
-    url: str = Query(..., description="Domain or URL to check"),
-) -> CheckResult:
+async def quick_dns_check(url: str = Depends(target_host)) -> CheckResult:
     """
     Perform quick DNS reconnaissance.
 
     Checks DNS records, nameservers, and basic domain information.
     Average duration: < 1 minute.
     """
-    import time
-    from datetime import datetime
-
     start = time.time()
+    domain = urlparse(url).hostname or ""
+    allowed_domains = get_settings().get_allowed_domains()
 
-    def _extract_hostname(value: str) -> str:
-        parsed = urlparse(value)
-        if parsed.scheme and parsed.hostname:
-            return parsed.hostname
-        # Fallback: treat input as bare hostname/domain
-        # Strip any path portion if present
-        return value.split("/")[0]
-
-    # Domains that this endpoint is allowed to contact.
-    # Replace or extend this tuple with the domains that are acceptable in your deployment.
-    ALLOWED_DOMAINS = tuple(get_settings().get_allowed_domains())
-
-    def _custom_ssrf_validator(hostname: str, ip: IPv4Address | IPv6Address, port: int) -> bool:
-        """
-        Custom validator for httpx-secure SSRF protection.
-
-        Args:
-            hostname: The hostname being accessed
-            ip: The resolved IP address
-            port: The port being accessed
-
-        Returns:
-            True if the request should be allowed, False otherwise
-        """
-        # Check if hostname is in the allow-list
-        hostname_lc = hostname.lower().strip(".")
-
-        for allowed_domain in ALLOWED_DOMAINS:
-            allowed_domain_lc = allowed_domain.lower().strip(".")
-            if hostname_lc == allowed_domain_lc or hostname_lc.endswith("." + allowed_domain_lc):
-                return True
-
-        return False
-
-    def _is_allowed_domain(hostname: str) -> bool:
-        """
-        Check if hostname is allowed for DNS checks.
-
-        This function enforces that the hostname is not internal/localhost and
-        that it matches the configured allow-list in ALLOWED_DOMAINS, either
-        as an exact match or as a subdomain.
-        """
-        # Basic validation: ensure hostname is not empty and doesn't contain suspicious patterns
-        if not hostname or len(hostname) > 253:
-            return False
-
-        hostname_lc = hostname.lower().strip(".")
-
-        # Reject localhost variations
-        localhost_variations = {"localhost", "127.0.0.1", "::1", "0.0.0.0"}
-        if hostname_lc in localhost_variations:
-            return False
-
-        # Reject internal domain suffixes
-        internal_suffixes = (".local", ".internal", ".localhost")
-        if any(hostname_lc.endswith(suffix) for suffix in internal_suffixes):
-            return False
-
-        # Enforce allow-list: hostname must be equal to or a subdomain of one of ALLOWED_DOMAINS
-        allowed = False
-        for allowed_domain in ALLOWED_DOMAINS:
-            allowed_domain_lc = allowed_domain.lower().strip(".")
-            if hostname_lc == allowed_domain_lc or hostname_lc.endswith("." + allowed_domain_lc):
-                allowed = True
-                break
-
-        return allowed
+    def _ssrf_validator(hostname: str, ip: IPv4Address | IPv6Address, port: int) -> bool:
+        return is_allowed_host(hostname, allowed_domains)
 
     try:
-        # Extract and validate domain from URL or hostname
-        domain = _extract_hostname(url)
-        if not domain:
-            raise HTTPException(status_code=400, detail="A non-empty domain or URL is required")
-
-        # Validate hostname before making any network request
-        if not _is_allowed_domain(domain):
-            raise HTTPException(
-                status_code=400,
-                detail="Target domain is not allowed",
-            )
-
-        # Build URL using only the validated domain to prevent SSRF
+        # Build URL using only the validated domain; httpx-secure re-checks the
+        # resolved IP at connection time (DNS rebinding protection).
         validated_url = f"https://{domain}/"
-
-        # Simple DNS check using httpx with SSRF protection
         base_client = httpx.AsyncClient(timeout=10.0)
         async with httpx_ssrf_protection(
             base_client,
-            custom_validator=_custom_ssrf_validator,
+            custom_validator=_ssrf_validator,
             dns_cache_size=1000,
             dns_cache_ttl=600,
         ) as client:
@@ -183,10 +98,6 @@ async def quick_dns_check(
             error=None,
         )
 
-    except HTTPException:
-        # Re-raise HTTP errors (validation failures) directly
-        raise
-
     except Exception as e:
         return CheckResult(
             module="dns",
@@ -203,7 +114,7 @@ async def quick_dns_check(
 
 @router.get("/headers", response_model=CheckResult)
 async def quick_headers_scan(
-    url: str = Query(..., description="Target URL to scan"),
+    url: str = Depends(target_url),
     timeout: int = Query(30, ge=5, le=120, description="Timeout in seconds"),
 ) -> CheckResult:
     """
@@ -213,15 +124,12 @@ async def quick_headers_scan(
     CORS policy, cookie flags, and server information disclosure.
     Average duration: < 5 seconds.
     """
-    if not url.startswith(("http://", "https://")):
-        raise HTTPException(status_code=400, detail="URL must start with http:// or https://")
-
     return await run_headers_scan(url, timeout)
 
 
 @router.get("/dns-enum", response_model=CheckResult)
 async def quick_dns_enum(
-    url: str = Query(..., description="Domain or URL to enumerate"),
+    url: str = Depends(target_host),
     timeout: int = Query(30, ge=5, le=120, description="Timeout in seconds"),
 ) -> CheckResult:
     """
@@ -231,7 +139,4 @@ async def quick_dns_enum(
     controls (SPF, DMARC, DKIM) and zone transfer exposure.
     Average duration: < 15 seconds.
     """
-    if not url.startswith(("http://", "https://")):
-        url = f"https://{url}"
-
     return await run_dns_enum(url, timeout)

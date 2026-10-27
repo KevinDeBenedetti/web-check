@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
-import { api, exportUrl } from "../api/client";
+import { api, exportUrl, isNotFound } from "../api/client";
 import type { AggregatedFinding, ExportFormat, ScanResponse, Severity } from "../api/types";
 import { CodeBlock } from "../components/CopyButton";
 import { EmptyState, ErrorNotice, Loading } from "../components/Feedback";
@@ -10,6 +10,7 @@ import { ScoreRing } from "../components/Score";
 import { SeverityBadge } from "../components/Severity";
 import { StatusPill } from "../components/StatusPill";
 import { useCopy } from "../hooks/useCopy";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useResource } from "../hooks/useResource";
 import { findingToMarkdown } from "../lib/findings";
 import { formatDateTime, formatDuration, hostnameOf, plural } from "../lib/format";
@@ -294,9 +295,10 @@ export function ReportPage() {
   useEffect(() => {
     setRunning(scan.data?.status === "running");
   }, [scan.data]);
+  useDocumentTitle(scan.data ? `Rapport ${hostnameOf(scan.data.target)}` : "Rapport");
 
   if (scan.error) {
-    return scan.error.message === "Scan not found" ? (
+    return isNotFound(scan.error) ? (
       <EmptyState title="Scan introuvable" action={{ to: "/scans", label: "Voir l’historique" }} />
     ) : (
       <ErrorNotice error={scan.error} onRetry={scan.reload} />

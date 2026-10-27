@@ -52,7 +52,7 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
     [
         ({"target": "example.com"}, 400),
         ({"target": "https://not-allowed.org"}, 403),
-        ({"target": TARGET, "modules": ["unknown"]}, 400),
+        ({"target": TARGET, "modules": ["unknown"]}, 422),
         ({"target": TARGET, "profile": "unknown"}, 400),
     ],
 )
@@ -198,9 +198,11 @@ async def test_run_scans_stores_each_result_and_survives_module_errors(
             yield session
 
     monkeypatch.setattr(scans, "_module_runners", lambda scan_id: {"headers": ok, "nikto": boom})
-    monkeypatch.setattr("api.database.get_session_context", session_context)
+    monkeypatch.setattr(scans, "get_session_context", session_context)
     async with session_maker() as session:
         await db_service.create_scan(session, "run-1", TARGET, ["headers", "nikto"])
+
+    log_streamer.register("run-1")
 
     await scans._run_scans("run-1", TARGET, ["headers", "nikto"], 30)
 

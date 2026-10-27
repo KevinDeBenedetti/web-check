@@ -1,9 +1,21 @@
 .PHONY: help install test lint format check \
-        start stop restart logs status \
+        start dev stop restart logs status \
         clean clean-all cli \
         ui-install ui-dev ui-build ui-test ui-check
 
 PYTHON_VERSION ?= 3.12
+
+# The API container runs as a non-root user: run it with the host user's ids so
+# bind-mounted ./outputs and ./data stay writable, and grant it the group that
+# owns the docker socket (root inside Docker Desktop's VM on macOS).
+APP_UID ?= $(shell id -u)
+APP_GID ?= $(shell id -g)
+ifeq ($(shell uname -s),Darwin)
+DOCKER_GID ?= 0
+else
+DOCKER_GID ?= $(shell stat -c %g /var/run/docker.sock 2>/dev/null || echo 999)
+endif
+export APP_UID APP_GID DOCKER_GID
 
 # ==============================================================================
 ##@ Help
@@ -19,8 +31,13 @@ help: ## Display this help
 # ==============================================================================
 
 start: ## Start all services (API + scanners)
-	@docker compose up -d
-	@echo "✅ Ready — UI http://localhost:$${API_PORT:-8001}/ui/ · API http://localhost:$${API_PORT:-8001}/docs"
+	@mkdir -p outputs data
+	@docker compose up -d --build
+	@echo "✅ Ready — UI http://localhost:$${API_PORT:-8000}/ui/ · API http://localhost:$${API_PORT:-8000}/docs"
+
+dev: ## Start all services with live code reload of the API (foreground)
+	@mkdir -p outputs data
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 
 stop: ## Stop all containers
 	@docker compose down
@@ -66,7 +83,7 @@ check: ## Run all quality checks (format + lint + type + test)
 ##@ Web UI (apps/web)
 # ==============================================================================
 
-ui-install: ## Install web UI dependencies (requires Node.js 22+)
+ui-install: ## Install web UI dependencies (requires Node.js 24+)
 	@npm --prefix apps/web ci
 
 ui-dev: ## Run the web UI with hot reload on http://localhost:5173/ui/ (API must be running)

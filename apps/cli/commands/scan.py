@@ -31,7 +31,7 @@ def nuclei(
     Fast vulnerability and CVE detection scan using Nuclei templates.
     """
     settings = CLISettings()
-    client = APIClient(settings.api_url, settings.api_timeout)
+    client = APIClient(settings.api_url, settings.api_timeout, settings.api_key)
 
     try:
         with console.status("[bold green]Running Nuclei scan..."):
@@ -64,7 +64,7 @@ def nikto(
     Comprehensive web server misconfiguration and vulnerability detection.
     """
     settings = CLISettings()
-    client = APIClient(settings.api_url, settings.api_timeout)
+    client = APIClient(settings.api_url, settings.api_timeout, settings.api_key)
 
     try:
         with console.status("[bold green]Running Nikto scan..."):
@@ -93,7 +93,7 @@ def quick(
 ) -> None:
     """Run quick DNS + reachability check."""
     settings = CLISettings()
-    client = APIClient(settings.api_url, settings.api_timeout)
+    client = APIClient(settings.api_url, settings.api_timeout, settings.api_key)
 
     try:
         with console.status("[bold green]Running quick scan..."):
@@ -122,7 +122,7 @@ def ssl(
     Comprehensive SSL/TLS configuration analysis using SSLyze.
     """
     settings = CLISettings()
-    client = APIClient(settings.api_url, settings.api_timeout)
+    client = APIClient(settings.api_url, settings.api_timeout, settings.api_key)
 
     try:
         with console.status("[bold green]Running SSL scan..."):
@@ -171,7 +171,7 @@ def full(
         raise typer.Exit(1) from None
 
     settings = CLISettings()
-    client = APIClient(settings.api_url, settings.api_timeout)
+    client = APIClient(settings.api_url, settings.api_timeout, settings.api_key)
 
     try:
         # Start async scan

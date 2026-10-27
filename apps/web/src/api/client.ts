@@ -10,6 +10,33 @@ import type {
   ServiceStatus,
 } from "./types";
 
+const API_KEY_STORAGE = "web-check.apiKey";
+
+/** API key kept in this browser (Settings page); empty when the API is unauthenticated. */
+export function getApiKey(): string {
+  try {
+    return window.localStorage.getItem(API_KEY_STORAGE) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function setApiKey(value: string): void {
+  try {
+    if (value) window.localStorage.setItem(API_KEY_STORAGE, value);
+    else window.localStorage.removeItem(API_KEY_STORAGE);
+  } catch {
+    // Private mode or storage disabled: the key only lives for this page load.
+  }
+}
+
+/** Links and EventSource cannot send headers: the API also accepts the key as a query parameter. */
+function withApiKey(url: string): string {
+  const key = getApiKey();
+  if (!key) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}api_key=${encodeURIComponent(key)}`;
+}
+
 export class ApiError extends Error {
   readonly status: number;
 
@@ -42,6 +69,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       headers: {
         Accept: "application/json",
         ...(init?.body ? { "Content-Type": "application/json" } : {}),
+        ...(getApiKey() ? { "X-API-Key": getApiKey() } : {}),
         ...init?.headers,
       },
     });
@@ -55,6 +83,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       body = await response.json();
     } catch {
       body = undefined;
+    }
+    if (response.status === 401) {
+      throw new ApiError(
+        401,
+        getApiKey()
+          ? "Clé API refusée : vérifiez-la dans Réglages (elle doit être égale à API_KEY)."
+          : "L’API exige une clé (API_KEY) : renseignez-la dans Réglages.",
+      );
     }
     throw new ApiError(response.status, describeError(body, `Erreur ${response.status}`));
   }
@@ -83,6 +119,9 @@ export const api = {
 };
 
 export const exportUrl = (scanId: string, format: ExportFormat) =>
-  `/api/scans/${id(scanId)}/export?format=${format}`;
+  withApiKey(`/api/scans/${id(scanId)}/export?format=${format}`);
 
-export const logsUrl = (scanId: string) => `/api/scans/${id(scanId)}/logs`;
+export const logsUrl = (scanId: string) => withApiKey(`/api/scans/${id(scanId)}/logs`);
+
+export const isNotFound = (error: Error | undefined): boolean =>
+  error instanceof ApiError && error.status === 404;

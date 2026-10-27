@@ -6,6 +6,7 @@ import { CodeBlock } from "../components/CopyButton";
 import { ErrorNotice, Loading } from "../components/Feedback";
 import { Icon } from "../components/Icon";
 import { PageHeader } from "../components/PageHeader";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useResource } from "../hooks/useResource";
 import { buildCurlCommand } from "../lib/command";
 import { formatDuration, plural } from "../lib/format";
@@ -355,6 +356,7 @@ function ScanForm({ catalog }: { catalog: Catalog }) {
 }
 
 export function NewScanPage() {
+  useDocumentTitle("Nouveau scan");
   const catalog = useResource(api.catalog, []);
   return (
     <>

@@ -8,6 +8,11 @@ from pydantic import BaseModel, Field
 
 ScanStatus = Literal["success", "error", "timeout", "running"]
 ScanCategory = Literal["quick", "deep", "security"]
+# Keep in sync with api.services.catalog.MODULES (checked by the test suite).
+ScanModule = Literal[
+    "headers", "dns", "testssl", "nuclei", "nikto", "zap", "wapiti", "sqlmap", "xsstrike"
+]
+DEFAULT_SCAN_MODULES: list[ScanModule] = ["nuclei", "nikto", "zap"]
 
 
 class CheckResult(BaseModel):
@@ -56,7 +61,11 @@ class ScanRequest(BaseModel):
     """Request to start a security scan."""
 
     target: str = Field(..., description="Target URL or domain to scan")
-    modules: list[str] | None = Field(None, description="Specific modules to run (default: all)")
+    modules: list[ScanModule] | None = Field(
+        None,
+        min_length=1,
+        description="Modules to run (see /api/catalog); takes precedence over `profile`",
+    )
     profile: str | None = Field(
         None, description="Scan profile (see /api/catalog); ignored when modules are given"
     )

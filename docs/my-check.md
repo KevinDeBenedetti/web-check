@@ -61,7 +61,7 @@ cp .env.example .env
 | `MY_CHECK_OUTPUT` | Default reporters | `terminal,json` |
 | `MY_CHECK_SARIF` | Emit SARIF 2.1 for GitHub Code Scanning | `true` |
 | `MY_CHECK_WEBHOOK_URL` | Slack / custom webhook | `https://hooks.slack.com/…` |
-| `API_PORT` | Docker API port (old web-check) | `8001` |
+| `API_PORT` | Docker API port (old web-check) | `8000` |
 
 Priority: **CLI flags > my-check.config.json > .env > built-in defaults**
 

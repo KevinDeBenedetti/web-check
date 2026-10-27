@@ -117,7 +117,7 @@ def run_check(
     console.print(f"   Steps: [cyan]{' → '.join(label for _, label, _, _ in steps)}[/cyan]\n")
 
     settings = CLISettings()
-    client = APIClient(settings.api_url, settings.api_timeout)
+    client = APIClient(settings.api_url, settings.api_timeout, settings.api_key)
     step_results: list[dict] = []
 
     try:
