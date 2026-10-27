@@ -16,18 +16,23 @@ repos:
       - id: mixed-line-ending
         args: ['--fix=lf']
 
-  # Ruff linting and formatting
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.5
+  # Ruff linting and formatting with the ruff locked in uv.lock — the version CI
+  # runs, kept current by Dependabot (uv), so there is no second pin to maintain.
+  - repo: local
     hooks:
       - id: ruff
         name: Ruff lint
-        args: [--fix, --exit-non-zero-on-fix]
-        files: ^api/.*\.py$
+        entry: uv run --frozen ruff check --fix --exit-non-zero-on-fix
+        language: system
+        types: [python]
+        files: ^apps/
         priority: 10
       - id: ruff-format
         name: Ruff format
-        files: ^api/.*\.py$
+        entry: uv run --frozen ruff format
+        language: system
+        types: [python]
+        files: ^apps/
         priority: 10
 
   # Type checking with pyright (local hook) - disabled for now
@@ -50,7 +55,7 @@ default_language_version:
 default_stages: [pre-commit]
 
 files: ''
-exclude: '^(__pycache__|\.venv|outputs|alembic/versions|tests/__pycache__)'
+exclude: '(^|/)__pycache__/|^\.venv/|^outputs/|^apps/alembic/versions/'
 
 fail_fast: false
 minimum_prek_version: '0.2.23'
