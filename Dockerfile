@@ -2,7 +2,7 @@
 # Pinned base images — bumped by Dependabot (docker ecosystem).
 
 # ── Web UI build ────────────────────────────────────────────────────────────
-FROM node:24-bookworm-slim AS web-build
+FROM node:26-bookworm-slim AS web-build
 
 WORKDIR /web
 
