@@ -9,6 +9,7 @@ import type {
   ScopeRules,
   ServiceStatus,
 } from "./types";
+import { filenameFromDisposition } from "../lib/url";
 
 const API_KEY_STORAGE = "web-check.apiKey";
 
@@ -30,11 +31,10 @@ export function setApiKey(value: string): void {
   }
 }
 
-/** Links and EventSource cannot send headers: the API also accepts the key as a query parameter. */
-function withApiKey(url: string): string {
+/** Headers for a raw `fetch` to the API: the key travels in X-API-Key, never in the URL. */
+export function authHeaders(): Record<string, string> {
   const key = getApiKey();
-  if (!key) return url;
-  return `${url}${url.includes("?") ? "&" : "?"}api_key=${encodeURIComponent(key)}`;
+  return key ? { "X-API-Key": key } : {};
 }
 
 export class ApiError extends Error {
@@ -69,7 +69,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       headers: {
         Accept: "application/json",
         ...(init?.body ? { "Content-Type": "application/json" } : {}),
-        ...(getApiKey() ? { "X-API-Key": getApiKey() } : {}),
+        ...authHeaders(),
         ...init?.headers,
       },
     });
@@ -119,9 +119,26 @@ export const api = {
 };
 
 export const exportUrl = (scanId: string, format: ExportFormat) =>
-  withApiKey(`/api/scans/${id(scanId)}/export?format=${format}`);
+  `/api/scans/${id(scanId)}/export?format=${format}`;
 
-export const logsUrl = (scanId: string) => withApiKey(`/api/scans/${id(scanId)}/logs`);
+export const logsUrl = (scanId: string) => `/api/scans/${id(scanId)}/logs`;
+
+/** Download a report through fetch (so the API key header is sent), then save it. */
+export async function downloadExport(scanId: string, format: ExportFormat): Promise<void> {
+  const response = await fetch(exportUrl(scanId, format), { headers: authHeaders() });
+  if (!response.ok) {
+    throw new ApiError(response.status, response.status === 401 ? "Clé API refusée." : `Erreur ${response.status}`);
+  }
+  const blob = await response.blob();
+  const name =
+    filenameFromDisposition(response.headers.get("content-disposition")) ?? `web-check-${scanId}.${format}`;
+  const href = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = href;
+  link.download = name;
+  link.click();
+  URL.revokeObjectURL(href);
+}
 
 export const isNotFound = (error: Error | undefined): boolean =>
   error instanceof ApiError && error.status === 404;

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
-import { api, exportUrl, isNotFound } from "../api/client";
+import { api, downloadExport, isNotFound } from "../api/client";
 import type { AggregatedFinding, ExportFormat, ScanResponse, Severity } from "../api/types";
 import { CodeBlock } from "../components/CopyButton";
 import { EmptyState, ErrorNotice, Loading } from "../components/Feedback";
@@ -13,6 +13,7 @@ import { useCopy } from "../hooks/useCopy";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useResource } from "../hooks/useResource";
 import { findingToMarkdown } from "../lib/findings";
+import { isHttpUrl } from "../lib/url";
 import { formatDateTime, formatDuration, hostnameOf, plural } from "../lib/format";
 import {
   SCORE_BAND_LABELS,
@@ -162,7 +163,7 @@ function FindingDetail({ finding, target }: { finding: AggregatedFinding; target
             Le module n’a pas proposé de correction. Consultez la référence ci-dessous.
           </p>
         )}
-        {finding.reference && (
+        {finding.reference && isHttpUrl(finding.reference) && (
           <p className="small">
             Référence :{" "}
             <a href={finding.reference} target="_blank" rel="noreferrer noopener" className="break">
@@ -287,6 +288,7 @@ function Findings({ findings, target }: { findings: AggregatedFinding[]; target:
 export function ReportPage() {
   const { scanId = "" } = useParams();
   const [running, setRunning] = useState(false);
+  const [exportError, setExportError] = useState<Error>();
   const refreshMs = running ? 5000 : undefined;
   const scan = useResource(() => api.getScan(scanId), [scanId], refreshMs);
   const findings = useResource(() => api.getFindings(scanId), [scanId], refreshMs);
@@ -352,14 +354,20 @@ export function ReportPage() {
                 Exporter
               </span>
               {EXPORTS.map((item) => (
-                <a key={item.format} href={exportUrl(current.scan_id, item.format)} className="btn-group__item" download>
+                <button
+                  key={item.format}
+                  type="button"
+                  className="btn-group__item"
+                  onClick={() => void downloadExport(current.scan_id, item.format).catch(setExportError)}
+                >
                   {item.label}
-                </a>
+                </button>
               ))}
             </div>
           </>
         }
       />
+      {exportError && <ErrorNotice error={exportError} onRetry={() => setExportError(undefined)} />}
       <Summary scan={current} previous={previous} />
       <ModulesTable scan={current} />
       {findings.error && <ErrorNotice error={findings.error} onRetry={findings.reload} />}

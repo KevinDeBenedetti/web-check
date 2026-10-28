@@ -32,7 +32,7 @@ a target against them.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `API_KEY` | *(empty)* | Shared secret required in the `X-API-Key` header (or the `api_key` query parameter, for downloads and the log stream) on every endpoint except `/api/health`, `/api/ready` and the web UI files. When empty, the API is unauthenticated (a warning is logged at startup) — only acceptable on localhost. The web UI asks for the key in *Réglages* and keeps it in the browser. |
+| `API_KEY` | *(empty)* | Shared secret required in the `X-API-Key` header (never accepted in the URL) on every endpoint except `/api/health`, `/api/ready` and the web UI files. When empty, the API is unauthenticated (a warning is logged at startup) — only acceptable on localhost. The web UI asks for the key in *Réglages* and keeps it in the browser. |
 | `WEB_CHECK_CLI_API_KEY` | *(empty)* | Key sent by the `web-check` CLI; must match `API_KEY`. |
 | `API_BIND` | `127.0.0.1` | Host interface the API port is published on. Only switch to `0.0.0.0` with `API_KEY` set. |
 | `ALLOWED_DOMAINS` | `example.com` | Comma-separated allowlist. Every scan target must be one of these domains or a subdomain of one. |

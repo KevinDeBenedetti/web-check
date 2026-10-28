@@ -3,8 +3,8 @@
 import time
 from datetime import UTC, datetime
 
-import httpx
 from api.models import CheckResult, Finding
+from api.utils.security import ssrf_guarded_client
 
 # Headers we audit and their OWASP references
 _SECURITY_HEADERS: dict[str, dict] = {
@@ -159,7 +159,10 @@ async def run_headers_scan(url: str, timeout: int = 30) -> CheckResult:
     powered_by: str | None = None
 
     try:
-        async with httpx.AsyncClient(
+        # Every hop of a redirect chain is checked against ALLOWED_DOMAINS and the
+        # public-address rule at connect time: a target cannot bounce the scanner to
+        # an internal host (SSRF) or re-resolve to one (DNS rebinding).
+        async with ssrf_guarded_client(
             timeout=timeout,
             follow_redirects=True,
             verify=False,  # noqa: S501  — we're auditing, not trusting

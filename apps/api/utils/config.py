@@ -4,8 +4,13 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Hard ceilings for what the API reads back from a scanner. A deployment may lower
+# them (TOOL_OUTPUT_MAX_BYTES, TOOL_FILE_MAX_BYTES), never remove them.
+HARD_MAX_TOOL_OUTPUT_BYTES = 256 * 1024 * 1024
+HARD_MAX_TOOL_FILE_BYTES = 1024 * 1024 * 1024
 
 
 class Settings(BaseSettings):
@@ -27,6 +32,12 @@ class Settings(BaseSettings):
     # Scan Defaults
     default_timeout: int = 300
     max_timeout: int = 3600
+
+    # Bytes of stdout/stderr kept from a scanner process, and the largest result
+    # file (JSON, JSON Lines) the API agrees to parse. Anything beyond is truncated
+    # or refused, so a scanner cannot exhaust the API's memory.
+    tool_output_max_bytes: int = Field(16 * 1024 * 1024, ge=1024, le=HARD_MAX_TOOL_OUTPUT_BYTES)
+    tool_file_max_bytes: int = Field(64 * 1024 * 1024, ge=1024, le=HARD_MAX_TOOL_FILE_BYTES)
 
     # Logging
     log_level: str = "INFO"
