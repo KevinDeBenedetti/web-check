@@ -153,7 +153,7 @@ async def run_zap_scan(target: str, timeout: int = 900, scan_id: str | None = No
             status="error",
             data=None,
             findings=[],
-            error=str(e),
+            error=error_msg,
         )
 
 

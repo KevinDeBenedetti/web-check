@@ -1,14 +1,12 @@
 """Wapiti web vulnerability scanner service."""
 
-import asyncio
-import json
 import time
 from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
 from api.models import CheckResult, Finding, Severity
-from api.services.docker_runner import unique_output_name
+from api.services.docker_runner import load_json_output, run_process, unique_output_name
 
 logger = structlog.get_logger()
 
@@ -57,17 +55,8 @@ async def run_wapiti_scan(
             "url",
         ]
 
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-
-        try:
-            await asyncio.wait_for(process.communicate(), timeout=timeout)
-        except TimeoutError:
-            process.kill()
-            await process.wait()
+        result = await run_process(cmd, timeout=timeout)
+        if result["timeout"]:
             return CheckResult(
                 module="wapiti",
                 category="security",
@@ -80,28 +69,24 @@ async def run_wapiti_scan(
                 error="Scan timed out",
             )
 
-        # Parse JSON output
-        if output_file.exists():
-            try:
-                with open(output_file) as f:
-                    wapiti_data = json.load(f)
-
-                vulnerabilities = wapiti_data.get("vulnerabilities", {})
-                for vuln_type, vuln_list in vulnerabilities.items():
-                    for vuln in vuln_list:
-                        severity_str = _map_wapiti_severity(vuln.get("level", 1))
-                        findings.append(
-                            Finding(
-                                severity=severity_str,
-                                title=f"Wapiti: {vuln_type}",
-                                description=vuln.get("info", "No description available"),
-                                reference=vuln.get("wstg", [None])[0] if vuln.get("wstg") else None,
-                                cve=vuln.get("cve", [None])[0] if vuln.get("cve") else None,
-                                cvss_score=_severity_to_cvss(severity_str),
-                            )
+        # Parse the JSON report; a report the API cannot read fails the module
+        # (ToolOutputError) instead of passing as "no findings".
+        wapiti_data = await load_json_output(output_file, tool="wapiti")
+        if wapiti_data is not None:
+            vulnerabilities = wapiti_data.get("vulnerabilities", {})
+            for vuln_type, vuln_list in vulnerabilities.items():
+                for vuln in vuln_list:
+                    severity_str = _map_wapiti_severity(vuln.get("level", 1))
+                    findings.append(
+                        Finding(
+                            severity=severity_str,
+                            title=f"Wapiti: {vuln_type}",
+                            description=vuln.get("info", "No description available"),
+                            reference=vuln.get("wstg", [None])[0] if vuln.get("wstg") else None,
+                            cve=vuln.get("cve", [None])[0] if vuln.get("cve") else None,
+                            cvss_score=_severity_to_cvss(severity_str),
                         )
-            except Exception as e:
-                logger.warning("wapiti_parse_error", error=str(e))
+                    )
 
         logger.info(
             "wapiti_scan_completed",
@@ -154,6 +139,10 @@ async def run_wapiti_scan(
             findings=[],
             error=error_msg,
         )
+    finally:
+        # The findings are in the database: the raw report is not kept.
+        if output_file.exists():
+            output_file.unlink()
 
 
 def _map_wapiti_severity(level: int) -> "Severity":

@@ -3,6 +3,7 @@
 import re
 import time
 from datetime import UTC, datetime
+from pathlib import Path
 
 import structlog
 from api.models import CheckResult, Finding
@@ -27,6 +28,7 @@ async def run_nikto_scan(target: str, timeout: int = 600) -> CheckResult:
 
     # Use shared volume mounted in docker-compose
     output_filename = unique_output_name("nikto", "html")
+    output_file = Path("outputs") / output_filename
 
     try:
         result = await docker_run(
@@ -107,6 +109,10 @@ async def run_nikto_scan(target: str, timeout: int = 600) -> CheckResult:
             findings=[],
             error=str(e),
         )
+    finally:
+        # Findings are parsed from the console output: the HTML report is not kept.
+        if output_file.exists():
+            output_file.unlink()
 
 
 def _parse_nikto_output(output: str) -> list[Finding]:

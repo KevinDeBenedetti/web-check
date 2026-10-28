@@ -105,8 +105,7 @@ function ApiKeyForm() {
         </button>
       </div>
       <p className="hint">
-        Envoyée dans l’en-tête <span className="mono">X-API-Key</span> (et en paramètre{" "}
-        <span className="mono">api_key</span> pour les exports et le journal en direct). Elle
+        Envoyée dans l’en-tête <span className="mono">X-API-Key</span>, jamais dans l’URL. Elle
         reste dans ce navigateur, rien n’est stocké côté API.
       </p>
     </form>

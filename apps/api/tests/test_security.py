@@ -211,7 +211,5 @@ async def test_api_key_enforced(client: AsyncClient, monkeypatch: pytest.MonkeyP
         "/api/quick/nuclei", params={"url": "https://evil.net"}, headers={"X-API-Key": "s3cret"}
     )
     assert ok.status_code == 400
-    # Download links and EventSource cannot send headers: the query parameter works too.
-    via_query = await client.get("/api/catalog", params={"api_key": "s3cret"})
-    assert via_query.status_code == 200
-    assert (await client.get("/api/catalog", params={"api_key": "nope"})).status_code == 401
+    # Never read from the URL: it would land in access logs, proxies and browser history.
+    assert (await client.get("/api/catalog", params={"api_key": "s3cret"})).status_code == 401

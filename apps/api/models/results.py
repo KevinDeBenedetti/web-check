@@ -4,9 +4,15 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 
 from api.models.findings import Finding
-from pydantic import BaseModel, Field
+from api.utils.text import clean_text
+from pydantic import BaseModel, Field, field_validator
 
 ScanStatus = Literal["success", "error", "timeout", "running"]
+# scans.target / scan_results.target are VARCHAR(500); the target also becomes a
+# command-line argument of every scanner.
+MAX_TARGET_LENGTH = 500
+# Error messages are built from scanner output: bounded before storage and streaming.
+MAX_ERROR_LENGTH = 2000
 ScanCategory = Literal["quick", "deep", "security"]
 # Keep in sync with api.services.catalog.MODULES (checked by the test suite).
 ScanModule = Literal[
@@ -32,6 +38,11 @@ class CheckResult(BaseModel):
         default_factory=list, description="Security findings discovered"
     )
     error: str | None = Field(None, description="Error message if scan failed")
+
+    @field_validator("error")
+    @classmethod
+    def _clean_error(cls, value: str | None) -> str | None:
+        return clean_text(value, MAX_ERROR_LENGTH) if value is not None else None
 
     model_config = {
         "json_schema_extra": {
@@ -60,14 +71,19 @@ class CheckResult(BaseModel):
 class ScanRequest(BaseModel):
     """Request to start a security scan."""
 
-    target: str = Field(..., description="Target URL or domain to scan")
+    target: str = Field(
+        ..., max_length=MAX_TARGET_LENGTH, description="Target URL or domain to scan"
+    )
     modules: list[ScanModule] | None = Field(
         None,
         min_length=1,
+        max_length=32,
         description="Modules to run (see /api/catalog); takes precedence over `profile`",
     )
     profile: str | None = Field(
-        None, description="Scan profile (see /api/catalog); ignored when modules are given"
+        None,
+        max_length=64,
+        description="Scan profile (see /api/catalog); ignored when modules are given",
     )
     timeout: int = Field(300, ge=1, le=3600, description="Timeout in seconds per module")
 
