@@ -10,6 +10,7 @@ import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useResource } from "../hooks/useResource";
 import { buildCurlCommand } from "../lib/command";
 import { formatDuration, plural } from "../lib/format";
+import { isHttpUrl } from "../lib/url";
 import {
   moduleDescription,
   moduleEngine,
@@ -27,15 +28,6 @@ type ScopeState =
   | { kind: "checking" }
   | { kind: "done"; result: ScopeCheckResult }
   | { kind: "error"; message: string };
-
-function isHttpUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return (url.protocol === "http:" || url.protocol === "https:") && Boolean(url.hostname);
-  } catch {
-    return false;
-  }
-}
 
 /** Debounced POST /api/scope/check for the typed target. */
 function useScopeCheck(target: string): ScopeState {

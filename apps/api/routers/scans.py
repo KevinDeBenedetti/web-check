@@ -27,7 +27,7 @@ from api.services.findings import aggregate_findings, compute_score, severity_co
 from api.services.log_streamer import log_streamer
 from api.services.scope import check_scope
 from api.utils.config import get_settings
-from api.utils.security import validate_target
+from api.utils.security import ScanId, validate_target
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -105,7 +105,7 @@ async def list_scans(session: AsyncSession = Depends(get_session)) -> list[ScanR
 
 @router.get("/{scan_id}", response_model=ScanResponse)
 async def get_scan_status(
-    scan_id: str, session: AsyncSession = Depends(get_session)
+    scan_id: ScanId, session: AsyncSession = Depends(get_session)
 ) -> ScanResponse:
     """Get the status and results of a scan."""
     scan = await _get_scan_or_404(session, scan_id)
@@ -114,7 +114,7 @@ async def get_scan_status(
 
 @router.get("/{scan_id}/findings", response_model=ScanFindings)
 async def get_scan_findings(
-    scan_id: str, session: AsyncSession = Depends(get_session)
+    scan_id: ScanId, session: AsyncSession = Depends(get_session)
 ) -> ScanFindings:
     """Get the findings of a scan, deduplicated across modules and sorted by severity."""
     scan = await _get_scan_or_404(session, scan_id)
@@ -125,7 +125,7 @@ async def get_scan_findings(
 
 @router.get("/{base_id}/compare/{head_id}", response_model=ScanComparison)
 async def compare_scans(
-    base_id: str, head_id: str, session: AsyncSession = Depends(get_session)
+    base_id: ScanId, head_id: ScanId, session: AsyncSession = Depends(get_session)
 ) -> ScanComparison:
     """Compare a baseline scan with a later one: new, fixed and unchanged findings."""
     base_scan = await _get_scan_or_404(session, base_id)
@@ -148,7 +148,7 @@ async def compare_scans(
 
 @router.get("/{scan_id}/export")
 async def export_scan_report(
-    scan_id: str,
+    scan_id: ScanId,
     fmt: ExportFormat = Query("json", alias="format", description="json, markdown or sarif"),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
@@ -167,7 +167,7 @@ async def export_scan_report(
 
 @router.get("/{scan_id}/logs")
 async def stream_scan_logs(
-    scan_id: str, session: AsyncSession = Depends(get_session)
+    scan_id: ScanId, session: AsyncSession = Depends(get_session)
 ) -> StreamingResponse:
     """
     Stream real-time logs for a scan using Server-Sent Events (SSE).

@@ -2,19 +2,15 @@
 
 import time
 from datetime import UTC, datetime
-from ipaddress import IPv4Address, IPv6Address
 from urllib.parse import urlparse
 
-import httpx
 from api.models import CheckResult
 from api.services.dns_enum import run_dns_enum
 from api.services.headers_scanner import run_headers_scan
 from api.services.nikto import run_nikto_scan
 from api.services.nuclei import run_nuclei_scan
-from api.utils.config import get_settings
-from api.utils.security import is_allowed_host, target_host, target_url
+from api.utils.security import ssrf_guarded_client, target_host, target_url
 from fastapi import APIRouter, Depends, Query
-from httpx_secure import httpx_ssrf_protection
 
 router = APIRouter()
 
@@ -57,22 +53,12 @@ async def quick_dns_check(url: str = Depends(target_host)) -> CheckResult:
     """
     start = time.time()
     domain = urlparse(url).hostname or ""
-    allowed_domains = get_settings().get_allowed_domains()
-
-    def _ssrf_validator(hostname: str, ip: IPv4Address | IPv6Address, port: int) -> bool:
-        return is_allowed_host(hostname, allowed_domains)
 
     try:
-        # Build URL using only the validated domain; httpx-secure re-checks the
-        # resolved IP at connection time (DNS rebinding protection).
+        # Build URL using only the validated domain; the guarded client re-checks
+        # the resolved IP at connection time (DNS rebinding protection).
         validated_url = f"https://{domain}/"
-        base_client = httpx.AsyncClient(timeout=10.0)
-        async with httpx_ssrf_protection(
-            base_client,
-            custom_validator=_ssrf_validator,
-            dns_cache_size=1000,
-            dns_cache_ttl=600,
-        ) as client:
+        async with ssrf_guarded_client(timeout=10.0) as client:
             try:
                 # Do not follow redirects to avoid being redirected to unintended hosts.
                 response = await client.get(validated_url, follow_redirects=False)

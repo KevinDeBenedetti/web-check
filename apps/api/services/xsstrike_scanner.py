@@ -1,13 +1,12 @@
 """XSStrike XSS vulnerability scanner service."""
 
-import asyncio
 import time
 from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
 from api.models import CheckResult, Finding
-from api.services.docker_runner import unique_output_name
+from api.services.docker_runner import run_process, unique_output_name, write_private_file
 
 logger = structlog.get_logger()
 
@@ -67,18 +66,8 @@ async def run_xsstrike_scan(
             "--crawl",
         ]
 
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-
-        try:
-            stdout_bytes, _ = await asyncio.wait_for(process.communicate(), timeout=timeout)
-            stdout = stdout_bytes.decode("utf-8", errors="ignore")
-        except TimeoutError:
-            process.kill()
-            await process.wait()
+        result = await run_process(cmd, timeout=timeout)
+        if result["timeout"]:
             return CheckResult(
                 module="xsstrike",
                 category="security",
@@ -90,10 +79,10 @@ async def run_xsstrike_scan(
                 findings=[],
                 error="Scan timed out",
             )
+        stdout: str = result["stdout"]
 
-        # Save output
-        with open(output_file, "w") as f:
-            f.write(stdout)
+        # Keep the raw output for manual inspection; it may quote data from the target.
+        write_private_file(output_file, stdout)
 
         # Parse output
         if "XSS" in stdout and "detected" in stdout.lower():
