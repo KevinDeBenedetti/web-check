@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from my_check import __version__
 from my_check.types import CheckStatus, Report
@@ -21,6 +23,21 @@ _STATUS_TO_SARIF_LEVEL: dict[CheckStatus, str] = {
     CheckStatus.INFO: "note",
     CheckStatus.PASS: "note",
 }
+
+
+def _artifact_uri(target: str) -> str:
+    """A stable, scheme-less relative URI naming the scanned target.
+
+    The findings are about a website or a cluster, not a file, but GitHub code
+    scanning needs one location per result. `upload-sarif` sets a file:// source
+    root and rejects absolute URIs of another scheme, so the target is reduced to
+    `host[/path]` and any ":" (which would read as a scheme) becomes "_".
+    """
+    if "://" in target:
+        parts = urlsplit(target)
+        target = parts.netloc + parts.path
+    uri = re.sub(r"[^A-Za-z0-9._/-]", "_", target).strip("/")
+    return uri or "unknown"
 
 
 @dataclass(slots=True)
@@ -53,6 +70,12 @@ class JsonReporter:
         console.print(f"[green]JSON report written to[/green] {path}")
 
     def _write_sarif(self, report: Report, console: Console) -> None:
+        location = {
+            "physicalLocation": {
+                "artifactLocation": {"uri": _artifact_uri(report.target)},
+                "region": {"startLine": 1},
+            }
+        }
         rules: list[dict] = []
         results: list[dict] = []
 
@@ -79,6 +102,8 @@ class JsonReporter:
                     "ruleIndex": idx,
                     "level": _STATUS_TO_SARIF_LEVEL[result.status],
                     "message": {"text": result.message},
+                    # GitHub code scanning drops a result without a location.
+                    "locations": [location],
                     "properties": {
                         "score": result.score,
                     },

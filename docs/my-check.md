@@ -164,4 +164,9 @@ scanning. The core of it:
     sarif_file: outputs/my-check-results.sarif
 ```
 
+In code scanning, each alert's location is the scanned target rather than a file:
+the host and path for web checks (`example.com`, a `:` becomes `_`, so
+`example.com:8443` shows as `example.com_8443`) and the context for Kubernetes
+checks.
+
 Add `--strict` to fail the job when a check fails.
