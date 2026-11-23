@@ -17,7 +17,7 @@ repos:
         args: ['--fix=lf']
 
   # Ruff linting and formatting with the ruff locked in uv.lock — the version CI
-  # runs, kept current by Dependabot (uv), so there is no second pin to maintain.
+  # runs, kept current by Renovate (uv.lock), so there is no second pin to maintain.
   - repo: local
     hooks:
       - id: ruff

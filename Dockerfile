@@ -1,9 +1,9 @@
 # Dockerfile for Web-Check API (serves the web UI under /ui)
-# Base images pinned by tag and digest — Dependabot (docker ecosystem) bumps both.
+# Base images pinned by tag and digest — Renovate (renovate.json) bumps both.
 
 # ── Web UI build ────────────────────────────────────────────────────────────
 # Node LTS majors are switched by hand, together with node-version in
-# .github/workflows/ci-cd.yml (the CI builds the UI too): Dependabot ignores them.
+# .github/workflows/ci-cd.yml (the CI builds the UI too): Renovate ignores them.
 FROM node:26-bookworm-slim@sha256:5df79989ed685e09f0a98019db4cebfb22fb9df1a53c0161664a011f7ff6b0f1 AS web-build
 
 WORKDIR /web

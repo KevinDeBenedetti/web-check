@@ -134,33 +134,47 @@ uv run alembic -c apps/alembic.ini check
 
 ## Dependency updates
 
-Dependabot (`.github/dependabot.yml`) looks for updates every Monday at 06:00
-(Europe/Paris) and only proposes releases that are at least 3 days old; security
-updates are never delayed. It covers Python (`pyproject.toml` and `uv.lock`), the
-web UI (`apps/web`), the base images of the `Dockerfile`, the scanner images of
-`docker-compose.yml` and the GitHub Actions of the workflows.
+[Renovate](https://docs.renovatebot.com/) (`renovate.json`, on top of the shared
+preset [`KevinDeBenedetti/renovate-config`](https://github.com/KevinDeBenedetti/renovate-config))
+runs from `.github/workflows/renovate.yml` and opens its pull requests on Monday
+before 06:00 (Europe/Paris). It only proposes releases that are at least 3 days
+old; security fixes (from the OSV database) are never delayed. It covers Python
+(`pyproject.toml` and `uv.lock`), the web UI (`apps/web`), the base images of the
+`Dockerfile`, the scanner images of `docker-compose.yml` and the GitHub Actions of
+the workflows. The Dependency Dashboard issue lists every pending update.
 
-- Minor and patch updates share one pull request per ecosystem, and so do
-  security fixes.
+- Minor and patch updates share one pull request per ecosystem.
 - Major versions come one per pull request, except the Vite toolchain (`vite`,
   `vitest`, `@vitejs/*`) and React (`react`, `react-dom` and their types), which
   are upgraded together.
+- Actions and images are pinned to their digest, the version in a trailing
+  comment; the lock files get a weekly maintenance pull request.
 - `uv.lock` moves on its own; `pyproject.toml` only changes when a release falls
   outside a declared range (`sqlalchemy`, `sqlmap`).
 - Node.js majors are not proposed: move to the next LTS line by hand, in the
   `web-build` stage of the `Dockerfile` and in `node-version` of
-  `.github/workflows/ci-cd.yml`, in the same commit.
+  `.github/workflows/ci-cd.yml`, in the same commit. The Python runtime is moved
+  by hand too (`.python-version`, `requires-python`, the CI `python-version` and
+  the `uv` image tag).
+- Commits are `chore(deps)` (`ci(deps)` for actions), so they cut no release.
 
-A pull request merged on GitHub is recorded with `dependabot[bot]` as the commit
+`renovate.json` is read from `main`: a change to it takes effect once merged.
+Check it before pushing:
+
+```bash
+npx --yes --package renovate -- renovate-config-validator --strict
+```
+
+A pull request merged on GitHub is recorded with the Renovate App as the commit
 author. To commit it under your own identity instead, apply it locally once its
 checks are green:
 
 ```bash
 git switch main && git pull --ff-only && git fetch origin
-git merge --squash origin/<dependabot-branch>
+git merge --squash origin/<renovate-branch>
 git commit -m "<pull request title>"
 git push
 ```
 
-Dependabot closes the pull request once it sees the update on `main`; if it stays
-open, comment `@dependabot recreate` and it closes it when nothing is left to do.
+Renovate closes the pull request on its next run once it sees the update on
+`main`.

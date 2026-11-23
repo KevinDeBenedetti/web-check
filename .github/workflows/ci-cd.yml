@@ -75,7 +75,8 @@ jobs:
     if: github.event_name == 'pull_request'
     uses: KevinDeBenedetti/github-workflows/.github/workflows/check-bot-commits.yml@main
     with:
-      allowed-bots: '["dependabot[bot]"]'
+      # Renovate commits through the API with the release App's token.
+      allowed-bots: '["release-please-global[bot]", "renovate[bot]"]'
     permissions:
       contents: read
       pull-requests: read

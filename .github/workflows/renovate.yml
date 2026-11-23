@@ -1,0 +1,38 @@
+name: Renovate
+
+# Dependency updates, by Renovate, through the shared renovate.yml of
+# github-workflows, with a token of the release GitHub App (variable
+# RELEASE_APP_CLIENT_ID, secret RELEASE_APP_PRIVATE_KEY): its pull requests run
+# CI like any other. renovate.json, at the root, decides what is updated and
+# when; Renovate reads it from main.
+#
+# Every day: the Monday run, inside the Monday-morning schedule of the shared
+# preset that renovate.json extends, opens the week's pull requests; the others
+# keep them and the Dependency Dashboard issue current. A manual run is a dry
+# run unless its box is unticked. GitHub only runs schedules from the default
+# branch.
+on:
+  schedule:
+    # 01:17 UTC: inside the Monday-morning schedule (before 6am Paris time),
+    # with room for GitHub to start a scheduled run late.
+    - cron: '17 1 * * *'
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Look the updates up and log them, change nothing on GitHub
+        type: boolean
+        default: true
+
+permissions: {}
+
+jobs:
+  renovate:
+    # On @main like the other shared workflows of this repository.
+    uses: KevinDeBenedetti/github-workflows/.github/workflows/renovate.yml@main
+    permissions: {} # Renovate works with the App's token, not with this job's
+    with:
+      app-client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+      # False on a schedule, where there are no inputs.
+      dry-run: ${{ inputs.dry-run == true }}
+    secrets:
+      APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
