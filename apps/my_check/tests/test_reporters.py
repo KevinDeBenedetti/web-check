@@ -71,3 +71,30 @@ def test_json_and_sarif_keep_text_as_data(report: Report, tmp_path: Path) -> Non
         "\n", "\\n"
     ) in json.dumps(data)
     assert sarif["version"] == "2.1.0"
+
+
+@pytest.mark.parametrize(
+    ("target", "uri"),
+    [
+        ("https://example.com", "example.com"),
+        ("https://example.com:8443/app/", "example.com_8443/app"),
+        ("arn:aws:eks:eu-west-1:123:cluster/prod", "arn_aws_eks_eu-west-1_123_cluster/prod"),
+        ("", "unknown"),
+    ],
+)
+def test_sarif_results_have_the_location_code_scanning_requires(
+    tmp_path: Path, target: str, uri: str
+) -> None:
+    # GitHub code scanning refuses a result without a location, and rejects an
+    # absolute URI whose scheme differs from the checkout's (file://).
+    result = CheckResult(status=CheckStatus.WARN, score=60, message="HSTS missing")
+    JsonReporter(output_dir=tmp_path, sarif=True).emit(
+        Report(target=target, results={"web-headers": result})
+    )
+
+    sarif = json.loads((tmp_path / "my-check-results.sarif").read_text())
+    (location,) = sarif["runs"][0]["results"][0]["locations"]
+    physical = location["physicalLocation"]
+    assert physical["artifactLocation"]["uri"] == uri
+    assert ":" not in physical["artifactLocation"]["uri"]
+    assert physical["region"]["startLine"] == 1
