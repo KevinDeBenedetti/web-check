@@ -60,13 +60,15 @@ function Diff({ baseId, headId }: { baseId: string; headId: string }) {
         <div className="card kpi">
           <span className="kpi__label">Score</span>
           <span className="kpi__value">
-            <span className="kpi__from">{base.score}</span>
+            <span className="kpi__from">{base.score ?? "—"}</span>
             <Icon name="arrowRight" size={18} />
             <ScoreValue score={head.score} />
-            <span className={delta >= 0 ? "delta delta--up" : "delta delta--down"}>
-              {delta >= 0 ? "+" : ""}
-              {delta}
-            </span>
+            {delta !== null && (
+              <span className={delta >= 0 ? "delta delta--up" : "delta delta--down"}>
+                {delta >= 0 ? "+" : ""}
+                {delta}
+              </span>
+            )}
           </span>
         </div>
         <div className="card kpi">

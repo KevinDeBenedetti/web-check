@@ -33,9 +33,10 @@ export function groupScansBySite(scans: ScanResponse[]): SiteSummary[] {
         target: newest.target,
         latest: finished[0],
         running: siteScans.find((scan) => scan.status === "running"),
+        // Scans without a score (no module succeeded) are left out, not drawn as 0.
         scores: finished
+          .flatMap((scan) => (scan.score === null ? [] : [scan.score]))
           .slice(0, 12)
-          .map((scan) => scan.score ?? 0)
           .reverse(),
         scanCount: siteScans.length,
         lastActivity: newest.started_at,

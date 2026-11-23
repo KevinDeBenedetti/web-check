@@ -120,7 +120,7 @@ async def get_scan_findings(
     scan = await _get_scan_or_404(session, scan_id)
     results = await _load_results(session, scan_id)
     findings = aggregate_findings(results)
-    return ScanFindings(summary=_summary(scan, findings), findings=findings)
+    return ScanFindings(summary=_summary(scan, results, findings), findings=findings)
 
 
 @router.get("/{base_id}/compare/{head_id}", response_model=ScanComparison)
@@ -130,16 +130,20 @@ async def compare_scans(
     """Compare a baseline scan with a later one: new, fixed and unchanged findings."""
     base_scan = await _get_scan_or_404(session, base_id)
     head_scan = await _get_scan_or_404(session, head_id)
-    base_findings = aggregate_findings(await _load_results(session, base_id))
-    head_findings = aggregate_findings(await _load_results(session, head_id))
+    base_results = await _load_results(session, base_id)
+    head_results = await _load_results(session, head_id)
+    base_findings = aggregate_findings(base_results)
+    head_findings = aggregate_findings(head_results)
 
     new, fixed, unchanged = compare_findings(base_findings, head_findings)
-    base = _summary(base_scan, base_findings)
-    head = _summary(head_scan, head_findings)
+    base = _summary(base_scan, base_results, base_findings)
+    head = _summary(head_scan, head_results, head_findings)
     return ScanComparison(
         base=base,
         head=head,
-        score_delta=head.score - base.score,
+        score_delta=(
+            head.score - base.score if head.score is not None and base.score is not None else None
+        ),
         new=new,
         fixed=fixed,
         unchanged=unchanged,
@@ -230,6 +234,17 @@ async def _load_results(session: AsyncSession, scan_id: str) -> list[CheckResult
     ]
 
 
+def _score(results: list[CheckResult], findings: list[AggregatedFinding]) -> int | None:
+    """Score of a scan, or None while no module has succeeded.
+
+    Without a successful module nothing was actually scanned: an empty findings
+    list would otherwise read as a perfect 100.
+    """
+    if not any(result.status == "success" for result in results):
+        return None
+    return compute_score(findings)
+
+
 def _to_scan_response(
     scan: Scan,
     results: list[CheckResult],
@@ -244,19 +259,21 @@ def _to_scan_response(
         started_at=scan.started_at,
         completed_at=scan.completed_at,
         modules=scan.modules,
-        score=compute_score(findings),
+        score=_score(results, findings),
         severity_counts=severity_counts(findings),
         results=results,
     )
 
 
-def _summary(scan: Scan, findings: list[AggregatedFinding]) -> ScanSummary:
+def _summary(
+    scan: Scan, results: list[CheckResult], findings: list[AggregatedFinding]
+) -> ScanSummary:
     return ScanSummary(
         scan_id=scan.scan_id,
         target=scan.target,
         status=cast(ScanStatus, scan.status),
         started_at=scan.started_at,
-        score=compute_score(findings),
+        score=_score(results, findings),
         severity_counts=severity_counts(findings),
     )
 

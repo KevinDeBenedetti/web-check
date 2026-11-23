@@ -6,7 +6,12 @@ from pathlib import Path
 
 import structlog
 from api.models import CheckResult, Finding, Severity
-from api.services.docker_runner import load_json_output, run_process, unique_output_name
+from api.services.docker_runner import (
+    exit_code_error,
+    load_json_output,
+    run_process,
+    unique_output_name,
+)
 
 logger = structlog.get_logger()
 
@@ -67,6 +72,19 @@ async def run_wapiti_scan(
                 data=None,
                 findings=[],
                 error="Scan timed out",
+            )
+
+        if error := exit_code_error(result, "wapiti"):
+            return CheckResult(
+                module="wapiti",
+                category="security",
+                target=target,
+                timestamp=datetime.now(UTC),
+                duration_ms=int((time.time() - start) * 1000),
+                status="error",
+                data=None,
+                findings=[],
+                error=error,
             )
 
         # Parse the JSON report; a report the API cannot read fails the module

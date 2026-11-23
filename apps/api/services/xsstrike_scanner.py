@@ -1,14 +1,69 @@
 """XSStrike XSS vulnerability scanner service."""
 
+import re
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import structlog
 from api.models import CheckResult, Finding
-from api.services.docker_runner import run_process, unique_output_name, write_private_file
+from api.services.docker_runner import (
+    exit_code_error,
+    run_process,
+    unique_output_name,
+    write_private_file,
+)
 
 logger = structlog.get_logger()
+
+# Cloned at a pinned commit by the Dockerfile.
+XSSTRIKE_SCRIPT = Path("/opt/xsstrike/xsstrike.py")
+
+_XSS_REFERENCE = "https://owasp.org/www-community/attacks/xss/"
+# What XSStrike's crawl mode logs for a hit (modes/crawl.py, logger.vuln → "[++]"):
+#   [++] Vulnerable webpage: http://host/search
+#   [++] Vector for q: <payload>
+# Its progress display uses carriage returns, so a marker can follow other text
+# on the same physical line.
+_VULNERABLE_PAGE = re.compile(r"\[\+\+\] Vulnerable webpage: (\S+)")
+_VECTOR = re.compile(r"\[\+\+\] Vector for ([^:]+): (.*?)\s*$")
+
+
+def parse_xsstrike_output(stdout: str) -> list[Finding]:
+    """One finding per (page, parameter) XSStrike reported a working vector for.
+
+    XSStrike's verdict rests on reflection heuristics: on an HTML-escaped page it
+    can still report a vector, so findings say "possible" and ask for confirmation.
+    """
+    findings: list[Finding] = []
+    seen: set[tuple[str, str]] = set()
+    page = ""
+    for line in stdout.replace("\r", "\n").splitlines():
+        if match := _VULNERABLE_PAGE.search(line):
+            page = match.group(1)
+        elif (match := _VECTOR.search(line)) and page:
+            parameter, vector = match.group(1).strip(), match.group(2)
+            if (page, parameter) in seen:
+                continue
+            seen.add((page, parameter))
+            path = urlsplit(page).path or "/"
+            findings.append(
+                Finding(
+                    severity="high",
+                    title=f"Possible XSS in parameter '{parameter}' ({path})",
+                    description=(
+                        f"XSStrike reported a working vector for the parameter '{parameter}' "
+                        f"on {page}.\nVector: {vector}\n"
+                        "XSStrike can also flag reflections the page escapes: confirm the "
+                        "vector in a browser before treating it as exploitable."
+                    ),
+                    reference=_XSS_REFERENCE,
+                    remediation="Encode the parameter for its output context (HTML, attribute, "
+                    "JavaScript, URL) and add a restrictive Content-Security-Policy.",
+                )
+            )
+    return findings
 
 
 async def run_xsstrike_scan(
@@ -43,7 +98,7 @@ async def run_xsstrike_scan(
     try:
         # XSStrike needs to be cloned from GitHub and run as Python script
         # Check if xsstrike exists in /opt/xsstrike
-        xsstrike_path = Path("/opt/xsstrike/xsstrike.py")
+        xsstrike_path = XSSTRIKE_SCRIPT
 
         if not xsstrike_path.exists():
             return CheckResult(
@@ -79,39 +134,25 @@ async def run_xsstrike_scan(
                 findings=[],
                 error="Scan timed out",
             )
+        if error := exit_code_error(result, "xsstrike"):
+            return CheckResult(
+                module="xsstrike",
+                category="security",
+                target=target,
+                timestamp=datetime.now(UTC),
+                duration_ms=int((time.time() - start) * 1000),
+                status="error",
+                data=None,
+                findings=[],
+                error=error,
+            )
+
         stdout: str = result["stdout"]
 
         # Keep the raw output for manual inspection; it may quote data from the target.
         write_private_file(output_file, stdout)
 
-        # Parse output
-        if "XSS" in stdout and "detected" in stdout.lower():
-            # Count XSS findings
-            xss_count = stdout.lower().count("xss")
-
-            findings.append(
-                Finding(
-                    severity="high",
-                    title="Cross-Site Scripting (XSS) Vulnerability Detected",
-                    description=f"XSStrike detected {xss_count} potential XSS vulnerability points in the target application.",
-                    reference="https://owasp.org/www-community/attacks/xss/",
-                    cve=None,
-                    cvss_score=7.5,
-                )
-            )
-
-        # Look for specific vulnerability types
-        if "reflected" in stdout.lower():
-            findings.append(
-                Finding(
-                    severity="high",
-                    title="Reflected XSS Vulnerability",
-                    description="Reflected XSS vulnerability detected where user input is immediately returned by the application.",
-                    reference="https://owasp.org/www-community/attacks/xss/#reflected-xss-attacks",
-                    cve=None,
-                    cvss_score=7.0,
-                )
-            )
+        findings = parse_xsstrike_output(stdout)
 
         logger.info(
             "xsstrike_scan_completed",

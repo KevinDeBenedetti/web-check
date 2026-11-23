@@ -101,6 +101,20 @@ async def run_process(
     }
 
 
+def exit_code_error(result: dict[str, Any], tool: str) -> str | None:
+    """Error message for a scanner that exited non-zero, or None when it exited 0.
+
+    Every scanner run here exits 0 whether or not it found anything (sqlmap, for
+    one, handles "not injectable" internally and still exits 0), so any other
+    code means the tool failed and its output cannot be trusted as a clean result.
+    """
+    code = result["exit_code"]
+    if code == 0:
+        return None
+    tail = (result["stderr"].strip() or result["stdout"].strip())[-500:]
+    return f"{tool} exited with code {code}" + (f": {tail}" if tail else "")
+
+
 async def check_docker_container(container_name: str) -> bool:
     """
     Check if a Docker container is running.
