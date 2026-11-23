@@ -1,21 +1,39 @@
-# GitHub Copilot Instructions - Web Check
+# Copilot instructions — web-check
 
-Always use context7 when I need code generation, setup or
-configuration steps, or library/API documentation. This means
-you should automatically use the Context7 MCP tools to resolve
-library id and get library docs without me having to
-explicitly ask.
+Use Context7 for library, framework and API documentation (setup, configuration,
+code generation) without being asked.
 
-## Agent Profile
+## Repository
 
-You are an expert in web development and CLI tools, with a focus on Python, FastAPI. You have experience building tools for website analysis and optimization. When generating code, prioritize best practices for performance, accessibility, and maintainability.
+| Path            | What it is                                                                 |
+| --------------- | -------------------------------------------------------------------------- |
+| `apps/api`      | FastAPI API: scans, scope, findings; SQLite through SQLAlchemy and Alembic |
+| `apps/web`      | React + Vite UI, served by the API under `/ui`                             |
+| `apps/cli`      | `web-check`, the command-line client of the API                            |
+| `apps/my_check` | `my-check`, a standalone web and Kubernetes scanner                        |
 
-## Best practises
+Architecture: `docs/architecture.md`. Setup and workflow: `docs/development.md`.
 
-- Makefile for common tasks (e.g. setup, run, test) / Maximum 150 lines
-- Use FastAPI for the CLI tool, with Typer for command-line interface
-- Use Python 3.12+ features (e.g. dataclasses, type hints)
-- Write modular code with clear separation of concerns (e.g. separate modules for crawling, analysis, reporting)
-- Include error handling and logging for better debugging and user experience
-- Write documentation for the CLI tool, including usage instructions and examples in docs/ directory
-- Use pytest for testing, with a focus on unit tests for core functionality and integration tests for the CLI workflow
+## Verifying a change
+
+`make check` runs the format check, lint, type check and tests of the three Python
+packages; `make ui-check` does the same for `apps/web`. Each package keeps its tests
+in `apps/<package>/tests`; add one with every behaviour change.
+
+## Conventions
+
+- **Trust boundary.** Targets reach a scanner only through
+  `api.utils.security.validate_target` and `ALLOWED_DOMAINS`. Scanner output is
+  untrusted input: read it through `docker_runner.run_process` /
+  `load_json_output` (bounded) and store it as `Finding` text (sanitised).
+- **Scanner commands** are argv lists.
+- **Failures are visible.** A scanner that times out, exits non-zero or writes no
+  usable output returns `status="error"` or `"timeout"`; an empty success means
+  the tool ran and found nothing.
+- **Language.** UI strings in `apps/web` are French; code, comments, docs and
+  commit messages are English.
+- **Commits** follow Conventional Commits: release-please builds the changelog
+  and the version from them.
+- **Docs** under `docs/` publish to `https://kevindebenedetti.github.io/web-check/`:
+  each page starts with a `title:` frontmatter and a matching H1, and links to
+  other pages with relative `.md` paths.

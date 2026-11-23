@@ -41,8 +41,8 @@ jobs:
       run:
         working-directory: apps/web
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "26"  # same major as the web-build stage of the Dockerfile
           cache: npm
@@ -81,15 +81,23 @@ jobs:
       pull-requests: read
 
   # ── CI — Gate (all required checks passed) ────────────────────────────────
+  # The one check branch protection requires. always(): without it GitHub skips
+  # this job when a needed job fails, and a skipped required check counts as
+  # passing. Every needed job is required, the dependency audit and the bot guard
+  # included.
   ci-passed:
     name: CI Passed
-    if: github.event_name == 'pull_request'
+    if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    needs: [python, web]
+    needs: [python, web, security, bot-check]
     permissions: {}
     steps:
-      - name: All checks passed
-        run: echo "✅ All CI checks passed successfully!"
+      - name: All required checks passed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$RESULTS" | jq -e 'all(.[]; .result == "success")' > /dev/null
 
   # ── CD — Release Please ───────────────────────────────────────────────────
   release:

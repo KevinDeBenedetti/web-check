@@ -6,6 +6,8 @@ authors = [
     {name = "Kevin De Benedetti", email = "contact@kevindb.dev"},
 ]
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "fastapi>=0.137.1",
@@ -28,6 +30,8 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "questionary>=2.1.1",
     "urllib3>=2.7.0",
+    # Read by the my-check TLS check (web-tls); already required by sslyze.
+    "cryptography>=50.0.2",
     # Provides the `wapiti` executable run by the wapiti module (api.services.wapiti_scanner).
     "wapiti3>=3.3.5",
 ]
@@ -88,7 +92,8 @@ line-ending = "auto"
 python-version = "3.12"
 python = ".venv"
 python-platform = "all"
-root = ["apps/api"]
+# apps/api for `api.*`, apps for `cli.*` and `my_check.*` (the CLIs import by package name).
+root = ["apps/api", "apps"]
 
 [tool.ty.rules]
 # Critical errors
@@ -102,13 +107,13 @@ unused-ignore-comment = "warn"
 redundant-cast = "warn"
 
 [tool.ty.src]
-include = ["apps/api"]
+include = ["apps/api", "apps/cli", "apps/my_check"]
 exclude = ["**/__pycache__", "**/node_modules", ".venv", "outputs"]
 respect-ignore-files = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["apps/api/tests"]
+testpaths = ["apps/api/tests", "apps/cli/tests", "apps/my_check/tests"]
 markers = [
     "slow: marks tests as slow (deselected by default in CI)",
     "integration: marks tests as integration tests",

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from kubernetes import client
 from my_check.checks.k8s import _load_client
+from my_check.checks.k8s._model import containers_of, labels_of, name_of, namespace_of
 from my_check.types import (
     CheckCategory,
     CheckResult,
@@ -32,11 +33,11 @@ _SYSTEM_NAMESPACES = frozenset({"kube-system", "kube-public", "kube-node-lease"}
 
 def _is_privileged_expected(pod: client.V1Pod) -> bool:
     """Return True if this pod is expected to run with elevated privileges."""
-    labels = pod.metadata.labels or {}
+    labels = labels_of(pod)
     for label_key, allowed_values in _PRIVILEGED_ALLOWED_LABELS.items():
         if labels.get(label_key, "") in allowed_values:
             return True
-    ns = pod.metadata.namespace or ""
+    ns = namespace_of(pod) or ""
     if ns in _SYSTEM_NAMESPACES:
         return True
     return False
@@ -100,20 +101,18 @@ class WorkloadsCheck:
 
         for pod in pods:
             priv_ok = _is_privileged_expected(pod)
-            containers = (pod.spec.containers or []) + (pod.spec.init_containers or [])
+            containers = containers_of(pod)
             for container in containers:
                 issues.extend(
                     _check_container_security(
                         container,
-                        pod.metadata.name,
-                        pod.metadata.namespace,
+                        name_of(pod),
+                        namespace_of(pod),
                         privileged_expected=priv_ok,
                     )
                 )
 
-        total_containers = sum(
-            len(p.spec.containers or []) + len(p.spec.init_containers or []) for p in pods
-        )
+        total_containers = sum(len(containers_of(p)) for p in pods)
         if total_containers == 0:
             return CheckResult(
                 status=CheckStatus.INFO,

@@ -6,7 +6,8 @@ from pathlib import Path
 
 from rich.console import Console
 
-console = Console()
+# Status messages only: stderr, so a JSON document on stdout stays parseable.
+console = Console(stderr=True)
 
 # Map API module names → (step key, display label)
 _MODULE_META: dict[str, tuple[str, str]] = {

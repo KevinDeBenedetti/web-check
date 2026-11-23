@@ -6,6 +6,7 @@ import logging
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
+import dns.flags
 import dns.resolver
 from my_check.types import CheckCategory, CheckResult, CheckStatus, K8sContext
 

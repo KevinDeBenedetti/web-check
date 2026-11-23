@@ -10,7 +10,7 @@ import typer
 from my_check.config import MyCheckConfig, load_config
 from my_check.registry import get_all_checks, get_k8s_checks, get_web_checks
 from my_check.scheduler import Scheduler
-from my_check.types import CheckCategory, K8sContext, Report
+from my_check.types import Check, CheckCategory, K8sContext, Report
 from questionary import Style
 from rich.console import Console
 from rich.rule import Rule
@@ -34,26 +34,10 @@ _STYLE = Style(
     ]
 )
 
-_WEB_CHECK_CHOICES = [
-    ("web-tls         — TLS certificate expiry & chain", "web-tls"),
-    ("web-headers     — Security headers (CSP, HSTS, …)", "web-headers"),
-    ("web-dns         — DNS security (DNSSEC, CAA, SPF, DMARC)", "web-dns"),
-    ("web-ports       — Exposed ports (TCP scan)", "web-ports"),
-    ("web-redirects   — Redirect chain & HTTP→HTTPS", "web-redirects"),
-    ("web-subdomain-takeover — Subdomain takeover via CNAME", "web-subdomain-takeover"),
-]
 
-_K8S_CHECK_CHOICES = [
-    ("k8s-rbac              — RBAC wildcard verbs & anonymous bindings", "k8s-rbac"),
-    ("k8s-workloads         — Privileged / root containers", "k8s-workloads"),
-    ("k8s-network-policies  — NetworkPolicy coverage", "k8s-network-policies"),
-    ("k8s-secrets           — Plain env secrets / missing sealed secrets", "k8s-secrets"),
-    ("k8s-images            — :latest tags without SHA digest", "k8s-images"),
-    ("k8s-kube-bench        — CIS benchmarks (kube-bench wrapper)", "k8s-kube-bench"),
-    ("k8s-trivy             — Vulnerability scan (trivy wrapper)", "k8s-trivy"),
-    ("k8s-polaris           — Best practices (polaris wrapper)", "k8s-polaris"),
-    ("k8s-falco             — Falco DaemonSet runtime health", "k8s-falco"),
-]
+def check_choices(checks: list[Check]) -> list[tuple[str, str]]:
+    """(label, check id) for the customize step, from the registry: never a stale list."""
+    return [(f"{check.id:<24} — {check.name}", check.id) for check in checks]
 
 
 # ---------------------------------------------------------------------------
@@ -221,7 +205,7 @@ def run_wizard() -> None:
                     "Select web checks (Space to toggle)",
                     choices=[
                         questionary.Choice(label, value=val, checked=(val in enabled_web))
-                        for label, val in _WEB_CHECK_CHOICES
+                        for label, val in check_choices(get_web_checks())
                     ],
                     style=_STYLE,
                 )
@@ -235,7 +219,7 @@ def run_wizard() -> None:
                     "Select k8s checks (Space to toggle)",
                     choices=[
                         questionary.Choice(label, value=val, checked=(val in enabled_k8s))
-                        for label, val in _K8S_CHECK_CHOICES
+                        for label, val in check_choices(get_k8s_checks())
                     ],
                     style=_STYLE,
                 )
@@ -328,12 +312,12 @@ def _execute(
     cfg.output.formats = formats
 
     if url and k8s_ctx:
-        checks = get_all_checks()
+        checks = get_all_checks(cfg.web.ports)
         scheduler = Scheduler(checks=checks, timeout=max(cfg.web.timeout, cfg.k8s.timeout))
         enabled = set(enabled_web) | set(enabled_k8s)
         report = asyncio.run(scheduler.run(target=url, k8s_ctx=k8s_ctx, enabled_ids=enabled))
     elif url:
-        checks = get_web_checks()
+        checks = get_web_checks(cfg.web.ports)
         scheduler = Scheduler(checks=checks, timeout=cfg.web.timeout)
         report = asyncio.run(
             scheduler.run(target=url, enabled_ids=set(enabled_web), category=CheckCategory.WEB)

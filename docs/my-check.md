@@ -1,174 +1,122 @@
-# my-check — Unified Security Scanner
+---
+title: my-check
+---
 
-A CLI tool for web and Kubernetes infrastructure security scanning.
+# my-check
 
-## Quick Start
+`my-check` is a standalone command-line scanner for web endpoints and Kubernetes
+clusters. It runs its checks locally and does not need the web-check API.
 
-```bash
-# Install
-make install
+## Quick start
 
-# Launch the interactive wizard (one command to rule them all)
-make cli
+```sh
+make install   # uv sync --all-groups
+make cli       # the interactive wizard (uv run my-check)
 ```
 
-That's it. The wizard guides you through every option step by step.
+## Interactive wizard
 
-## Interactive Wizard
-
-`make cli` (or `uv run my-check`) opens a 5-step interactive form:
-
-```
-Step 1 — What do you want to scan?   web / k8s / all
-Step 2 — Web target URL               (reads default from .env)
-Step 3 — Kubernetes cluster           context, kubeconfig, namespace
-Step 4 — Select checks                all or toggle individual checks
-Step 5 — Output format                terminal / json / html / all
-         Confirm & run
-```
-
-## Non-interactive (CI / scripting)
-
-```bash
-# Web scan
-uv run my-check web https://example.com
-
-# K8s scan
-uv run my-check k8s --context my-cluster
-
-# Full scan — web + k8s
-uv run my-check all https://example.com --context my-cluster --output terminal,json
-```
-
-## Configuration
-
-All defaults are loaded from **`.env`** at the project root. Copy `.env.example`:
-
-```bash
-cp .env.example .env
-# Edit .env with your targets, k8s context, etc.
-```
-
-### Key variables
-
-| Variable | Description | Example |
-|---|---|---|
-| `MY_CHECK_WEB_TARGET` | Default web scan URL | `https://example.com` |
-| `MY_CHECK_K8S_CONTEXT` | Kubeconfig context name | `k3s`, `kind-local` |
-| `MY_CHECK_K8S_KUBECONFIG` | Path to kubeconfig | `/home/you/.kube/config` |
-| `MY_CHECK_K8S_SERVER` | Override K8s API server URL | `https://192.168.1.10:6443` |
-| `MY_CHECK_K8S_NAMESPACE` | Scope to one namespace | `default` |
-| `MY_CHECK_OUTPUT` | Default reporters | `terminal,json` |
-| `MY_CHECK_SARIF` | Emit SARIF 2.1 for GitHub Code Scanning | `true` |
-| `MY_CHECK_WEBHOOK_URL` | Slack / custom webhook | `https://hooks.slack.com/…` |
-| `API_PORT` | Docker API port (old web-check) | `8000` |
-
-Priority: **CLI flags > my-check.config.json > .env > built-in defaults**
-
-## Available Checks
-
-### Web
-| Check | Description |
-|-------|-------------|
-| `web-tls` | Certificate expiry, chain validation, CT log presence |
-| `web-headers` | CSP, HSTS, X-Frame-Options, Permissions-Policy |
-| `web-dns` | DNSSEC validation, CAA records, SPF / DMARC |
-| `web-ports` | Common exposed ports via TCP connect |
-| `web-redirects` | Full redirect chain, HTTP→HTTPS downgrade |
-| `web-subdomain-takeover` | CNAME resolution, decommissioned service detection |
-
-### Kubernetes
-| Check | Description |
-|-------|-------------|
-| `k8s-rbac` | Wildcard verbs, automount tokens, anonymous bindings |
-| `k8s-workloads` | Root pods, privileged containers, missing limits |
-| `k8s-network-policies` | Zero-policy namespaces, exposed admin endpoints |
-| `k8s-secrets` | Plain env var secrets, missing sealed secrets |
-| `k8s-images` | `latest` tag without SHA digest |
-| `k8s-kube-bench` | CIS benchmarks (requires `kube-bench`) |
-| `k8s-trivy` | Vulnerability scan (requires `trivy`) |
-| `k8s-polaris` | Best practices (requires `polaris`) |
-| `k8s-falco` | Runtime security DaemonSet health |
-
-## Output Formats
-
-| Format | Description |
-|--------|-------------|
-| `terminal` | Colored Rich table with ✓/⚠/✗ icons and global score |
-| `json` | `outputs/my-check-results.json` |
-| `html` | `outputs/my-check-report.html` — standalone, diff-aware |
-| `webhook` | POST to Slack or custom URL |
-
-## CI Integration
-
-See `.github/workflows/security-scan.yml` for a full example.
-
-```yaml
-- name: Run security scan
-  run: uv run my-check all ${{ vars.SCAN_TARGET_URL }} --output terminal,json
-
-- uses: github/codeql-action/upload-sarif@v3
-  with:
-    sarif_file: outputs/my-check-results.sarif
-```
-
+`uv run my-check` with no command opens a guided form. It asks what to scan (web,
+Kubernetes or both), then the web target URL and/or the Kubernetes context,
+kubeconfig and namespace, then which checks to run (all of them, or a selection
+built from every registered check), the output reporters (`terminal`, `markdown`,
+`json`, `html`, `webhook`) and a final confirmation.
 
 ## Commands
 
-### `my-check web <url>`
+```sh
+uv run my-check web https://example.com
+uv run my-check k8s --context my-cluster --namespace app
+uv run my-check all https://example.com --context my-cluster --output terminal,json
+```
 
-Run web security checks against a target URL.
+| Command                    | Runs                                     |
+| -------------------------- | ---------------------------------------- |
+| `my-check web <url>`       | the web checks against `<url>`           |
+| `my-check k8s`             | the Kubernetes checks                    |
+| `my-check all <url>`       | both, in one run                         |
 
-| Check | Description |
-|-------|-------------|
-| `web-tls` | Certificate expiry, chain validation, CT log presence |
-| `web-headers` | CSP, HSTS, X-Frame-Options, Permissions-Policy |
-| `web-dns` | DNSSEC validation, CAA records, SPF / DMARC |
-| `web-ports` | Common exposed ports via TCP connect |
-| `web-redirects` | Full redirect chain, HTTP→HTTPS downgrade |
-| `web-subdomain-takeover` | CNAME resolution, decommissioned service detection |
+### Options
 
-### `my-check k8s [options]`
+| Flag                | Commands         | Description                                                                                                  |
+| ------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------ |
+| `--output`, `-o`    | all              | Comma-separated reporters: `terminal`, `json`, `html`, `markdown`, `webhook`. Default: `output.formats`.     |
+| `--sarif`           | all              | Also write `outputs/my-check-results.sarif`; turns the `json` reporter on and overrides `output.sarif`.      |
+| `--strict`          | all              | Exit with code 1 when any check fails (CI).                                                                  |
+| `--config`, `-c`    | all              | Path to a configuration file (default: `my-check.config.json` or `.my-check.json`, searched upwards).        |
+| `--verbose`, `-v`   | all              | Debug logging.                                                                                               |
+| `--context`         | `k8s`, `all`     | Kubeconfig context.                                                                                          |
+| `--kubeconfig`      | `k8s`, `all`     | Kubeconfig file.                                                                                             |
+| `--namespace`, `-n` | `k8s`, `all`     | Limit the Kubernetes checks to one namespace.                                                                |
 
-Run Kubernetes security checks.
+## Checks
 
-| Check | Description |
-|-------|-------------|
-| `k8s-rbac` | Wildcard verbs, automount tokens, anonymous bindings |
-| `k8s-workloads` | Root pods, privileged containers, missing limits |
-| `k8s-network-policies` | Zero-policy namespaces, exposed admin endpoints |
-| `k8s-secrets` | Plain env var secrets, missing sealed secrets |
-| `k8s-images` | `latest` tag without SHA digest |
-| `k8s-kube-bench` | CIS benchmarks (requires `kube-bench`) |
-| `k8s-trivy` | Vulnerability scan (requires `trivy`) |
-| `k8s-polaris` | Best practices (requires `polaris`) |
-| `k8s-falco` | Runtime security DaemonSet health |
+### Web
 
-### `my-check all <url> [options]`
+| Check                    | What it looks at                                                                                     |
+| ------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `web-tls`                | Certificate expiry, chain validation and embedded CT timestamps, on the URL's port (443 by default)  |
+| `web-headers`            | CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Permissions-Policy, Referrer-Policy             |
+| `web-csp`                | Content-Security-Policy: missing key directives, `'unsafe-inline'` / `'unsafe-eval'`, wildcards      |
+| `web-cors`               | Reflected arbitrary or `null` origins, combined with `Access-Control-Allow-Credentials`              |
+| `web-cookies`            | `Secure`, `HttpOnly`, `SameSite` and the `__Host-` / `__Secure-` prefixes                            |
+| `web-dns`                | DNSSEC validation, CAA records, SPF and DMARC                                                        |
+| `web-ports`              | Open TCP ports; database and remote-access ports fail the check                                     |
+| `web-redirects`          | The full redirect chain (relative `Location` included), HTTP→HTTPS upgrade, HTTPS→HTTP downgrade     |
+| `web-subdomain-takeover` | CNAME records pointing at decommissioned services                                                    |
 
-Run both web and Kubernetes checks in a single pass.
+### Kubernetes
 
-## Options
+| Check                  | What it looks at                                                                             |
+| ---------------------- | -------------------------------------------------------------------------------------------- |
+| `k8s-rbac`             | Wildcard verbs, automounted service-account tokens, anonymous bindings                       |
+| `k8s-workloads`        | Root and privileged containers, missing resource limits                                      |
+| `k8s-network-policies` | Namespaces without a NetworkPolicy, exposed admin endpoints                                  |
+| `k8s-secrets`          | Secrets in plain environment variables, missing sealed secrets                               |
+| `k8s-images`           | `latest` tags without a digest                                                               |
+| `k8s-pss-compliance`   | Pod Security Standards: host namespaces and container security settings                      |
+| `k8s-etcd-encryption`  | Encryption at rest of secrets in etcd                                                        |
+| `k8s-kube-bench`       | CIS benchmarks (needs `kube-bench`; it audits the node it runs on, not the selected cluster) |
+| `k8s-trivy`            | Image vulnerabilities (needs `trivy`)                                                        |
+| `k8s-polaris`          | Best practices (needs `polaris`)                                                             |
+| `k8s-falco`            | Health of the Falco runtime-security DaemonSet                                               |
 
-| Flag | Description |
-|------|-------------|
-| `--output, -o` | Comma-separated reporters: `terminal`, `json`, `html`, `webhook` |
-| `--config, -c` | Path to `my-check.config.json` |
-| `--context` | Kubeconfig context name |
-| `--kubeconfig` | Path to kubeconfig file |
-| `--namespace, -n` | Kubernetes namespace scope |
-| `--verbose, -v` | Enable debug logging |
+`kube-bench`, `trivy` and `polaris` are optional: without them their check
+reports *not found* as information and does not lower the score.
 
 ## Configuration
 
-Create a `my-check.config.json` at the project root:
+Settings come from three places. The configuration file wins over the environment,
+and command-line flags win over both.
+
+### Environment
+
+`my-check` reads `.env` from the working directory (variables already set are kept).
+See `.env.example`.
+
+| Variable                  | Description                           | Example                        |
+| ------------------------- | ------------------------------------- | ------------------------------ |
+| `MY_CHECK_WEB_TARGET`     | Default web target                    | `https://example.com`          |
+| `MY_CHECK_K8S_CONTEXT`    | Kubeconfig context                    | `kind-local`                   |
+| `MY_CHECK_K8S_KUBECONFIG` | Kubeconfig file                       | `/home/you/.kube/config`       |
+| `MY_CHECK_K8S_NAMESPACE`  | Limit the Kubernetes checks           | `default`                      |
+| `MY_CHECK_OUTPUT`         | Default reporters                     | `terminal,json`                |
+| `MY_CHECK_OUTPUT_DIR`     | Where reports are written             | `outputs`                      |
+| `MY_CHECK_SARIF`          | Write the SARIF file                  | `true`                         |
+| `MY_CHECK_WEBHOOK_URL`    | Slack or custom webhook               | `https://hooks.slack.com/…`    |
+
+### Configuration file
+
+`my-check.config.json` (or `.my-check.json`) in the working directory or a parent,
+or the file given with `--config`:
 
 ```json
 {
   "web": {
     "targets": ["https://example.com"],
     "enabled_checks": ["web-tls", "web-headers", "web-dns"],
-    "timeout": 30
+    "timeout": 30,
+    "ports": [80, 443, 8443]
   },
   "k8s": {
     "context": "my-cluster",
@@ -183,36 +131,37 @@ Create a `my-check.config.json` at the project root:
 }
 ```
 
-## Output Formats
+- `enabled_checks` lists the checks to run; an empty list runs none of that category.
+- `web.ports` replaces the ports `web-ports` probes. Leave it out to keep the
+  check's own list: 80, 443, 8080, 8443, 3000 and 9090, plus 21, 22, 3306, 5432,
+  6379 and 27017, which fail the check when open.
+- `timeout` is per check, in seconds.
 
-### Terminal
-Colored table with ✓/⚠/✗ icons, global score, and per-category breakdown.
+## Reporters
 
-### JSON
-Structured `my-check-results.json` in the output directory. Optionally emit
-SARIF 2.1 for GitHub Advanced Security with `"sarif": true`.
+| Reporter   | Output                                                                                               |
+| ---------- | ---------------------------------------------------------------------------------------------------- |
+| `terminal` | Coloured table with the status of each check and the global score                                    |
+| `json`     | `outputs/my-check-results.json`, and `outputs/my-check-results.sarif` (SARIF 2.1) with `--sarif`     |
+| `markdown` | `outputs/my-check-report.md`, with text from the target escaped                                      |
+| `html`     | `outputs/my-check-report.html`, self-contained, with a diff against `output.previous_report`         |
+| `webhook`  | A POST to `output.webhook_url` (Slack incoming webhook or custom endpoint)                           |
 
-### HTML
-Self-contained `my-check-report.html` with score gauges and diff support
-against a previous report.
+## CI integration
 
-### Webhook
-POST results to a Slack incoming webhook or custom endpoint:
-```json
-{ "output": { "formats": ["webhook"], "webhook_url": "https://hooks.slack.com/..." } }
-```
-
-## CI Integration
-
-Add to `.github/workflows/security-scan.yml`:
+`.github/workflows/security-scan.yml` runs the web checks and the Kubernetes checks
+(against a `kind` cluster) every week and uploads the SARIF file to GitHub code
+scanning. The core of it:
 
 ```yaml
-- name: Run security scan
-  run: my-check all ${{ vars.SCAN_TARGET_URL }} --output terminal,json
+- name: Run web checks
+  run: uv run my-check web "$SCAN_TARGET_URL" --output terminal,json --sarif
+  env:
+    SCAN_TARGET_URL: ${{ vars.SCAN_TARGET_URL }}
 
-- uses: github/codeql-action/upload-sarif@v3
+- uses: github/codeql-action/upload-sarif@v4
   with:
     sarif_file: outputs/my-check-results.sarif
 ```
 
-See `.github/workflows/security-scan.yml` for a complete example with a `kind` cluster.
+Add `--strict` to fail the job when a check fails.

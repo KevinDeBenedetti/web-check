@@ -69,6 +69,14 @@ OptVerbose = Annotated[
     bool,
     typer.Option("--verbose", "-v", help="Enable verbose logging"),
 ]
+OptSarif = Annotated[
+    bool,
+    typer.Option(
+        "--sarif",
+        help="Also write outputs/my-check-results.sarif for GitHub code scanning "
+        "(implies the json reporter; overrides output.sarif of the configuration)",
+    ),
+]
 OptStrict = Annotated[
     bool,
     typer.Option("--strict", help="Exit with code 1 when any check fails (useful for CI)"),
@@ -100,6 +108,15 @@ def _build_k8s_context(
         kubeconfig_path=kubeconfig or cfg.kubeconfig,
         namespace=namespace or cfg.namespace,
     )
+
+
+def _apply_sarif(cfg: MyCheckConfig, sarif: bool) -> None:
+    """`--sarif`: SARIF is written by the json reporter, so make sure it runs."""
+    if not sarif:
+        return
+    cfg.output.sarif = True
+    if "json" not in cfg.output.formats:
+        cfg.output.formats.append("json")
 
 
 async def _emit_reports(report: Report, cfg: MyCheckConfig) -> None:
@@ -153,14 +170,16 @@ def web(
     config: OptConfig = None,
     verbose: OptVerbose = False,
     strict: OptStrict = False,
+    sarif: OptSarif = False,
 ) -> None:
     """Run web security checks against a URL."""
     _setup_logging(verbose)
     cfg = load_config(config)
     if output:
         cfg.output.formats = [f.strip() for f in output.split(",")]
+    _apply_sarif(cfg, sarif)
 
-    checks = get_web_checks()
+    checks = get_web_checks(cfg.web.ports)
     scheduler = Scheduler(checks=checks, timeout=cfg.web.timeout)
     enabled = set(cfg.web.enabled_checks)
     report = asyncio.run(scheduler.run(target=url, enabled_ids=enabled, category=CheckCategory.WEB))
@@ -176,12 +195,14 @@ def k8s(
     config: OptConfig = None,
     verbose: OptVerbose = False,
     strict: OptStrict = False,
+    sarif: OptSarif = False,
 ) -> None:
     """Run Kubernetes security checks."""
     _setup_logging(verbose)
     cfg = load_config(config)
     if output:
         cfg.output.formats = [f.strip() for f in output.split(",")]
+    _apply_sarif(cfg, sarif)
 
     k8s_ctx = _build_k8s_context(cfg.k8s, context, kubeconfig, namespace)
     checks = get_k8s_checks()
@@ -203,15 +224,17 @@ def all_checks(
     config: OptConfig = None,
     verbose: OptVerbose = False,
     strict: OptStrict = False,
+    sarif: OptSarif = False,
 ) -> None:
     """Run all web and Kubernetes security checks."""
     _setup_logging(verbose)
     cfg = load_config(config)
     if output:
         cfg.output.formats = [f.strip() for f in output.split(",")]
+    _apply_sarif(cfg, sarif)
 
     k8s_ctx = _build_k8s_context(cfg.k8s, context, kubeconfig, namespace)
-    checks = get_all_checks()
+    checks = get_all_checks(cfg.web.ports)
     scheduler = Scheduler(checks=checks, timeout=max(cfg.web.timeout, cfg.k8s.timeout))
     enabled = set(cfg.web.enabled_checks) | set(cfg.k8s.enabled_checks)
     report = asyncio.run(scheduler.run(target=url, k8s_ctx=k8s_ctx, enabled_ids=enabled))

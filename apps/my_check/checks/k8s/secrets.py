@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from kubernetes import client
 from my_check.checks.k8s import _load_client
+from my_check.checks.k8s._model import containers_of, name_of, namespace_of
 from my_check.types import (
     CheckCategory,
     CheckResult,
@@ -66,9 +67,9 @@ class SecretsCheck:
         issues: list[dict[str, str]] = []
 
         for pod in pods:
-            ns = pod.metadata.namespace
-            pod_name = pod.metadata.name
-            containers = (pod.spec.containers or []) + (pod.spec.init_containers or [])
+            ns = namespace_of(pod)
+            pod_name = name_of(pod)
+            containers = containers_of(pod)
 
             for container in containers:
                 if not container.env:

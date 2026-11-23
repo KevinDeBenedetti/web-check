@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from kubernetes import client
 from my_check.checks.k8s import _load_client
+from my_check.checks.k8s._model import name_of, namespace_of
 from my_check.types import (
     CheckCategory,
     CheckResult,
@@ -58,7 +59,7 @@ class RbacCheck:
 
         # --- wildcard verbs in ClusterRoleBindings ---
         crbs = rbac.list_cluster_role_binding()
-        cluster_roles = {cr.metadata.name: cr for cr in rbac.list_cluster_role().items}
+        cluster_roles = {name_of(cr): cr for cr in rbac.list_cluster_role().items}
 
         for crb in crbs.items:
             role_name = crb.role_ref.name
@@ -72,7 +73,7 @@ class RbacCheck:
                         issues.append(
                             {
                                 "type": "wildcard_verbs",
-                                "binding": crb.metadata.name,
+                                "binding": name_of(crb),
                                 "role": role_name,
                                 "remediation": (
                                     f"Replace wildcard verbs in ClusterRole '{role_name}' "
@@ -91,9 +92,9 @@ class RbacCheck:
                         issues.append(
                             {
                                 "type": "anonymous_binding",
-                                "binding": crb.metadata.name,
+                                "binding": name_of(crb),
                                 "remediation": (
-                                    f"Remove ClusterRoleBinding '{crb.metadata.name}' that grants "
+                                    f"Remove ClusterRoleBinding '{name_of(crb)}' that grants "
                                     "access to system:anonymous."
                                 ),
                             }
@@ -112,7 +113,7 @@ class RbacCheck:
             role_name = role_ref.name
             if _is_system_role(role_name):
                 continue
-            ns = rb.metadata.namespace or ""
+            ns = namespace_of(rb) or ""
             try:
                 if role_ref.kind == "ClusterRole":
                     role_obj = cluster_roles.get(role_name)
@@ -127,7 +128,7 @@ class RbacCheck:
                             {
                                 "type": "wildcard_verbs_ns",
                                 "namespace": ns,
-                                "binding": rb.metadata.name,
+                                "binding": name_of(rb),
                                 "role": role_name,
                                 "remediation": (
                                     f"Replace wildcard verbs in Role '{role_name}' (ns: {ns}) "
@@ -148,15 +149,15 @@ class RbacCheck:
 
         for sa in service_accounts:
             if sa.automount_service_account_token is True:
-                if sa.metadata.name == "default":
+                if name_of(sa) == "default":
                     issues.append(
                         {
                             "type": "automount_token",
-                            "namespace": sa.metadata.namespace,
-                            "service_account": sa.metadata.name,
+                            "namespace": namespace_of(sa),
+                            "service_account": name_of(sa),
                             "remediation": (
                                 f"Set automountServiceAccountToken: false on the 'default' "
-                                f"ServiceAccount in namespace '{sa.metadata.namespace}'."
+                                f"ServiceAccount in namespace '{namespace_of(sa)}'."
                             ),
                         }
                     )

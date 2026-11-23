@@ -1,254 +1,102 @@
-# Web-Check CLI
+# web-check CLI
 
-A command-line interface for Web-Check security scanning toolkit. This is a self-hosted, CLI-only tool for performing security assessments on web applications.
+`web-check` is the command-line client of the web-check API: it starts scans on a
+running API and shows their results. For a standalone scanner that needs no API,
+see [my-check](docs/my-check.md).
 
 ## Installation
 
-```bash
-# Install with dependencies
-uv sync --all-extras --dev
-
-# Or using pip
-pip install -e .
+```sh
+make install          # uv sync --all-groups
+uv run web-check --help
 ```
 
-## Quick Start
+## Connecting to the API
 
-### 1. Check CLI Configuration
+The CLI talks to `http://localhost:8000` by default. Start the API first
+(`make start`), then check the connection:
 
-```bash
-web-check config show
-```
-
-### 2. Verify API Connection
-
-```bash
+```sh
+web-check health
 web-check config validate
 ```
 
-This assumes the API is running locally on `http://localhost:8000`. You can customize this with environment variables:
+When the API has `API_KEY` set, give the CLI the same value. Settings are read from
+the environment or from a `.env` file in the working directory:
 
-```bash
-export WEB_CHECK_CLI_API_URL=http://your-api:8000
-web-check config validate
-```
+| Variable                    | Default                 | Description                                           |
+| --------------------------- | ----------------------- | ----------------------------------------------------- |
+| `WEB_CHECK_CLI_API_URL`     | `http://localhost:8000` | API base URL (must match `API_PORT`)                  |
+| `WEB_CHECK_CLI_API_KEY`     | *(empty)*               | Sent as `X-API-Key`; must match the API's `API_KEY`   |
+| `WEB_CHECK_CLI_API_TIMEOUT` | `600`                   | Request timeout in seconds; a scan waits at least its own `--timeout` plus 30 s |
+| `ALLOWED_DOMAINS`           | *(empty)*               | Shared with the API: the domains `check`, `guide` and `domains list` offer       |
 
-### 3. Run a Scan
-
-```bash
-# Quick vulnerability scan
-web-check scan quick https://example.com
-
-# Nuclei vulnerability scan
-web-check scan nuclei https://example.com
-
-# Nikto web server scan
-web-check scan nikto https://example.com
-
-# SSL/TLS assessment
-web-check scan ssl https://example.com
-```
-
-### 4. View Results
-
-```bash
-# List recent scans
-web-check results list
-
-# View specific scan
-web-check results show <scan-id>
-
-# Clear all results
-web-check results clear
-```
+`web-check config show` prints the settings in use.
 
 ## Commands
 
-### Scan Operations
+Running `web-check` with no command opens the interactive guide (`web-check guide`).
 
-```bash
-web-check scan nuclei <URL>    # Run Nuclei vulnerability scan
-web-check scan nikto <URL>     # Run Nikto web server scan
-web-check scan quick <URL>     # Run quick security scan
-web-check scan ssl <URL>       # Run SSL/TLS assessment
-```
+| Command                         | What it does                                                                |
+| ------------------------------- | --------------------------------------------------------------------------- |
+| `web-check check [domain]`      | Complete check: DNS, DNS records, headers, SSL/TLS, Nuclei, Nikto, in order |
+| `web-check scan quick <url>`    | DNS and reachability                                                        |
+| `web-check scan nuclei <url>`   | Nuclei vulnerability and CVE templates                                      |
+| `web-check scan nikto <url>`    | Nikto web-server scan                                                       |
+| `web-check scan ssl <url>`      | SSL/TLS assessment (SSLyze)                                                 |
+| `web-check scan full <url>`     | Multi-module scan run by the API, with live progress                        |
+| `web-check results list`        | Recent scans                                                                |
+| `web-check results show <id>`   | One scan's results                                                          |
+| `web-check results clear`       | Delete all scan results from the local database                            |
+| `web-check domains list`        | The domains of `ALLOWED_DOMAINS`                                            |
+| `web-check config show`         | The CLI's settings                                                          |
+| `web-check config validate`     | Check that the API answers                                                  |
+| `web-check health`              | API health                                                                  |
 
-**Options:**
-- `--timeout` - Timeout in seconds (default: varies by scanner)
-- `--output-format` - Output format: `table` or `json` (default: table)
+Global options: `--version` / `-v` and `--debug` (JSON log output).
 
-### Results Operations
+### Options
 
-```bash
-web-check results list         # List recent scan results
-web-check results show <ID>    # Show specific result
-web-check results clear        # Clear all results
-```
+| Option            | Commands                                     | Description                                                       |
+| ----------------- | -------------------------------------------- | ----------------------------------------------------------------- |
+| `--output-format` | `check`, `scan *`, `results list/show`, `domains list` | `table` (default) or `json`                                  |
+| `--report`        | `check`, `scan *`                            | Also save a Markdown report to `outputs/`                         |
+| `--skip`          | `check`                                      | Steps to skip: `dns`, `dns_enum`, `headers`, `ssl`, `nuclei`, `nikto` |
+| `--timeout`       | `scan nuclei`, `scan nikto`                  | Seconds, 30–3600 (defaults 300 and 600)                           |
+| `--timeout`       | `scan ssl`                                   | Seconds, 60–3600 (default 300)                                    |
+| `--timeout`       | `scan full`                                  | Seconds per module, 30–3600 (default 300)                         |
+| `--modules`       | `scan full`                                  | Comma-separated: `nuclei`, `nikto`, `zap`, `testssl`, `sqlmap`, `wapiti`, `xsstrike` (default `nuclei,nikto,zap`) |
+| `--all`           | `scan full`                                  | Every module (much slower)                                        |
+| `--limit`         | `results list`                               | Number of scans (default 10)                                      |
+| `--status`        | `results list`                               | `success`, `error` or `timeout`                                   |
+| `--confirm`       | `results clear`                              | Skip the confirmation prompt                                      |
 
-**Options:**
-- `--limit` - Number of results to display (default: 10)
-- `--status` - Filter by status: success, error, timeout
-- `--output-format` - Output format: `table` or `json`
-
-### Configuration Operations
-
-```bash
-web-check config show          # Display current configuration
-web-check config validate      # Validate API connection
-```
-
-## Configuration
-
-Configure via environment variables:
-
-```bash
-export WEB_CHECK_CLI_API_URL=http://localhost:8000
-export WEB_CHECK_CLI_API_TIMEOUT=600
-export WEB_CHECK_CLI_OUTPUT_FORMAT=json
-export WEB_CHECK_CLI_DEBUG=false
-export WEB_CHECK_CLI_LOG_LEVEL=INFO
-```
-
-Or create a `.env` file in your working directory:
-
-```env
-WEB_CHECK_CLI_API_URL=http://localhost:8000
-WEB_CHECK_CLI_API_TIMEOUT=600
-WEB_CHECK_CLI_OUTPUT_FORMAT=table
-```
-
-## Output Formats
-
-### Table Format (Default)
-
-Human-readable table output with color highlighting:
-
-```
-✓ Scan Result (nuclei - 1523ms)
-
-Status: success
-
-Found 3 Finding(s)
-
-[red][1] CRITICAL[/red]
-  Title: SQL Injection
-  Description: Application is vulnerable to SQL injection
-  CVE: CVE-2024-1234
-  CVSS: 9.8
-```
-
-### JSON Format
-
-Complete JSON output for programmatic processing:
-
-```bash
-web-check scan nuclei https://example.com --output-format json
-```
-
-Returns full scan result including all metadata and findings.
-
-## Self-Hosted Setup
-
-The CLI is designed for self-hosted deployments:
-
-1. **Start the API locally:**
-   ```bash
-   cd /path/to/web-check
-   uv run uvicorn apps.api.main:app --host 0.0.0.0 --port 8000
-   ```
-
-2. **Or use Docker:**
-   ```bash
-   docker compose up -d api
-   ```
-
-3. **Run CLI commands:**
-   ```bash
-   web-check scan nuclei https://example.com
-   ```
+Options can follow the arguments: `web-check check example.com --report`.
 
 ## Examples
 
-### Basic Vulnerability Scan
+```sh
+# Complete check of a domain, with a Markdown report
+web-check check example.com --report
 
-```bash
-web-check scan quick https://example.com
-```
+# Full scan with every module, results as JSON (progress goes to stderr)
+web-check scan full https://example.com --all --output-format json > scan.json
 
-### Output to JSON
-
-```bash
-web-check scan nuclei https://example.com --output-format json > results.json
-```
-
-### Custom Timeout
-
-```bash
+# A longer Nikto scan
 web-check scan nikto https://example.com --timeout 900
-```
 
-### List Results with Filtering
-
-```bash
-# Show last 20 results
-web-check results list --limit 20
-
-# Show only failed scans
+# Review a scan later
 web-check results list --status error
+web-check results show <scan-id>
 ```
+
+With `--output-format json`, stdout carries only the JSON document, so it can be
+piped or redirected; `--report` still writes the Markdown report.
 
 ## Troubleshooting
 
-### API Connection Refused
-
-Ensure the API is running:
-```bash
-web-check config validate
-```
-
-### Change API URL
-
-```bash
-export WEB_CHECK_CLI_API_URL=http://your-server:8000
-web-check config validate
-```
-
-### Enable Debug Mode
-
-```bash
-web-check --debug scan quick https://example.com
-```
-
-### Check Logs
-
-The CLI uses structured logging. View logs with:
-```bash
-web-check --debug scan quick https://example.com 2>&1 | grep -i error
-```
-
-## Development
-
-### Running Tests
-
-```bash
-uv run pytest apps/api/tests/ -v
-```
-
-### Code Quality
-
-```bash
-# Format code
-uv run ruff format apps/
-
-# Lint code
-uv run ruff check apps/
-
-# Type check
-uv run ty check apps/api
-```
-
-## Version
-
-```bash
-web-check --version
-```
+- **Connection refused:** start the API (`make start`) and check
+  `WEB_CHECK_CLI_API_URL` with `web-check config validate`.
+- **401 Invalid or missing API key:** set `WEB_CHECK_CLI_API_KEY` to the API's
+  `API_KEY`.
+- **Target not allowed:** the target must be in the API's `ALLOWED_DOMAINS`.

@@ -2,7 +2,7 @@ name: Security Scan
 
 on:
   push:
-    branches: [main, feat/new-arch]
+    branches: [main]
   pull_request:
     branches: [main]
   schedule:
@@ -18,12 +18,13 @@ jobs:
     name: Web Security Checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
         uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
-          version: "latest"
+          # Newest uv whose checksum ships with this pinned setup-uv release.
+          version: "latest-known"
 
       - name: Set up Python
         run: uv python install 3.12
@@ -31,24 +32,24 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-groups
 
+      # Failing checks are findings for code scanning, not a broken job: the scan
+      # step may fail, the SARIF upload below must not.
       - name: Run web checks
         continue-on-error: true
         run: |
-          uv run my-check web "${{ vars.SCAN_TARGET_URL || 'https://example.com' }}" \
-            --output terminal,json
+          uv run my-check web "$SCAN_TARGET_URL" --output terminal,json --sarif
         env:
-          MY_CHECK_SARIF: "true"
+          SCAN_TARGET_URL: ${{ vars.SCAN_TARGET_URL || 'https://example.com' }}
 
       - name: Upload SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
         with:
           sarif_file: outputs/my-check-results.sarif
-        continue-on-error: true
 
       - name: Upload results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: web-check-results
           path: outputs/my-check-results.*
@@ -57,12 +58,13 @@ jobs:
     name: K8s Security Checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
         uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
-          version: "latest"
+          # Newest uv whose checksum ships with this pinned setup-uv release.
+          version: "latest-known"
 
       - name: Set up Python
         run: uv python install 3.12
@@ -71,7 +73,7 @@ jobs:
         run: uv sync --all-groups
 
       - name: Create kind cluster
-        uses: helm/kind-action@v1
+        uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1.15.2
         with:
           cluster_name: my-check-test
 
@@ -80,18 +82,18 @@ jobs:
         run: |
           uv run my-check k8s \
             --context kind-my-check-test \
-            --output terminal,json
+            --output terminal,json \
+            --sarif
 
       - name: Upload SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
         with:
           sarif_file: outputs/my-check-results.sarif
-        continue-on-error: true
 
       - name: Upload results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: k8s-check-results
           path: outputs/my-check-results.*

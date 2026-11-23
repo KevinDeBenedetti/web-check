@@ -23,3 +23,4 @@ Docker-based security scanning toolkit for web applications. Orchestrates ZAP, N
 - [Architecture](./architecture.md)
 - [Development](./development.md)
 - [Configuration](./configuration.md)
+- [my-check](./my-check.md) — the standalone web and Kubernetes scanner

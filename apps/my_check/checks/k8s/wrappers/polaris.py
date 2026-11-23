@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from dataclasses import dataclass
+from typing import Any
 
 from my_check.types import (
     CheckCategory,
@@ -12,6 +14,44 @@ from my_check.types import (
     K8sContext,
     run_subprocess,
 )
+
+
+def polaris_command(ctx: K8sContext) -> list[str]:
+    """`polaris audit`: without a selection, kubectl's current context, every namespace."""
+    cmd = ["polaris", "audit", "--format", "json"]
+    if ctx.context_name:
+        cmd += ["--context", ctx.context_name]
+    if ctx.namespace:
+        cmd += ["--namespace", ctx.namespace]
+    return cmd
+
+
+def _checks(data: Any) -> Iterator[dict[str, Any]]:
+    """Every check result of a polaris audit, at controller, pod and container level.
+
+    Follows polaris's AuditData types: Results[] → Result{Results, PodResult},
+    PodResult{Results, ContainerResults[]} (a list; PodResult is null for
+    resources without pods), ContainerResult{Results}. Each Results is a map of
+    check id to {Success, Severity, ...}.
+    """
+    if not isinstance(data, dict):
+        return
+    result_sets: list[Any] = []
+    for resource in data.get("Results") or []:
+        if not isinstance(resource, dict):
+            continue
+        result_sets.append(resource.get("Results"))
+        pod = resource.get("PodResult")
+        if isinstance(pod, dict):
+            result_sets.append(pod.get("Results"))
+            result_sets += [
+                container.get("Results")
+                for container in pod.get("ContainerResults") or []
+                if isinstance(container, dict)
+            ]
+    for result_set in result_sets:
+        if isinstance(result_set, dict):
+            yield from (check for check in result_set.values() if isinstance(check, dict))
 
 
 @dataclass(slots=True)
@@ -25,9 +65,9 @@ class PolarisCheck:
             raise TypeError(f"Expected K8sContext, got {type(target).__name__}")
 
         try:
+            # polaris has no --kubeconfig flag: it reads KUBECONFIG like kubectl.
             result = await run_subprocess(
-                ["polaris", "audit", "--format", "json"],
-                timeout=120.0,
+                polaris_command(target), timeout=120.0, env=target.kubeconfig_env()
             )
         except FileNotFoundError:
             return CheckResult(
@@ -61,43 +101,16 @@ class PolarisCheck:
                 details={"raw_stdout": result.stdout[:1000]},
             )
 
-        # Polaris audit JSON has a top-level "Results" array
-        passing = 0
-        warning = 0
-        danger = 0
-
-        audit_results = data.get("Results", data.get("results", []))
-        for resource in audit_results:
-            pod_result = resource.get("PodResult", resource.get("podResult", {}))
-            container_results = {
-                **pod_result.get("ContainerResults", pod_result.get("containerResults", {})),
-            }
-            # Also check initContainerResults
-            container_results.update(
-                pod_result.get(
-                    "InitContainerResults",
-                    pod_result.get("initContainerResults", {}),
-                )
-            )
-            for _cname, checks in container_results.items():
-                if not isinstance(checks, dict):
-                    continue
-                results_map = checks.get("Results", checks.get("results", {}))
-                if not isinstance(results_map, dict):
-                    continue
-                for _check_id, check_detail in results_map.items():
-                    if not isinstance(check_detail, dict):
-                        continue
-                    severity = check_detail.get(
-                        "Severity", check_detail.get("severity", "")
-                    ).lower()
-                    success = check_detail.get("Success", check_detail.get("success"))
-                    if success:
-                        passing += 1
-                    elif severity == "danger":
-                        danger += 1
-                    else:
-                        warning += 1
+        passing = warning = danger = 0
+        for check in _checks(data):
+            severity = str(check.get("Severity", "")).lower()
+            if check.get("Success"):
+                passing += 1
+            elif severity == "danger":
+                danger += 1
+            elif severity == "warning":
+                warning += 1
+            # "ignore" (or unknown) severities are neither passing nor failing.
 
         total = passing + warning + danger
         score = int((passing / total) * 100) if total else 100

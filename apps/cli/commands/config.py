@@ -23,9 +23,6 @@ def show() -> None:
 
     table.add_row("API URL", settings.api_url)
     table.add_row("API Timeout", f"{settings.api_timeout}s")
-    table.add_row("Output Format", settings.output_format)
-    table.add_row("Debug", "Yes" if settings.debug else "No")
-    table.add_row("Log Level", settings.log_level)
 
     domains = settings.domains
     table.add_row("Allowed Domains", ", ".join(domains) if domains else "[dim]none[/dim]")
@@ -34,9 +31,7 @@ def show() -> None:
     console.print("\n[dim]Environment Variables:[/dim]")
     console.print("  WEB_CHECK_CLI_API_URL")
     console.print("  WEB_CHECK_CLI_API_TIMEOUT")
-    console.print("  WEB_CHECK_CLI_OUTPUT_FORMAT")
-    console.print("  WEB_CHECK_CLI_DEBUG")
-    console.print("  WEB_CHECK_CLI_LOG_LEVEL")
+    console.print("  WEB_CHECK_CLI_API_KEY")
 
 
 @config_app.command()

@@ -26,7 +26,7 @@ Thumbs.db
 docker-compose.override.yml
 
 # Custom wordlists (may contain sensitive paths)
-config/wordlists/custom*.txt
+apps/config/wordlists/custom*.txt
 
 # Web UI (apps/web)
 node_modules/
@@ -44,4 +44,3 @@ env/
 *.db
 *.db-*
 web-check.db
-vigil.db

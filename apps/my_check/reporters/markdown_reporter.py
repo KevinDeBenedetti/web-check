@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -40,6 +41,19 @@ def _normalize_issues(details: Any) -> list[dict[str, str]]:
     return []
 
 
+_MD_SPECIAL = re.compile(r"([\\`*_\[\]<>#|~])")
+
+
+def _md(value: object) -> str:
+    """Text the target controls, as inert Markdown: one line, markup escaped.
+
+    Messages, issue details and remediation quote what the scanned site sent
+    (header values, cookie names): they must not open a table column, start a
+    heading, embed an image or a link, or inject raw HTML into the report.
+    """
+    return _MD_SPECIAL.sub(r"\\\1", " ".join(str(value).split()))
+
+
 def _md_table(rows: list[dict[str, str]], limit: int = 20) -> str:
     if not rows:
         return ""
@@ -51,11 +65,11 @@ def _md_table(rows: list[dict[str, str]], limit: int = 20) -> str:
                 all_keys.append(k)
                 seen.add(k)
 
-    header = "| " + " | ".join(all_keys) + " |"
+    header = "| " + " | ".join(_md(k) for k in all_keys) + " |"
     sep = "| " + " | ".join("---" for _ in all_keys) + " |"
     lines = [header, sep]
     for row in rows[:limit]:
-        cells = [str(row.get(k, "")).replace("|", "\\|").replace("\n", " ") for k in all_keys]
+        cells = [_md(row.get(k, "")) for k in all_keys]
         lines.append("| " + " | ".join(cells) + " |")
     if len(rows) > limit:
         lines.append(f"\n_… and {len(rows) - limit} more issue(s)._")
@@ -88,7 +102,7 @@ class MarkdownReporter:
         lines: list[str] = [
             "# 🔒 my-check Security Report",
             "",
-            f"**Target:** `{report.target}`  ",
+            f"**Target:** {_md(report.target)}  ",
             f"**Date:** {now}  ",
             f"**Global Score:** {badge} `{score:.1f}/100`  ",
             "",
@@ -122,7 +136,7 @@ class MarkdownReporter:
                 score_cell = f"{_score_badge(result.score)} {result.score}"
                 lines.append(
                     f"| `{check_id}` | {emoji} {result.status.value} "
-                    f"| {score_cell} | {result.message} |"
+                    f"| {score_cell} | {_md(result.message)} |"
                 )
             lines.append("")
 
@@ -135,7 +149,7 @@ class MarkdownReporter:
         if report.errors:
             lines += ["## ⛔ Errors", ""]
             for check_id, err in report.errors.items():
-                lines.append(f"- **{check_id}**: {err}")
+                lines.append(f"- **{check_id}**: {_md(err)}")
             lines.append("")
 
         lines += [
@@ -158,7 +172,7 @@ class MarkdownReporter:
 
         if result.remediation:
             lines += [
-                f"> 💡 **Remediation:** {result.remediation}",
+                f"> 💡 **Remediation:** {_md(result.remediation)}",
                 "",
             ]
         return lines
