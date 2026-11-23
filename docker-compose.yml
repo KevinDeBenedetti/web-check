@@ -95,13 +95,11 @@ services:
       - scanner-net
     restart: unless-stopped
 
-  # Nikto (Web Server Scanner) — amd64 only, runs via Rosetta on Apple Silicon
+  # Nikto (Web Server Scanner) — official image, amd64 and arm64. Findings are read
+  # from its console output, so it needs no access to ./outputs.
   nikto:
-    image: alpine/nikto:2.2.0
-    platform: linux/amd64
+    image: hackllc/nikto:2.6.1
     container_name: security-scanner-nikto
-    volumes:
-      - ./outputs:/output:rw
     entrypoint: ["/bin/sh", "-c"]
     command: ["tail -f /dev/null"]
     networks:

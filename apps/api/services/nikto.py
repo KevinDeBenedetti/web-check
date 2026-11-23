@@ -3,11 +3,10 @@
 import re
 import time
 from datetime import UTC, datetime
-from pathlib import Path
 
 import structlog
 from api.models import CheckResult, Finding
-from api.services.docker_runner import docker_run, unique_output_name
+from api.services.docker_runner import docker_run
 
 logger = structlog.get_logger()
 
@@ -26,23 +25,12 @@ async def run_nikto_scan(target: str, timeout: int = 600) -> CheckResult:
     start = time.time()
     findings: list[Finding] = []
 
-    # Use shared volume mounted in docker-compose
-    output_filename = unique_output_name("nikto", "html")
-    output_file = Path("outputs") / output_filename
-
     try:
+        # Findings are parsed from the console output: no report file is written
+        # (the image runs as an unprivileged user that cannot write to ./outputs).
         result = await docker_run(
-            image="alpine/nikto:latest",
-            command=[
-                "perl",
-                "/nikto/nikto.pl",
-                "-h",
-                target,
-                "-output",
-                f"/output/{output_filename}",
-                "-Format",
-                "html",
-            ],
+            image="hackllc/nikto:2.6.1",
+            command=["/opt/nikto/nikto.pl", "-h", target, "-ask", "no"],
             timeout=timeout,
             container_name="security-scanner-nikto",
         )
@@ -109,15 +97,24 @@ async def run_nikto_scan(target: str, timeout: int = 600) -> CheckResult:
             findings=[],
             error=str(e),
         )
-    finally:
-        # Findings are parsed from the console output: the HTML report is not kept.
-        if output_file.exists():
-            output_file.unlink()
 
 
 # Lines nikto prints about the run itself, not about the target.
-_NIKTO_STATUS_PREFIXES = ("Target ", "Start Time", "End Time", "---", "ERROR:", "Scan terminated")
-_NIKTO_SUMMARY_RE = re.compile(r"^\d+ (host\(s\) tested|requests?:)")
+_NIKTO_STATUS_PREFIXES = (
+    "Target ",
+    "Start Time",
+    "End Time",
+    "---",
+    "ERROR:",
+    "WARNING:",
+    "Scan terminated",
+    "Platform:",
+    "Message:",
+    "Virtual Host:",
+    "Using Encoding:",
+    "Using Mutation:",
+)
+_NIKTO_SUMMARY_RE = re.compile(r"^\d+ (host\(s\) tested|requests? made)")
 
 
 def _parse_nikto_output(output: str) -> list[Finding]:

@@ -33,7 +33,7 @@ SCANNER_SERVICES: tuple[ScannerService, ...] = (
         "projectdiscovery/nuclei",
     ),
     ScannerService(
-        "nikto", "Nikto", "Web server configuration", "security-scanner-nikto", "alpine/nikto"
+        "nikto", "Nikto", "Web server configuration", "security-scanner-nikto", "hackllc/nikto"
     ),
     ScannerService(
         "ffuf",
