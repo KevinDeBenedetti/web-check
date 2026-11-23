@@ -1,8 +1,7 @@
 """Security-focused scan endpoints."""
 
-from datetime import UTC
-
 from api.models import CheckResult
+from api.services.ffuf_scanner import run_ffuf_scan
 from api.utils.security import target_url, validate_wordlist
 from fastapi import APIRouter, Depends, Query
 
@@ -20,144 +19,12 @@ async def security_ffuf_scan(
     """
     Run FFUF directory/file fuzzing scan.
 
-    Discovers hidden directories, files, and endpoints.
+    Discovers hidden directories, files, and endpoints, reported as informational
+    findings. Needs the ffuf container (`docker compose --profile tools up -d`).
     Average duration: 5-15 minutes depending on wordlist size.
     """
-    import time
-    from datetime import datetime
-
-    from api.services.docker_runner import docker_run, unique_output_name
-
-    start = time.time()
-
-    wordlist = validate_wordlist(wordlist)
-
-    try:
-        result = await docker_run(
-            image="secsi/ffuf:latest",
-            command=[
-                "ffuf",
-                "-u",
-                f"{url}/FUZZ",
-                "-w",
-                f"/wordlists/{wordlist}",
-                "-o",
-                f"/output/{unique_output_name('ffuf', 'json')}",
-                "-of",
-                "json",
-                "-mc",
-                "200,204,301,302,307,401,403",
-            ],
-            timeout=timeout,
-            container_name="security-scanner-ffuf",
-        )
-
-        if result["timeout"]:
-            return CheckResult(
-                module="ffuf",
-                category="security",
-                target=url,
-                timestamp=datetime.now(UTC),
-                duration_ms=int((time.time() - start) * 1000),
-                status="timeout",
-                data=None,
-                findings=[],
-                error="Scan timed out",
-            )
-
-        return CheckResult(
-            module="ffuf",
-            category="security",
-            target=url,
-            timestamp=datetime.now(UTC),
-            duration_ms=int((time.time() - start) * 1000),
-            status="success",
-            data={"wordlist": wordlist},
-            findings=[],
-            error=None,
-        )
-
-    except Exception as e:
-        return CheckResult(
-            module="ffuf",
-            category="security",
-            target=url,
-            timestamp=datetime.now(UTC),
-            duration_ms=int((time.time() - start) * 1000),
-            status="error",
-            data=None,
-            findings=[],
-            error=str(e),
-        )
+    return await run_ffuf_scan(url, validate_wordlist(wordlist), timeout)
 
 
-@router.get("/sqlmap", response_model=CheckResult)
-async def security_sqlmap_scan(
-    url: str = Depends(target_url),
-    timeout: int = Query(900, ge=300, le=3600, description="Timeout in seconds"),
-) -> CheckResult:
-    """
-    Run SQLMap SQL injection testing.
-
-    Automatically detects and exploits SQL injection vulnerabilities.
-    Average duration: 10-20 minutes.
-    """
-    import time
-    from datetime import datetime
-
-    from api.services.docker_runner import docker_run
-
-    start = time.time()
-
-    try:
-        result = await docker_run(
-            image="googlesky/sqlmap:latest",
-            command=[
-                "sqlmap",
-                "-u",
-                url,
-                "--batch",
-                "--random-agent",
-                "--output-dir=/output",
-            ],
-            timeout=timeout,
-            container_name="security-scanner-sqlmap",
-        )
-
-        if result["timeout"]:
-            return CheckResult(
-                module="sqlmap",
-                category="security",
-                target=url,
-                timestamp=datetime.now(UTC),
-                duration_ms=int((time.time() - start) * 1000),
-                status="timeout",
-                data=None,
-                findings=[],
-                error="Scan timed out",
-            )
-
-        return CheckResult(
-            module="sqlmap",
-            category="security",
-            target=url,
-            timestamp=datetime.now(UTC),
-            duration_ms=int((time.time() - start) * 1000),
-            status="success",
-            data={"scan_completed": True},
-            findings=[],
-            error=None,
-        )
-
-    except Exception as e:
-        return CheckResult(
-            module="sqlmap",
-            category="security",
-            target=url,
-            timestamp=datetime.now(UTC),
-            duration_ms=int((time.time() - start) * 1000),
-            status="error",
-            data=None,
-            findings=[],
-            error=str(e),
-        )
+# SQL injection testing lives at /api/advanced/sqlmap (sqlmap runs inside the API
+# container); the former /api/security/sqlmap called a container that never existed.

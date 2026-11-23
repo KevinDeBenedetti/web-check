@@ -58,7 +58,8 @@ export interface ScanSummary {
   target: string;
   status: ScanStatus;
   started_at: string;
-  score: number;
+  /** null while no module has succeeded: nothing was actually scanned. */
+  score: number | null;
   severity_counts: SeverityCounts;
 }
 
@@ -70,7 +71,7 @@ export interface ScanFindings {
 export interface ScanComparison {
   base: ScanSummary;
   head: ScanSummary;
-  score_delta: number;
+  score_delta: number | null;
   new: AggregatedFinding[];
   fixed: AggregatedFinding[];
   unchanged: AggregatedFinding[];

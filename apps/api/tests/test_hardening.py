@@ -397,3 +397,39 @@ def test_stored_timestamps_are_read_back_as_utc() -> None:
     value = column.process_result_value(datetime(2026, 11, 18, 12, 0), sqlite.dialect())
     assert value is not None and value.utcoffset() is not None
     assert value.isoformat() == "2026-11-18T12:00:00+00:00"
+
+
+# ---------------------------------------------------------------------------
+# ZAP: a hung daemon cannot keep a scan running forever
+# ---------------------------------------------------------------------------
+
+
+async def test_zap_scan_has_a_hard_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
+    import threading
+    from types import SimpleNamespace
+
+    from api.services import zap_native
+
+    release = threading.Event()
+    calls: list[str] = []
+
+    def hung_urlopen(target: str, **kwargs) -> None:
+        release.wait(10)  # a ZAP daemon that never answers
+
+    zap = SimpleNamespace(
+        urlopen=hung_urlopen,
+        spider=SimpleNamespace(scan=lambda target: calls.append("spider") or "1"),
+        ascan=SimpleNamespace(scan=lambda target: calls.append("ascan") or "2"),
+    )
+    monkeypatch.setattr(zap_native, "_get_zap_client", lambda: zap)
+    monkeypatch.setattr(zap_native, "DEADLINE_MARGIN", 0.2)
+
+    started = time.monotonic()
+    result = await run_zap_scan("https://example.com", timeout=1)
+    elapsed = time.monotonic() - started
+    release.set()  # the daemon answers late: the abandoned thread must not start a scan
+    await asyncio.sleep(0.2)
+
+    assert result.status == "timeout"
+    assert elapsed < 3
+    assert calls == []

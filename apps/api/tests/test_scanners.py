@@ -1,5 +1,7 @@
 """Tests for security scanner endpoints."""
 
+import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -249,3 +251,12 @@ def test_nikto_parser_skips_run_status_lines() -> None:
 
     assert len(findings) == 1
     assert "X-Content-Type-Options" in findings[0].description
+
+
+def test_wapiti_executable_is_installed() -> None:
+    """The wapiti module runs the `wapiti` executable: it must ship with the project."""
+    import shutil
+    from importlib.metadata import entry_points
+
+    assert entry_points(group="console_scripts", name="wapiti"), "wapiti3 is not installed"
+    assert shutil.which("wapiti") or shutil.which("wapiti", path=str(Path(sys.executable).parent))

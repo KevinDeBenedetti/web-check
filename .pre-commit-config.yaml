@@ -55,7 +55,8 @@ default_language_version:
 default_stages: [pre-commit]
 
 files: ''
-exclude: '(^|/)__pycache__/|^\.venv/|^outputs/|^apps/alembic/versions/'
+# Test fixtures are real tool output, kept byte for byte (carriage returns, trailing spaces).
+exclude: '(^|/)__pycache__/|^\.venv/|^outputs/|^apps/alembic/versions/|^apps/api/tests/fixtures/'
 
 fail_fast: false
 minimum_prek_version: '0.2.23'

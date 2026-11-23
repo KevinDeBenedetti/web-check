@@ -41,15 +41,17 @@ function previousScan(scans: ScanResponse[] | undefined, scan: ScanResponse) {
 }
 
 function Summary({ scan, previous }: { scan: ScanResponse; previous: ScanResponse | undefined }) {
-  const score = scan.score ?? 0;
-  const delta = previous?.score != null ? score - previous.score : undefined;
+  const score = scan.score;
+  const delta = score !== null && previous?.score != null ? score - previous.score : undefined;
   return (
     <section className="card summary-card" aria-label="Synthèse">
       <div className="summary-card__score">
-        <ScoreRing score={score} />
+        {score !== null && <ScoreRing score={score} />}
         <div className="stack-xs">
           <span className="muted small">Score global</span>
-          <span className="strong large">{SCORE_BAND_LABELS[scoreBand(score)]}</span>
+          <span className="strong large">
+            {score !== null ? SCORE_BAND_LABELS[scoreBand(score)] : "Aucun module n’a abouti"}
+          </span>
           {delta !== undefined && previous && (
             <span className={delta >= 0 ? "small delta delta--up" : "small delta delta--down"}>
               {delta >= 0 ? "+" : ""}

@@ -161,7 +161,6 @@ SCAN_ENDPOINTS = [
     "/api/deep/zap",
     "/api/deep/sslyze",
     "/api/security/ffuf",
-    "/api/security/sqlmap",
     "/api/advanced/sqlmap",
     "/api/advanced/wapiti",
     "/api/advanced/xsstrike",

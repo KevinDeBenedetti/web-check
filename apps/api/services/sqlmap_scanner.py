@@ -1,14 +1,82 @@
 """SQLMap scanning service for SQL injection detection."""
 
+import re
 import time
 from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
 from api.models import CheckResult, Finding
-from api.services.docker_runner import run_process, unique_output_name, write_private_file
+from api.services.docker_runner import (
+    exit_code_error,
+    run_process,
+    unique_output_name,
+    write_private_file,
+)
 
 logger = structlog.get_logger()
+
+_SQLI_REFERENCE = "https://owasp.org/www-community/attacks/SQL_Injection"
+# sqlmap's summary of what it confirmed, printed once per run:
+#   sqlmap identified the following injection point(s) with a total of 53 HTTP(s) requests:
+#   ---
+#   Parameter: id (GET)
+#       Type: boolean-based blind
+#       Title: AND boolean-based blind - WHERE or HAVING clause
+#       Payload: id=1 AND 3784=3784
+#   ---
+_INJECTION_SUMMARY = re.compile(
+    r"sqlmap identified the following injection point\(s\)[^\n]*\n---\n(.*?)\n---", re.S
+)
+_PARAMETER = re.compile(r"^Parameter: (?P<name>.+?) \((?P<place>[^)]+)\)\s*$")
+_FIELD = re.compile(r"^\s+(?P<key>Type|Title|Payload): (?P<value>.*)$")
+_DBMS = re.compile(r"^back-end DBMS: (.+)$", re.M)
+
+
+def parse_sqlmap_output(stdout: str) -> list[Finding]:
+    """One critical finding per parameter in sqlmap's injection-point summary.
+
+    A clean run has no summary ("all tested parameters do not appear to be
+    injectable" is only a log line), so it yields no finding.
+    """
+    summary = _INJECTION_SUMMARY.search(stdout.replace("\r\n", "\n"))
+    if not summary:
+        return []
+    dbms = _DBMS.search(stdout)
+
+    parameters: list[tuple[str, str, list[dict[str, str]]]] = []
+    for line in summary.group(1).splitlines():
+        if match := _PARAMETER.match(line):
+            parameters.append((match["name"], match["place"], []))
+        elif (match := _FIELD.match(line)) and parameters:
+            techniques = parameters[-1][2]
+            if match["key"] == "Type" or not techniques:
+                techniques.append({})
+            techniques[-1][match["key"]] = match["value"].strip()
+
+    findings: list[Finding] = []
+    for name, place, techniques in parameters:
+        lines = [f"sqlmap confirmed SQL injection in the {place} parameter '{name}'."]
+        if dbms:
+            lines.append(f"Back-end DBMS: {dbms.group(1).strip()}")
+        for technique in techniques:
+            lines.append(
+                f"- {technique.get('Type', 'unknown')}: {technique.get('Title', '')}".rstrip(": ")
+            )
+            if payload := technique.get("Payload"):
+                lines.append(f"  Payload: {payload}")
+        findings.append(
+            Finding(
+                severity="critical",
+                title=f"SQL injection in {place} parameter '{name}'",
+                description="\n".join(lines),
+                reference=_SQLI_REFERENCE,
+                cvss_score=9.8,
+                remediation="Use parameterised queries (prepared statements) for every value "
+                "that reaches the database; never build SQL by string concatenation.",
+            )
+        )
+    return findings
 
 
 async def run_sqlmap_scan(
@@ -68,39 +136,25 @@ async def run_sqlmap_scan(
                 findings=[],
                 error="Scan timed out",
             )
+        if error := exit_code_error(result, "sqlmap"):
+            return CheckResult(
+                module="sqlmap",
+                category="security",
+                target=target,
+                timestamp=datetime.now(UTC),
+                duration_ms=int((time.time() - start) * 1000),
+                status="error",
+                data=None,
+                findings=[],
+                error=error,
+            )
+
         stdout: str = result["stdout"]
 
         # Keep the raw output for manual inspection; it may quote data from the target.
         write_private_file(output_file, stdout)
 
-        # Parse output
-        if "sqlmap identified the following injection" in stdout.lower():
-            findings.append(
-                Finding(
-                    severity="critical",
-                    title="SQL Injection Vulnerability Detected",
-                    description="SQLMap detected SQL injection vulnerabilities in the target application.",
-                    reference="https://owasp.org/www-community/attacks/SQL_Injection",
-                    cve=None,
-                    cvss_score=9.8,
-                )
-            )
-
-        if "parameter" in stdout.lower() and "injectable" in stdout.lower():
-            # Extract injectable parameters
-            lines = stdout.split("\n")
-            for line in lines:
-                if "Parameter:" in line and "is vulnerable" in line.lower():
-                    findings.append(
-                        Finding(
-                            severity="high",
-                            title="Injectable Parameter Found",
-                            description=line.strip(),
-                            reference="https://owasp.org/www-community/attacks/SQL_Injection",
-                            cve=None,
-                            cvss_score=8.5,
-                        )
-                    )
+        findings = parse_sqlmap_output(stdout)
 
         logger.info(
             "sqlmap_scan_completed",

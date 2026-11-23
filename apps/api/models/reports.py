@@ -28,7 +28,8 @@ class ScanSummary(BaseModel):
     target: str
     status: ScanStatus
     started_at: datetime
-    score: int = Field(..., ge=0, le=100)
+    # None while no module has succeeded (nothing was actually scanned).
+    score: int | None = Field(..., ge=0, le=100)
     severity_counts: dict[str, int]
 
 
@@ -44,7 +45,7 @@ class ScanComparison(BaseModel):
 
     base: ScanSummary
     head: ScanSummary
-    score_delta: int
+    score_delta: int | None = Field(..., description="None when either scan has no score")
     new: list[AggregatedFinding] = Field(default_factory=list)
     fixed: list[AggregatedFinding] = Field(default_factory=list)
     unchanged: list[AggregatedFinding] = Field(default_factory=list)

@@ -28,6 +28,8 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "questionary>=2.1.1",
     "urllib3>=2.7.0",
+    # Provides the `wapiti` executable run by the wapiti module (api.services.wapiti_scanner).
+    "wapiti3>=3.3.5",
 ]
 
 [project.scripts]

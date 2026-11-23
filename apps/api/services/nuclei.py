@@ -8,7 +8,12 @@ from typing import Any
 
 import structlog
 from api.models import CheckResult, Finding
-from api.services.docker_runner import docker_run, load_jsonl_output, unique_output_name
+from api.services.docker_runner import (
+    docker_run,
+    exit_code_error,
+    load_jsonl_output,
+    unique_output_name,
+)
 
 logger = structlog.get_logger()
 
@@ -76,8 +81,21 @@ async def run_nuclei_scan(target: str, timeout: int = 300) -> CheckResult:
                 error=f"Docker exec failed: {result['stderr']}",
             )
 
+        if error := exit_code_error(result, "nuclei"):
+            return CheckResult(
+                module="nuclei",
+                category="quick",
+                target=target,
+                timestamp=datetime.now(UTC),
+                duration_ms=int((time.time() - start) * 1000),
+                status="error",
+                data=None,
+                findings=[],
+                error=error,
+            )
+
         # Parse JSONL output
-        data = await load_jsonl_output(output_file)
+        data = await load_jsonl_output(output_file, tool="nuclei")
         if data:
             findings = _parse_nuclei_output(data)
             logger.info(

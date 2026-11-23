@@ -137,6 +137,24 @@ async def test_compare_scans(
 
 
 @pytest.mark.asyncio
+async def test_scan_without_a_successful_module_has_no_score(
+    session_maker: async_sessionmaker[AsyncSession], client: AsyncClient
+) -> None:
+    # Nothing was actually scanned: an empty findings list must not read as 100/100.
+    await _store_scan(session_maker, "failed", [_result("zap", [], status="error")])
+    await _store_scan(session_maker, "ok", [_result("headers", ["a"])])
+
+    assert (await client.get("/api/scans/failed")).json()["score"] is None
+    assert (await client.get("/api/scans/failed/findings")).json()["summary"]["score"] is None
+    listed = {scan["scan_id"]: scan["score"] for scan in (await client.get("/api/scans")).json()}
+    assert listed["failed"] is None and listed["ok"] == 96
+
+    comparison = (await client.get("/api/scans/failed/compare/ok")).json()
+    assert comparison["base"]["score"] is None
+    assert comparison["score_delta"] is None
+
+
+@pytest.mark.asyncio
 async def test_compare_unknown_scan_returns_404(
     session_maker: async_sessionmaker[AsyncSession], client: AsyncClient
 ) -> None:

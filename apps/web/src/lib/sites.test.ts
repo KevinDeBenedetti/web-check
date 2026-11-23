@@ -24,6 +24,14 @@ describe("groupScansBySite", () => {
     expect(site?.scores).toEqual([60, 80]);
     expect(site?.scanCount).toBe(3);
   });
+
+  it("leaves scans without a score out of the score history", () => {
+    const [site] = groupScansBySite([
+      makeScan({ scan_id: "2", score: null, status: "error", started_at: "2026-10-25T10:00:00Z" }),
+      makeScan({ scan_id: "1", score: 60, started_at: "2026-10-24T10:00:00Z" }),
+    ]);
+    expect(site?.scores).toEqual([60]);
+  });
 });
 
 describe("recurringFindings", () => {

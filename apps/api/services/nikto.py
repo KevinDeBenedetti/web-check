@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 import structlog
 from api.models import CheckResult, Finding
-from api.services.docker_runner import docker_run
+from api.services.docker_runner import docker_run, exit_code_error
 
 logger = structlog.get_logger()
 
@@ -59,6 +59,19 @@ async def run_nikto_scan(target: str, timeout: int = 600) -> CheckResult:
                 data=None,
                 findings=[],
                 error=f"Docker exec failed: {result['stderr']}",
+            )
+
+        if error := exit_code_error(result, "nikto"):
+            return CheckResult(
+                module="nikto",
+                category="quick",
+                target=target,
+                timestamp=datetime.now(UTC),
+                duration_ms=int((time.time() - start) * 1000),
+                status="error",
+                data=None,
+                findings=[],
+                error=error,
             )
 
         # Parse Nikto output from stderr/stdout
