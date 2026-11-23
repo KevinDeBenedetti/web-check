@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from kubernetes import client
 from my_check.checks.k8s import _load_client
+from my_check.checks.k8s._model import containers_of, name_of, namespace_of
 from my_check.types import (
     CheckCategory,
     CheckResult,
@@ -61,7 +62,7 @@ class ImagesCheck:
         versioned = 0
 
         for pod in pods:
-            containers = (pod.spec.containers or []) + (pod.spec.init_containers or [])
+            containers = containers_of(pod)
             for container in containers:
                 image = container.image or ""
                 total_images += 1
@@ -73,8 +74,8 @@ class ImagesCheck:
                     versioned += 1
                     warning_issues.append(
                         {
-                            "namespace": pod.metadata.namespace,
-                            "pod": pod.metadata.name,
+                            "namespace": namespace_of(pod),
+                            "pod": name_of(pod),
                             "container": container.name,
                             "image": image,
                             "severity": "low",
@@ -84,8 +85,8 @@ class ImagesCheck:
                 else:
                     critical_issues.append(
                         {
-                            "namespace": pod.metadata.namespace,
-                            "pod": pod.metadata.name,
+                            "namespace": namespace_of(pod),
+                            "pod": name_of(pod),
                             "container": container.name,
                             "image": image,
                             "severity": "high",

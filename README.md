@@ -1,6 +1,6 @@
 # web-check
 
-[![CI/CD](https://github.com/KevinDeBenedetti/web-check/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/KevinDeBenedetti/web-check/actions/workflows/ci-cd.yml)
+[![CI/CD](https://img.shields.io/github/actions/workflow/status/KevinDeBenedetti/web-check/ci-cd.yml?style=for-the-badge&label=CI%2FCD)](https://github.com/KevinDeBenedetti/web-check/actions/workflows/ci-cd.yml) [![Release](https://img.shields.io/github/v/release/KevinDeBenedetti/web-check?style=for-the-badge)](https://github.com/KevinDeBenedetti/web-check/releases) [![License](https://img.shields.io/github/license/KevinDeBenedetti/web-check?style=for-the-badge)](LICENSE)
 
 > Docker-based security scanning toolkit with a local web UI, a FastAPI REST API and an interactive CLI (`my-check`) for web and Kubernetes infrastructure security checks.
 
@@ -14,7 +14,7 @@
 - Interactive CLI wizard (`my-check`) for web and Kubernetes security scans
 - Scan history and result management with SQLite
 - SARIF 2.1 output for GitHub Code Scanning integration
-- Multiple output formats: terminal, JSON, HTML, webhook
+- Multiple output formats: terminal, JSON, Markdown, HTML, webhook
 - Optional scanner sidecars via Docker Compose profiles (e.g. FFUF)
 
 ## Prerequisites
@@ -61,3 +61,7 @@ uv run my-check k8s --context my-cluster
 
 Full documentation is available at **https://kevindebenedetti.github.io/web-check/**.
 It is generated from the `docs/` directory and published automatically on push.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

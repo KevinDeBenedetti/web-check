@@ -5,8 +5,12 @@ from __future__ import annotations
 from my_check.types import Check
 
 
-def get_web_checks() -> list[Check]:
-    """Return all web check instances."""
+def get_web_checks(ports: list[int] | None = None) -> list[Check]:
+    """Return all web check instances.
+
+    *ports* is the `web.ports` setting: the TCP ports web-ports probes (None keeps
+    the check's own list, which includes the database and remote-access ports).
+    """
     from my_check.checks.web.cookies import CookieSecurityCheck
     from my_check.checks.web.cors import CorsCheck
     from my_check.checks.web.csp import CspCheck
@@ -24,7 +28,7 @@ def get_web_checks() -> list[Check]:
         CorsCheck(),
         CookieSecurityCheck(),
         DnsCheck(),
-        PortsCheck(),
+        PortsCheck(ports=list(ports)) if ports else PortsCheck(),
         RedirectsCheck(),
         SubdomainTakeoverCheck(),
     ]
@@ -59,6 +63,6 @@ def get_k8s_checks() -> list[Check]:
     ]
 
 
-def get_all_checks() -> list[Check]:
-    """Return every registered check."""
-    return get_web_checks() + get_k8s_checks()
+def get_all_checks(ports: list[int] | None = None) -> list[Check]:
+    """Return every registered check (*ports*: see get_web_checks)."""
+    return get_web_checks(ports) + get_k8s_checks()

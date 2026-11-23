@@ -1,10 +1,10 @@
 # Dockerfile for Web-Check API (serves the web UI under /ui)
-# Pinned base images — bumped by Dependabot (docker ecosystem).
+# Base images pinned by tag and digest — Dependabot (docker ecosystem) bumps both.
 
 # ── Web UI build ────────────────────────────────────────────────────────────
 # Node LTS majors are switched by hand, together with node-version in
 # .github/workflows/ci-cd.yml (the CI builds the UI too): Dependabot ignores them.
-FROM node:26-bookworm-slim AS web-build
+FROM node:26-bookworm-slim@sha256:5df79989ed685e09f0a98019db4cebfb22fb9df1a53c0161664a011f7ff6b0f1 AS web-build
 
 WORKDIR /web
 
@@ -15,7 +15,7 @@ COPY apps/web/ ./
 RUN npm run build
 
 # ── API ─────────────────────────────────────────────────────────────────────
-FROM ghcr.io/astral-sh/uv:0.13.9-python3.12-trixie-slim
+FROM ghcr.io/astral-sh/uv:0.13.9-python3.12-trixie-slim@sha256:b12436aceed37b21524b327362bd67e73a284b5d52f4f6be0e047dd8e4c4eb90
 
 # XSStrike has no package release on PyPI: pin the git tag and its commit.
 ARG XSSTRIKE_REF=3.1.6

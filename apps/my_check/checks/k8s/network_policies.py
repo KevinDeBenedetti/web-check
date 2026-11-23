@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from kubernetes import client
 from my_check.checks.k8s import _load_client
+from my_check.checks.k8s._model import name_of
 from my_check.types import (
     CheckCategory,
     CheckResult,
@@ -37,9 +38,7 @@ class NetworkPoliciesCheck:
         else:
             ns_list = core.list_namespace()
             namespaces = [
-                ns.metadata.name
-                for ns in ns_list.items
-                if ns.metadata.name not in EXCLUDED_NAMESPACES
+                name_of(ns) for ns in ns_list.items if name_of(ns) not in EXCLUDED_NAMESPACES
             ]
 
         if not namespaces:
@@ -102,7 +101,7 @@ class NetworkPoliciesCheck:
                                 admin_exposure.append(
                                     {
                                         "namespace": ns,
-                                        "ingress": ing.metadata.name,
+                                        "ingress": name_of(ing),
                                         "host": rule.host or "*",
                                         "path": path,
                                     }

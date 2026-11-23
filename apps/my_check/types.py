@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Protocol, runtime_checkable
@@ -46,6 +47,10 @@ class K8sContext:
     context_name: str | None = None
     kubeconfig_path: str | None = None
     namespace: str | None = None
+
+    def kubeconfig_env(self) -> dict[str, str] | None:
+        """KUBECONFIG for tools that take no --kubeconfig flag (polaris, kube-bench)."""
+        return {"KUBECONFIG": self.kubeconfig_path} if self.kubeconfig_path else None
 
 
 @runtime_checkable
@@ -117,12 +122,17 @@ async def run_subprocess(
     cmd: list[str],
     *,
     timeout: float = 120.0,
+    env: dict[str, str] | None = None,
 ) -> SubprocessResult:
-    """Run *cmd* asynchronously with a timeout. Returns SubprocessResult."""
+    """Run *cmd* asynchronously with a timeout. Returns SubprocessResult.
+
+    *env* adds variables to the inherited environment (it does not replace it).
+    """
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        env={**os.environ, **env} if env else None,
     )
     try:
         stdout_bytes, stderr_bytes = await asyncio.wait_for(

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from dataclasses import dataclass
+from typing import Any
 
 from my_check.types import (
     CheckCategory,
@@ -12,6 +14,42 @@ from my_check.types import (
     K8sContext,
     run_subprocess,
 )
+
+
+def trivy_command(ctx: K8sContext) -> list[str]:
+    """`trivy k8s [flags] [CONTEXT]`: without a selection, kubectl's current context."""
+    cmd = ["trivy", "k8s", "--format", "json", "--report", "summary"]
+    if ctx.kubeconfig_path:
+        cmd += ["--kubeconfig", ctx.kubeconfig_path]
+    if ctx.namespace:
+        cmd += ["--include-namespaces", ctx.namespace]
+    if ctx.context_name:
+        cmd.append(ctx.context_name)
+    return cmd
+
+
+def _vulnerabilities(data: Any) -> Iterator[dict[str, Any]]:
+    """Every vulnerability of a trivy Kubernetes report.
+
+    The report lists resources under "Vulnerabilities" (or "Resources" in newer
+    versions), each with its own "Results"; an image report has "Results" at the
+    top level.
+    """
+    if not isinstance(data, dict):
+        return
+    resources = [
+        resource
+        for key in ("Vulnerabilities", "Resources")
+        for resource in data.get(key) or []
+        if isinstance(resource, dict)
+    ]
+    results = [r for resource in resources for r in resource.get("Results") or []]
+    results += data.get("Results") or []
+    for result in results:
+        if isinstance(result, dict):
+            for vuln in result.get("Vulnerabilities") or []:
+                if isinstance(vuln, dict):
+                    yield vuln
 
 
 @dataclass(slots=True)
@@ -25,10 +63,7 @@ class TrivyCheck:
             raise TypeError(f"Expected K8sContext, got {type(target).__name__}")
 
         try:
-            result = await run_subprocess(
-                ["trivy", "k8s", "--format", "json", "--report", "summary"],
-                timeout=120.0,
-            )
+            result = await run_subprocess(trivy_command(target), timeout=120.0)
         except FileNotFoundError:
             return CheckResult(
                 status=CheckStatus.INFO,
@@ -69,15 +104,9 @@ class TrivyCheck:
             "UNKNOWN": 0,
         }
 
-        # Trivy k8s JSON may have a ClusterComplianceReport or Results array
-        results = data.get("Results", data.get("results", []))
-        if isinstance(results, list):
-            for entry in results:
-                vulns = entry.get("Vulnerabilities", entry.get("vulnerabilities", []))
-                if isinstance(vulns, list):
-                    for vuln in vulns:
-                        sev = vuln.get("Severity", vuln.get("severity", "UNKNOWN")).upper()
-                        severity_counts[sev] = severity_counts.get(sev, 0) + 1
+        for vuln in _vulnerabilities(data):
+            sev = str(vuln.get("Severity", "UNKNOWN")).upper()
+            severity_counts[sev] = severity_counts.get(sev, 0) + 1
 
         critical = severity_counts["CRITICAL"]
         high = severity_counts["HIGH"]

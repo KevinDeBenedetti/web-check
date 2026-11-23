@@ -26,7 +26,7 @@ class RedirectsCheck:
         if not isinstance(target, str):
             raise TypeError(f"Expected str URL, got {type(target).__name__}")
 
-        chain: list[dict[str, str | int]] = []
+        chain: list[dict[str, str | int | None]] = []
         current_url = target
         has_upgrade = False
         has_downgrade = False

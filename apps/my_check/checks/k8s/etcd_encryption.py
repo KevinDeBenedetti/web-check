@@ -14,6 +14,7 @@ from dataclasses import dataclass
 
 from kubernetes import client
 from my_check.checks.k8s import _load_client
+from my_check.checks.k8s._model import containers_of, name_of
 from my_check.types import (
     CheckCategory,
     CheckResult,
@@ -53,7 +54,7 @@ class EtcdEncryptionCheck:
                 ).items
 
             for pod in api_server_pods:
-                for container in pod.spec.containers or []:
+                for container in containers_of(pod, init=False):
                     args = container.command or []
                     args.extend(container.args or [])
                     for arg in args:
@@ -62,7 +63,7 @@ class EtcdEncryptionCheck:
                             findings.append(
                                 {
                                     "type": "encryption_flag_found",
-                                    "pod": pod.metadata.name,
+                                    "pod": name_of(pod),
                                     "detail": "kube-apiserver has --encryption-provider-config set.",
                                 }
                             )
@@ -127,7 +128,7 @@ class EtcdEncryptionCheck:
             try:
                 secrets = core.list_namespaced_secret("kube-system").items
                 for secret in secrets:
-                    name = secret.metadata.name or ""
+                    name = name_of(secret) or ""
                     if "encryption" in name.lower() and "config" in name.lower():
                         encryption_configured = True
                         findings.append(

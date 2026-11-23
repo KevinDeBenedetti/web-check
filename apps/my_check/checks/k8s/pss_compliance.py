@@ -16,6 +16,7 @@ from dataclasses import dataclass
 
 from kubernetes import client
 from my_check.checks.k8s import _load_client
+from my_check.checks.k8s._model import containers_of, name_of, namespace_of
 from my_check.checks.k8s.workloads import _is_privileged_expected
 from my_check.types import (
     CheckCategory,
@@ -92,8 +93,10 @@ def _check_pss_pod(pod: client.V1Pod, *, privileged_expected: bool = False) -> l
     """Return PSS violations for a pod's spec-level settings."""
     issues: list[dict[str, str]] = []
     spec = pod.spec
-    name = pod.metadata.name
-    ns = pod.metadata.namespace or "default"
+    if spec is None:
+        return issues
+    name = name_of(pod)
+    ns = namespace_of(pod) or "default"
     prefix = f"{ns}/{name}"
 
     # Baseline: no host namespaces (skip for expected privileged pods)
@@ -106,9 +109,7 @@ def _check_pss_pod(pod: client.V1Pod, *, privileged_expected: bool = False) -> l
             issues.append({"pod": prefix, "violation": "hostIPC: true (violates baseline)"})
 
     # Check all containers (regular + init + ephemeral)
-    all_containers = list(spec.containers or [])
-    all_containers.extend(spec.init_containers or [])
-    all_containers.extend(spec.ephemeral_containers or [])
+    all_containers = containers_of(pod, ephemeral=True)
     for container in all_containers:
         issues.extend(
             _check_pss_container(container, name, ns, privileged_expected=privileged_expected)

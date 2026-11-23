@@ -64,7 +64,8 @@ class WebConfig(BaseModel):
     targets: list[str] = Field(default_factory=list)
     enabled_checks: list[str] = Field(default_factory=lambda: list(_DEFAULT_WEB_CHECKS))
     timeout: float = Field(30.0, ge=1.0)
-    ports: list[int] = Field(default_factory=lambda: [80, 443, 8080, 8443, 3000, 3443, 9090])
+    # TCP ports web-ports probes; None keeps the check's own list (see checks/web/ports.py).
+    ports: list[int] | None = Field(None)
 
     @field_validator("targets", mode="before")
     @classmethod
@@ -79,7 +80,6 @@ class K8sConfig(BaseModel):
 
     context: str | None = Field(None)
     kubeconfig: str | None = Field(None)
-    server: str | None = Field(None, description="Override API server URL (e.g. https://IP:6443)")
     namespace: str | None = Field(None)
     enabled_checks: list[str] = Field(default_factory=lambda: list(_DEFAULT_K8S_CHECKS))
     timeout: float = Field(60.0, ge=1.0)
@@ -139,8 +139,6 @@ def _defaults_from_env() -> dict[str, Any]:
         k8s["context"] = v
     if v := _env("MY_CHECK_K8S_KUBECONFIG"):
         k8s["kubeconfig"] = v
-    if v := _env("MY_CHECK_K8S_SERVER"):
-        k8s["server"] = v
     if v := _env("MY_CHECK_K8S_NAMESPACE"):
         k8s["namespace"] = v
     if k8s:

@@ -102,15 +102,17 @@ def run_check(
         save_report: Save a Markdown report to outputs/.
     """
     skip_set = skip_set or set()
+    # JSON mode: stdout carries the JSON document only; progress goes to stderr.
+    out = Console(stderr=True) if output_format == "json" else console
     steps = [(key, label, ep, to) for key, label, ep, to in _CHECK_STEPS if key not in skip_set]
 
     if not steps:
-        console.print("[yellow]All steps skipped — nothing to do.[/yellow]")
+        out.print("[yellow]All steps skipped — nothing to do.[/yellow]")
         raise typer.Exit(1)
 
-    console.print()
-    console.print(f"[bold cyan]🔒 Security Check: {url}[/bold cyan]")
-    console.print(f"   Steps: [cyan]{' → '.join(label for _, label, _, _ in steps)}[/cyan]\n")
+    out.print()
+    out.print(f"[bold cyan]🔒 Security Check: {url}[/bold cyan]")
+    out.print(f"   Steps: [cyan]{' → '.join(label for _, label, _, _ in steps)}[/cyan]\n")
 
     settings = CLISettings()
     client = APIClient(settings.api_url, settings.api_timeout, settings.api_key)
@@ -118,7 +120,7 @@ def run_check(
 
     try:
         for key, label, endpoint, timeout in steps:
-            with console.status(f"[bold green]Running {label}…"):
+            with out.status(f"[bold green]Running {label}…"):
                 try:
                     params: dict = {"url": url}
                     if timeout:
@@ -156,15 +158,18 @@ def run_check(
                     if error_msg and status != "success":
                         line.append(f"  ({error_msg})", style="dim red")
 
-                    console.print(line)
+                    out.print(line)
                 except Exception as e:
-                    console.print(f"  [red]✗ {label}: {e}[/red]")
+                    out.print(f"  [red]✗ {label}: {e}[/red]")
                     step_results.append(
                         {"_step": key, "_label": label, "status": "error", "error": str(e)}
                     )
 
         # Display consolidated report
-        console.print()
+        out.print()
+
+        if save_report:
+            _save_markdown_report(url, step_results)
 
         if output_format == "json":
             format_json(
@@ -179,12 +184,9 @@ def run_check(
 
         _display_check_report(url, step_results)
 
-        if save_report:
-            _save_markdown_report(url, step_results)
-
     except Exception as e:
         logger.error("check_failed", error=str(e))
-        console.print(f"[red]✗ Check failed: {e}[/red]")
+        out.print(f"[red]✗ Check failed: {e}[/red]")
         raise typer.Exit(1) from None
     finally:
         client.close()

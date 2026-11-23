@@ -11,8 +11,7 @@
       "web-redirects",
       "web-subdomain-takeover"
     ],
-    "timeout": 30,
-    "ports": [80, 443, 8080, 8443, 3000, 3443, 9090]
+    "timeout": 30
   },
   "k8s": {
     "enabled_checks": [
@@ -32,7 +31,6 @@
   },
   "output": {
     "formats": ["terminal", "markdown"],
-    "output_dir": "outputs",
-    "sarif": false
+    "output_dir": "outputs"
   }
 }

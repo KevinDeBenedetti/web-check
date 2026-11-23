@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from kubernetes import client
 from my_check.checks.k8s import _load_client
+from my_check.checks.k8s._model import labels_of, name_of, namespace_of
 from my_check.types import (
     CheckCategory,
     CheckResult,
@@ -33,8 +34,8 @@ class FalcoCheck:
 
         falco_ds = None
         for ds in daemon_sets:
-            name = (ds.metadata.name or "").lower()
-            labels = ds.metadata.labels or {}
+            name = (name_of(ds) or "").lower()
+            labels = labels_of(ds)
             if "falco" in name or labels.get("app.kubernetes.io/name") == "falco":
                 falco_ds = ds
                 break
@@ -52,12 +53,12 @@ class FalcoCheck:
 
         # Check health: all desired pods should be ready
         status_obj = falco_ds.status
-        desired = status_obj.desired_number_scheduled or 0
-        ready = status_obj.number_ready or 0
+        desired = (status_obj.desired_number_scheduled if status_obj else None) or 0
+        ready = (status_obj.number_ready if status_obj else None) or 0
 
         details = {
-            "daemonset": falco_ds.metadata.name,
-            "namespace": falco_ds.metadata.namespace,
+            "daemonset": name_of(falco_ds),
+            "namespace": namespace_of(falco_ds),
             "desired": desired,
             "ready": ready,
         }

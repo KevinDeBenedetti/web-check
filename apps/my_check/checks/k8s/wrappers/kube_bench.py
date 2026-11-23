@@ -25,7 +25,11 @@ class KubeBenchCheck:
             raise TypeError(f"Expected K8sContext, got {type(target).__name__}")
 
         try:
-            result = await run_subprocess(["kube-bench", "run", "--json"], timeout=120.0)
+            # kube-bench audits the node it runs on (files, processes) and has no
+            # cluster selection; KUBECONFIG only helps its version detection.
+            result = await run_subprocess(
+                ["kube-bench", "run", "--json"], timeout=120.0, env=target.kubeconfig_env()
+            )
         except FileNotFoundError:
             return CheckResult(
                 status=CheckStatus.INFO,
@@ -78,7 +82,13 @@ class KubeBenchCheck:
         total = total_pass + total_fail + total_warn
         score = int((total_pass / total) * 100) if total else 0
 
-        summary = {"pass": total_pass, "fail": total_fail, "warn": total_warn, "total": total}
+        summary: dict[str, int | str] = {
+            "pass": total_pass,
+            "fail": total_fail,
+            "warn": total_warn,
+            "total": total,
+            "scope": "local node",
+        }
 
         if total_fail == 0:
             status = CheckStatus.PASS
@@ -89,6 +99,10 @@ class KubeBenchCheck:
         else:
             status = CheckStatus.FAIL
             message = f"{total_fail} CIS check(s) failed out of {total}."
+
+        if target.context_name or target.kubeconfig_path:
+            selected = target.context_name or target.kubeconfig_path
+            message += f" (kube-bench audits the node it runs on, not the cluster '{selected}')"
 
         return CheckResult(
             status=status,

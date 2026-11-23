@@ -23,7 +23,7 @@ _DEFAULT_MODULES = ["nuclei", "nikto", "zap"]
 @scan_app.command()
 def nuclei(
     url: str = typer.Argument(..., help="Target URL to scan"),
-    timeout: int = typer.Option(300, help="Timeout in seconds (30-600)"),
+    timeout: int = typer.Option(300, help="Timeout in seconds (30-3600)"),
     output_format: str = typer.Option("table", help="Output format (table, json)"),
     report: bool = typer.Option(False, "--report", help="Save a Markdown report to outputs/"),
 ) -> None:
@@ -56,7 +56,7 @@ def nuclei(
 @scan_app.command()
 def nikto(
     url: str = typer.Argument(..., help="Target URL to scan"),
-    timeout: int = typer.Option(600, help="Timeout in seconds (30-600)"),
+    timeout: int = typer.Option(600, help="Timeout in seconds (30-3600)"),
     output_format: str = typer.Option("table", help="Output format (table, json)"),
     report: bool = typer.Option(False, "--report", help="Save a Markdown report to outputs/"),
 ) -> None:
@@ -114,7 +114,7 @@ def quick(
 @scan_app.command()
 def ssl(
     url: str = typer.Argument(..., help="Target URL to scan"),
-    timeout: int = typer.Option(300, help="Timeout in seconds (30-600)"),
+    timeout: int = typer.Option(300, help="Timeout in seconds (60-3600)"),
     output_format: str = typer.Option("table", help="Output format (table, json)"),
     report: bool = typer.Option(False, "--report", help="Save a Markdown report to outputs/"),
 ) -> None:
@@ -161,14 +161,16 @@ def full(
     Default modules: nuclei, nikto, zap.
     Use --all to run all 7 modules (much slower).
     """
+    # JSON mode: stdout carries the JSON document only; progress goes to stderr.
+    out = Console(stderr=True) if output_format == "json" else console
     module_list = (
         _ALL_MODULES if all_modules else [m.strip() for m in modules.split(",") if m.strip()]
     )
 
     invalid = [m for m in module_list if m not in _ALL_MODULES]
     if invalid:
-        console.print(f"[red]✗ Unknown module(s): {', '.join(invalid)}[/red]")
-        console.print(f"  Available: {', '.join(_ALL_MODULES)}")
+        out.print(f"[red]✗ Unknown module(s): {', '.join(invalid)}[/red]")
+        out.print(f"  Available: {', '.join(_ALL_MODULES)}")
         raise typer.Exit(1) from None
 
     settings = CLISettings()
@@ -176,9 +178,9 @@ def full(
 
     try:
         # Start async scan
-        console.print(f"\n[bold cyan]🔍 Starting full scan on {url}[/bold cyan]")
-        console.print(f"   Modules : [cyan]{', '.join(module_list)}[/cyan]")
-        console.print(f"   Timeout : {timeout}s per module\n")
+        out.print(f"\n[bold cyan]🔍 Starting full scan on {url}[/bold cyan]")
+        out.print(f"   Modules : [cyan]{', '.join(module_list)}[/cyan]")
+        out.print(f"   Timeout : {timeout}s per module\n")
 
         response = client.post(
             "/api/scans/start",
@@ -186,10 +188,10 @@ def full(
         )
         scan_id = response.get("scan_id")
         if not scan_id:
-            console.print("[red]✗ Failed to start scan — no scan_id returned[/red]")
+            out.print("[red]✗ Failed to start scan — no scan_id returned[/red]")
             raise typer.Exit(1) from None
 
-        console.print(f"[dim]Scan ID: {scan_id}[/dim]\n")
+        out.print(f"[dim]Scan ID: {scan_id}[/dim]\n")
 
         # Poll until complete
         poll_interval = 5
@@ -197,7 +199,7 @@ def full(
         elapsed = 0
         last_count = 0
 
-        with console.status("[bold green]Scanning…") as status:
+        with out.status("[bold green]Scanning…") as status:
             while elapsed < max_wait:
                 time.sleep(poll_interval)
                 elapsed += poll_interval
@@ -216,7 +218,7 @@ def full(
                             f"{r.get('duration_ms', 0)}ms  "
                             f"{findings_n} finding(s)[/{color}]"
                         )
-                        console.log(
+                        out.log(
                             f"[{color}][{icon}][/{color}] [bold]{r.get('module', '?')}[/bold]  "
                             f"[dim]{r.get('duration_ms', 0)}ms[/dim]  "
                             f"[yellow]{findings_n} finding(s)[/yellow]"
@@ -231,6 +233,8 @@ def full(
         results = scan.get("results", [])
 
         if output_format == "json":
+            if report:
+                save_report(url, normalise_full_scan(scan), scan_type="full")
             format_json(scan)
             return
 
@@ -242,7 +246,7 @@ def full(
 
     except Exception as e:
         logger.error("full_scan_failed", error=str(e))
-        console.print(f"[red]✗ Full scan failed: {e}[/red]")
+        out.print(f"[red]✗ Full scan failed: {e}[/red]")
         raise typer.Exit(1) from None
     finally:
         client.close()
