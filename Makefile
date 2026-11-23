@@ -70,7 +70,7 @@ check: ## Format check, lint, type check and tests
 	@uv run pytest -q
 	@echo "✅ All checks passed"
 
-##@ Web UI: apps/web, Node.js 24+
+##@ Web UI: apps/web, Node.js 26+
 
 ui-install: ## Install the dependencies
 	@npm --prefix apps/web ci
