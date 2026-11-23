@@ -61,7 +61,7 @@ uv run uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
 
 ## Web UI development
 
-The UI lives in `apps/web` (Node.js 24+). The Vite dev server proxies `/api` to
+The UI lives in `apps/web` (Node.js 26+). The Vite dev server proxies `/api` to
 the API (`WEB_CHECK_CLI_API_URL`, default `http://localhost:8000`):
 
 ```bash
