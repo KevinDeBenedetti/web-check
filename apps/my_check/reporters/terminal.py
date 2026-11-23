@@ -71,7 +71,7 @@ def _build_issue_table(issues: list[dict[str, str]], limit: int = _DETAIL_LIMIT)
         tbl.add_column(k, style="dim" if k == "remediation" else None, max_width=width)
 
     for issue in issues[:limit]:
-        tbl.add_row(*[issue.get(k, "") for k in all_keys])
+        tbl.add_row(*[Text(str(issue.get(k, ""))) for k in all_keys])
 
     return tbl
 
@@ -128,7 +128,7 @@ class TerminalReporter:
                     check_id,
                     Text(f"{icon} {result.status.value}", style=color),
                     Text(str(result.score), style=_score_style(result.score)),
-                    result.message,
+                    Text(result.message),
                 )
 
             self.console.print(table)
@@ -178,7 +178,7 @@ class TerminalReporter:
         table.add_column("Check ID", style="cyan")
         table.add_column("Error", style="red")
         for check_id, error in report.errors.items():
-            table.add_row(check_id, error)
+            table.add_row(check_id, Text(str(error)))
         self.console.print(table)
         self.console.print()
 

@@ -73,6 +73,13 @@ async def test_validate_target_bare_domain(settings: Settings) -> None:
         "file:///etc/passwd",
         "gopher://example.com",
         "https://notexample.com",  # suffix trick
+        # Parser differentials: urllib3 reads the host before the backslash,
+        # nuclei splits -u on commas, urlparse drops tabs and newlines.
+        "https://169.254.169.254\\.example.com/latest",
+        "https://example.com/,http://169.254.169.254/",
+        "https://exa\tmple.com/",
+        "https://example.com/a b",
+        "https://exa$mple.example.com/",
         "https://example.com.evil.net",
         "https://evil.net",
         "http://localhost",

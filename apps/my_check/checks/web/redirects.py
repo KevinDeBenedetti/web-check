@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from urllib.parse import urljoin
 
 import httpx
 from my_check.types import CheckCategory, CheckResult, CheckStatus, K8sContext
@@ -40,7 +41,8 @@ class RedirectsCheck:
                     resp = await client.get(current_url)
 
                     if resp.is_redirect:
-                        location = resp.headers.get("location", "")
+                        # Location may be relative: resolve it against the current URL.
+                        location = urljoin(str(resp.url), resp.headers.get("location", ""))
                         chain.append(
                             {
                                 "url": str(resp.url),

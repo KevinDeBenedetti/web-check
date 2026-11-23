@@ -115,6 +115,11 @@ async def run_nikto_scan(target: str, timeout: int = 600) -> CheckResult:
             output_file.unlink()
 
 
+# Lines nikto prints about the run itself, not about the target.
+_NIKTO_STATUS_PREFIXES = ("Target ", "Start Time", "End Time", "---", "ERROR:", "Scan terminated")
+_NIKTO_SUMMARY_RE = re.compile(r"^\d+ (host\(s\) tested|requests?:)")
+
+
 def _parse_nikto_output(output: str) -> list[Finding]:
     """Parse Nikto output into Finding objects."""
     findings: list[Finding] = []
@@ -127,9 +132,8 @@ def _parse_nikto_output(output: str) -> list[Finding]:
         description = line[1:].strip()
         if (
             not description
-            or description.startswith("Target ")
-            or description.startswith("Start Time")
-            or description.startswith("---")
+            or description.startswith(_NIKTO_STATUS_PREFIXES)
+            or _NIKTO_SUMMARY_RE.match(description)
         ):
             continue
 
@@ -165,11 +169,8 @@ def _parse_nikto_output(output: str) -> list[Finding]:
         ):
             severity = "medium"
 
-        reference = (
-            f"https://www.oswdb.org/vulndb/{osvdb_ref}"
-            if osvdb_ref and osvdb_ref != "OSVDB-0"
-            else "https://cirt.net/nikto2"
-        )
+        # OSVDB shut down in 2016: its ids are kept as an identifier, not as a link.
+        reference = "https://cirt.net/nikto2"
         cve = osvdb_ref if osvdb_ref and osvdb_ref != "OSVDB-0" else None
 
         findings.append(

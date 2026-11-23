@@ -1,7 +1,10 @@
 """DNS record enumeration service — uses dnspython for full record lookup."""
 
+import asyncio
+import ipaddress
 import time
 from datetime import UTC, datetime
+from urllib.parse import urlparse
 
 import dns.exception
 import dns.query
@@ -9,6 +12,7 @@ import dns.resolver
 import dns.reversename
 import dns.zone
 from api.models import CheckResult, Finding
+from api.utils.config import get_settings
 
 _RECORD_TYPES = ["A", "AAAA", "MX", "NS", "TXT", "SOA", "CNAME"]
 
@@ -17,10 +21,28 @@ async def run_dns_enum(url: str, timeout: int = 30) -> CheckResult:
     """Enumerate DNS records for a domain and check email security controls.
 
     Checks A/AAAA/MX/NS/TXT/SOA records and validates SPF, DMARC, DKIM presence.
-    Does not require Docker — uses dnspython directly.
+    Does not require Docker — uses dnspython directly, in a worker thread: its
+    lookups are blocking and must not stall the event loop.
     """
-    from urllib.parse import urlparse
+    return await asyncio.to_thread(_enumerate, url, timeout)
 
+
+def _nameserver_address(resolver: dns.resolver.Resolver, ns_host: str) -> str | None:
+    """Address to try a zone transfer on, or None.
+
+    The NS record is controlled by the scanned domain: it must not point the
+    transfer at a non-public address unless ALLOW_PRIVATE_TARGETS is set.
+    """
+    try:
+        address = resolver.resolve(ns_host, "A")[0].to_text()
+    except (dns.exception.DNSException, IndexError):
+        return None
+    if not get_settings().allow_private_targets and not ipaddress.ip_address(address).is_global:
+        return None
+    return address
+
+
+def _enumerate(url: str, timeout: int) -> CheckResult:
     start = time.time()
     findings: list[Finding] = []
 
@@ -160,8 +182,12 @@ async def run_dns_enum(url: str, timeout: int = 30) -> CheckResult:
     ns_records = records.get("NS", [])
     for ns in ns_records[:2]:  # Only try first 2 nameservers to keep it fast
         ns_host = ns.rstrip(".")
+        ns_address = _nameserver_address(resolver, ns_host)
+        if ns_address is None:
+            continue
         try:
-            z = dns.zone.from_xfr(dns.query.xfr(ns_host, domain, timeout=5))
+            # dns.query.xfr needs an address, not a host name.
+            z = dns.zone.from_xfr(dns.query.xfr(ns_address, domain, timeout=5, lifetime=10))
             if z:
                 findings.append(
                     Finding(

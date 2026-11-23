@@ -1,3 +1,7 @@
+---
+title: Configuration
+---
+
 # Configuration
 
 ## Environment variables
@@ -38,7 +42,7 @@ a target against them.
 | `ALLOWED_DOMAINS` | `example.com` | Comma-separated allowlist. Every scan target must be one of these domains or a subdomain of one. |
 | `ALLOW_PRIVATE_TARGETS` | `false` | Allow targets that are, or resolve to, private/loopback/link-local IPs, and single-label hostnames. Lab use only. |
 | `CORS_ORIGINS` | *(empty)* | Comma-separated allowed origins. Empty disables CORS. |
-| `ZAP_API_KEY` | **required** | Key protecting the internal ZAP daemon API. `docker compose` refuses to start without it (`openssl rand -hex 32`). |
+| `ZAP_API_KEY` | *(empty)* | Key the API sends to ZAP. Only for a ZAP daemon you run yourself with an API key: the Docker Compose stack runs ZAP without one (see *ZAP* below). |
 
 #### Scan target validation
 
@@ -76,7 +80,17 @@ docker compose --profile tools up -d
 
 ### ZAP
 
-ZAP runs in daemon mode with its REST API protected by `ZAP_API_KEY`. Scan output is written to `./outputs/`. The API connects to ZAP via `http://zap:8090` on the Docker network (`ZAP_HOST` / `ZAP_PORT`).
+ZAP runs in daemon mode without an API key. It shares the `web-check-zap` network
+with the API only, so the scanner containers on `scanner-net` cannot reach its REST
+API, and no ZAP port is published on the host. Scan output is written to
+`./outputs/`. The API connects to ZAP via `http://zap:8090` (`ZAP_HOST` / `ZAP_PORT`).
+
+To scan a lab container with ZAP (`ALLOW_PRIVATE_TARGETS=true`), attach it to that
+network as well:
+
+```sh
+docker network connect web-check-zap <container>
+```
 
 ### Nuclei
 

@@ -137,7 +137,8 @@ export async function downloadExport(scanId: string, format: ExportFormat): Prom
   link.href = href;
   link.download = name;
   link.click();
-  URL.revokeObjectURL(href);
+  // Revoking synchronously cancels the download in some browsers.
+  setTimeout(() => URL.revokeObjectURL(href), 10_000);
 }
 
 export const isNotFound = (error: Error | undefined): boolean =>

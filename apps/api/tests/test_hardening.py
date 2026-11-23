@@ -328,3 +328,72 @@ async def test_web_ui_never_serves_files_outside_dist(
     for path in ("/ui/link.txt", "/ui/assets/..%2F..%2Foutside.txt", "/ui/%2E%2E/outside.txt"):
         response = await client.get(path)
         assert "secret" not in response.text, path
+
+
+# ---------------------------------------------------------------------------
+# A scanner that never ran is a failure, not an empty scan
+# ---------------------------------------------------------------------------
+
+
+async def test_docker_failure_is_not_reported_as_an_empty_scan(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from api.services import docker_runner
+
+    async def fake_run_process(cmd: list[str], *, timeout: float, output_limit: int | None = None):
+        return {
+            "stdout": "",
+            "stderr": "Error response from daemon: No such container: security-scanner-nuclei",
+            "exit_code": 1,
+            "timeout": False,
+            "truncated": False,
+        }
+
+    monkeypatch.setattr(docker_runner, "run_process", fake_run_process)
+    result = await docker_runner.docker_run(
+        image="x", command=["nuclei"], container_name="security-scanner-nuclei"
+    )
+    assert result["exit_code"] == -1
+
+
+# ---------------------------------------------------------------------------
+# Reports: scanner text cannot forge Markdown structure; timestamps carry UTC
+# ---------------------------------------------------------------------------
+
+
+def test_markdown_export_neutralises_scanner_markup() -> None:
+    from api.models import ScanResponse
+    from api.models.reports import AggregatedFinding
+    from api.services.exporters import export_markdown
+
+    scan = ScanResponse(
+        scan_id="20261118-1200-aaaa",
+        target="https://example.com",
+        status="success",
+        started_at="2026-11-18T12:00:00+00:00",
+        results=[],
+    )
+    finding = AggregatedFinding(
+        id="f1",
+        severity="high",
+        title="Title\n## Modules",
+        description="text\n# Forged heading\n![x](https://evil.example/p.png) <img src=x>",
+        sources=["nuclei"],
+    )
+    markdown = export_markdown(scan, [finding])
+
+    assert "### [HIGH] Title \\#\\# Modules" in markdown
+    assert "\n# Forged heading" not in markdown
+    assert "![x]" not in markdown and " <img" not in markdown
+
+
+def test_stored_timestamps_are_read_back_as_utc() -> None:
+    from datetime import datetime
+
+    from api.models.db_models import UTCDateTime
+    from sqlalchemy.dialects import sqlite
+
+    column = UTCDateTime()
+    value = column.process_result_value(datetime(2026, 11, 18, 12, 0), sqlite.dialect())
+    assert value is not None and value.utcoffset() is not None
+    assert value.isoformat() == "2026-11-18T12:00:00+00:00"

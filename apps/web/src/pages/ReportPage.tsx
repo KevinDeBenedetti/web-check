@@ -299,7 +299,8 @@ export function ReportPage() {
   }, [scan.data]);
   useDocumentTitle(scan.data ? `Rapport ${hostnameOf(scan.data.target)}` : "Rapport");
 
-  if (scan.error) {
+  // A failed refresh keeps the report on screen: only a first load can fail the page.
+  if (scan.error && (!scan.data || isNotFound(scan.error))) {
     return isNotFound(scan.error) ? (
       <EmptyState title="Scan introuvable" action={{ to: "/scans", label: "Voir l’historique" }} />
     ) : (
@@ -367,6 +368,7 @@ export function ReportPage() {
           </>
         }
       />
+      {scan.error && <ErrorNotice error={scan.error} onRetry={scan.reload} />}
       {exportError && <ErrorNotice error={exportError} onRetry={() => setExportError(undefined)} />}
       <Summary scan={current} previous={previous} />
       <ModulesTable scan={current} />

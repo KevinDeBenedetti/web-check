@@ -6,6 +6,7 @@ import httpx
 import structlog
 from rich.console import Console
 from rich.table import Table
+from rich.text import Text
 
 logger = structlog.get_logger()
 console = Console()
@@ -26,6 +27,13 @@ class APIClient:
         self.timeout = timeout
         headers = {"X-API-Key": api_key} if api_key else None
         self.client = httpx.Client(timeout=timeout, follow_redirects=True, headers=headers)
+
+    def _timeout_for(self, params: dict[str, Any]) -> float:
+        """Client deadline: never shorter than the scan timeout sent to the API."""
+        scan_timeout = params.get("timeout")
+        if isinstance(scan_timeout, int | float):
+            return max(self.timeout, scan_timeout + 30)
+        return self.timeout
 
     def post(self, endpoint: str, json: dict | None = None, **params: Any) -> dict[str, Any]:
         """Make POST request to API.
@@ -60,7 +68,7 @@ class APIClient:
         """
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
         try:
-            response = self.client.get(url, params=params)
+            response = self.client.get(url, params=params, timeout=self._timeout_for(params))
             response.raise_for_status()
             return response.json()
         except httpx.HTTPError as e:
@@ -101,7 +109,7 @@ def format_table(title: str, data: list[dict[str, Any]]) -> None:
 
     # Add rows
     for row in data:
-        values = [str(row.get(key, "")) for key in keys]
+        values = [Text(str(row.get(key, ""))) for key in keys]
         table.add_row(*values)
 
     console.print(table)
@@ -138,15 +146,15 @@ def format_findings(findings: list[dict[str, Any]]) -> None:
             "INFO": "cyan",
         }.get(severity, "white")
 
-        console.print(f"[{severity_color}][{i}] {severity}[/{severity_color}]")
-        console.print(f"  Title: {finding.get('title', 'N/A')}")
-        console.print(f"  Description: {finding.get('description', 'N/A')}")
+        console.print(Text(f"[{i}] {severity}", style=severity_color))
+        console.print(Text(f"  Title: {finding.get('title', 'N/A')}"))
+        console.print(Text(f"  Description: {finding.get('description', 'N/A')}"))
 
         if finding.get("cve"):
-            console.print(f"  CVE: {finding['cve']}")
+            console.print(Text(f"  CVE: {finding['cve']}"))
         if finding.get("cvss_score") is not None:
-            console.print(f"  CVSS: {finding['cvss_score']}")
+            console.print(Text(f"  CVSS: {finding['cvss_score']}"))
         if finding.get("reference"):
-            console.print(f"  Reference: {finding['reference']}")
+            console.print(Text(f"  Reference: {finding['reference']}"))
 
         console.print()

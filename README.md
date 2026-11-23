@@ -28,8 +28,7 @@
 git clone https://github.com/KevinDeBenedetti/web-check.git
 cd web-check
 cp .env.example .env
-# Then edit .env: ZAP_API_KEY is required (generate one with `openssl rand -hex 32`),
-# and set API_KEY too if the API is reachable beyond localhost.
+# Then edit .env: set API_KEY if the API is reachable beyond localhost.
 ```
 
 Scan targets must be listed in `ALLOWED_DOMAINS` (see [configuration](docs/configuration.md#security)).

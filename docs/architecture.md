@@ -1,10 +1,14 @@
+---
+title: Architecture
+---
+
 # Architecture
 
 Web Check is a **monorepo** containing a Python/FastAPI backend, a React/Vite frontend, and Docker Compose orchestration for a suite of security scanner sidecars.
 
 ## Repository layout
 
-```
+```text
 web-check/
 ├── apps/
 │   ├── api/          # FastAPI application (Python 3.12, uv)
@@ -32,7 +36,11 @@ web-check/
 
 ## Networking
 
-All containers share the `scanner-net` bridge network. The API communicates with scanners by their container name (e.g. `http://zap:8090`). The `DOCKER_NETWORK` environment variable allows overriding the network name for external integration.
+The API and the scanner containers share the `scanner-net` bridge network; the API
+reaches them by container name. ZAP sits on a separate network, `web-check-zap`,
+shared with the API only (`http://zap:8090`): its REST API runs without a key, so no
+other container may reach it. The `DOCKER_NETWORK` environment variable overrides
+the name of `scanner-net` for external integration.
 
 ## API design
 

@@ -4,6 +4,7 @@ import asyncio
 import time
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import urlparse
 
 import structlog
 from api.models import CheckResult, Finding
@@ -34,16 +35,12 @@ async def run_sslyze_scan(
     findings: list[Finding] = []
 
     # Extract domain from URL
-    domain = target.replace("http://", "").replace("https://", "").split("/")[0]
-    port = 443
-
-    # Handle domain:port format
-    if ":" in domain:
-        domain, port_str = domain.split(":", 1)
-        try:
-            port = int(port_str)
-        except ValueError:
-            port = 443
+    parsed = urlparse(target if "://" in target else f"https://{target}")
+    domain = parsed.hostname or target
+    try:
+        port = parsed.port or 443
+    except ValueError:
+        port = 443
 
     if scan_id:
         from api.services.log_streamer import log_streamer

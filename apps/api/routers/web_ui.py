@@ -31,7 +31,7 @@ async def serve_ui(path: str) -> FileResponse:
     if dist is None:
         raise HTTPException(
             status_code=404,
-            detail="Web UI is not built. Run `make web-build` or use the Docker image.",
+            detail="Web UI is not built. Run `make ui-build` or use the Docker image.",
         )
 
     root = dist.resolve()

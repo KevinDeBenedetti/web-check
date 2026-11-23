@@ -13,13 +13,14 @@ title: Development
 ## Quick start (Docker)
 
 ```bash
-# Copy and customise environment (ZAP_API_KEY is required)
+# Copy and customise environment (set ALLOWED_DOMAINS to your domains)
 cp .env.example .env
 
-# Start API + all scanners (detects APP_UID/APP_GID/DOCKER_GID for you)
+# Start API + all scanners in the background (detects APP_UID/APP_GID/DOCKER_GID for you)
 make start
 
-# Same, with live code reload of apps/api (uvicorn --reload, DEBUG logs)
+# Same, with live code reload of apps/api (uvicorn --reload, DEBUG logs), then
+# follow the API logs; Ctrl+C stops the containers
 make dev
 
 # Start with optional fuzzer (FFUF)
@@ -31,7 +32,11 @@ docker compose --profile tools up -d
 | http://localhost:8000/ui/ | Web UI |
 | http://localhost:8000 | FastAPI (Swagger at `/docs`) |
 
-ZAP is only reachable from the Docker network (`http://zap:8090`), protected by `ZAP_API_KEY`.
+Both commands print these URLs with the port Docker actually published (`API_PORT`
+in `.env`, `8000` by default).
+
+ZAP is only reachable from the API (`http://zap:8090`, on a Docker network of their
+own), so it runs without an API key.
 
 ### Container user and permissions
 

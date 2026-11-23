@@ -5,14 +5,13 @@ import typer
 from cli.report import save_report
 from cli.utils import APIClient, CLISettings, format_json
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
 logger = structlog.get_logger()
 console = Console()
-
-check_app = typer.Typer(help="Run a complete security check workflow")
 
 _CHECK_STEPS = [
     ("dns", "DNS & Reachability", "/api/quick/dns", None),
@@ -70,11 +69,11 @@ def _pick_domain(domain: str | None) -> str:
     return _domain_to_url(url)
 
 
-@check_app.callback(invoke_without_command=True)
 def check(
-    ctx: typer.Context,
     domain: str = typer.Argument(None, help="Target domain or URL (default: pick from .env)"),
-    skip: str = typer.Option("", help="Comma-separated steps to skip (dns,ssl,nuclei,nikto)"),
+    skip: str = typer.Option(
+        "", help="Comma-separated steps to skip (dns,dns_enum,headers,ssl,nuclei,nikto)"
+    ),
     output_format: str = typer.Option("table", help="Output format (table, json)"),
     report: bool = typer.Option(False, "--report", help="Save a Markdown report to outputs/"),
 ) -> None:
@@ -82,9 +81,6 @@ def check(
 
     Without arguments, offers to pick from ALLOWED_DOMAINS in .env.
     """
-    if ctx.invoked_subcommand is not None:
-        return
-
     url = _pick_domain(domain)
     skip_set = {s.strip().lower() for s in skip.split(",") if s.strip()}
     run_check(url, skip_set=skip_set, output_format=output_format, save_report=report)
@@ -278,7 +274,7 @@ def _display_check_report(url: str, step_results: list[dict]) -> None:
             f"[{color}]{status}[/{color}]",
             _format_duration(r.get("duration_ms", 0)),
             f"[yellow]{len(findings)}[/yellow]" if findings else "0",
-            detail[:60],
+            Text(detail[:60]),
         )
 
     console.print(summary)
@@ -299,7 +295,7 @@ def _display_check_report(url: str, step_results: list[dict]) -> None:
             ]
             console.print(
                 Panel(
-                    "\n".join(lines),
+                    Text("\n".join(lines)),
                     title=f"[cyan]{label}[/cyan]",
                     border_style="dim",
                     expand=False,
@@ -323,7 +319,7 @@ def _display_check_report(url: str, step_results: list[dict]) -> None:
             ]
             console.print(
                 Panel(
-                    "\n".join(lines),
+                    Text("\n".join(lines)),
                     title=f"[cyan]{label}[/cyan]",
                     border_style="dim",
                     expand=False,
@@ -346,7 +342,7 @@ def _display_check_report(url: str, step_results: list[dict]) -> None:
                 lines.append(f"  Server:   {srv}")
             console.print(
                 Panel(
-                    "\n".join(lines),
+                    Text("\n".join(lines)),
                     title=f"[cyan]{label}[/cyan]",
                     border_style="dim",
                     expand=False,
@@ -365,7 +361,7 @@ def _display_check_report(url: str, step_results: list[dict]) -> None:
             if lines:
                 console.print(
                     Panel(
-                        "\n".join(lines),
+                        Text("\n".join(lines)),
                         title=f"[cyan]{label}[/cyan]",
                         border_style="dim",
                         expand=False,
@@ -383,7 +379,7 @@ def _display_check_report(url: str, step_results: list[dict]) -> None:
             if lines:
                 console.print(
                     Panel(
-                        "\n".join(lines),
+                        Text("\n".join(lines)),
                         title=f"[cyan]{label}[/cyan]",
                         border_style="dim",
                         expand=False,
@@ -401,7 +397,7 @@ def _display_check_report(url: str, step_results: list[dict]) -> None:
             if lines:
                 console.print(
                     Panel(
-                        "\n".join(lines),
+                        Text("\n".join(lines)),
                         title=f"[cyan]{label}[/cyan]",
                         border_style="dim",
                         expand=False,
@@ -449,8 +445,8 @@ def _display_findings_table(findings: list[dict]) -> None:
             str(i),
             f"[{color}]{sev}[/{color}]",
             f.get("_step", ""),
-            f.get("title", "N/A"),
-            cve,
+            Text(str(f.get("title", "N/A"))),
+            Text(str(cve)),
             cvss,
         )
 
@@ -465,13 +461,15 @@ def _display_findings_table(findings: list[dict]) -> None:
                 console.print("\n[bold]Finding Details[/bold]")
                 has_detail = True
             color = _SEVERITY_COLORS.get(sev, "white")
-            console.print(f"\n  [{color}][{i}] {sev}[/{color}] — {f.get('title', 'N/A')}")
+            console.print(
+                f"\n  [{color}]\\[{i}] {sev}[/{color}] — {escape(str(f.get('title', 'N/A')))}"
+            )
             desc = f.get("description", "")
             if desc:
-                console.print(f"      {desc}")
+                console.print(Text(f"      {desc}"))
             ref = f.get("reference", "")
             if ref:
-                console.print(f"      [dim]Ref: {ref}[/dim]")
+                console.print(Text(f"      Ref: {ref}", style="dim"))
 
 
 def _save_markdown_report(url: str, step_results: list[dict]) -> None:

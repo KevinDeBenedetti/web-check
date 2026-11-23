@@ -143,7 +143,7 @@ class Scheduler:
         for c in self.checks:
             if category and c.category != category:
                 continue
-            if enabled_ids and c.id not in enabled_ids:
+            if enabled_ids is not None and c.id not in enabled_ids:
                 continue
             selected.append(c)
         return selected
@@ -191,11 +191,16 @@ class Scheduler:
         try:
             # Each check runs in its own thread+event loop so blocking k8s
             # client calls never stall the main event loop or each other.
-            with ThreadPoolExecutor(max_workers=1) as pool:
+            # No `with`: leaving the block would join the worker thread and block
+            # until the check finishes, which is exactly what the timeout prevents.
+            pool = ThreadPoolExecutor(max_workers=1)
+            try:
                 result = await asyncio.wait_for(
                     loop.run_in_executor(pool, _run_check_in_thread, check, arg),
                     timeout=self.timeout,
                 )
+            finally:
+                pool.shutdown(wait=False, cancel_futures=True)
         except TimeoutError:
             elapsed = time.monotonic() - start
             progress[check.id] = (f"⏱ timed out ({elapsed:.0f}s)", "red")
