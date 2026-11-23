@@ -8,6 +8,7 @@ from cli.report import normalise_full_scan, normalise_single, save_report
 from cli.utils import APIClient, CLISettings, format_findings, format_json
 from rich.console import Console
 from rich.table import Table
+from rich.text import Text
 
 logger = structlog.get_logger()
 console = Console()
@@ -283,7 +284,7 @@ def _display_full_summary(scan_id: str, url: str, results: list) -> None:
         console.print("\n[bold green]✓ No security findings detected[/bold green]")
 
     console.print(
-        f"\n[dim]Scan ID: {scan_id} — run 'make cli ARGS=\"results show {scan_id}\"' to review later[/dim]"
+        f"\n[dim]Scan ID: {scan_id} — run 'web-check results show {scan_id}' to review later[/dim]"
     )
 
 
@@ -306,7 +307,7 @@ def _display_result(result: dict, output_format: str) -> None:
         console.print(f"\n[bold]{status_icon} Scan Result[/bold] ({module} - {duration}ms)\n")
 
         if result.get("error"):
-            console.print(f"[red]Error: {result['error']}[/red]")
+            console.print(Text(f"Error: {result['error']}", style="red"))
         else:
             console.print(f"[green]Status: {status}[/green]")
 
@@ -318,4 +319,4 @@ def _display_result(result: dict, output_format: str) -> None:
             if result.get("data"):
                 console.print("\n[bold cyan]Metadata:[/bold cyan]")
                 for key, value in result["data"].items():
-                    console.print(f"  {key}: {value}")
+                    console.print(Text(f"  {key}: {value}"))

@@ -295,7 +295,8 @@ export function LiveScanPage() {
   }, [scan.data]);
   useDocumentTitle(scan.data ? `Scan ${hostnameOf(scan.data.target)}` : "Scan en cours");
 
-  if (scan.error) {
+  // A failed poll keeps the live view (and its log stream) mounted; the next poll retries.
+  if (scan.error && (!scan.data || isNotFound(scan.error))) {
     return isNotFound(scan.error) ? (
       <EmptyState title="Scan introuvable" action={{ to: "/scans", label: "Voir l’historique" }} />
     ) : (

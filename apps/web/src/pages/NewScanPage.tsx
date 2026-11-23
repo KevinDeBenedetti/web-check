@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { ApiError, api } from "../api/client";
+import { ApiError, api, getApiKey } from "../api/client";
 import type { Catalog, ModuleInfo, ScanRequest, ScopeCheckResult } from "../api/types";
 import { CodeBlock } from "../components/CopyButton";
 import { ErrorNotice, Loading } from "../components/Feedback";
@@ -308,7 +308,7 @@ function ScanForm({ catalog }: { catalog: Catalog }) {
           <div className="field">
             <span className="field__label">Équivalent en ligne de commande</span>
             <CodeBlock
-              code={buildCurlCommand(request, window.location.origin)}
+              code={buildCurlCommand(request, window.location.origin, Boolean(getApiKey()))}
               copyLabel="Copier la commande"
               command
             />

@@ -3,8 +3,8 @@
 import structlog
 import typer
 from cli import __version__
-from cli.commands import check_app, config_app, domains_app, results_app, scan_app
-from cli.commands.check import _pick_domain
+from cli.commands import config_app, domains_app, results_app, scan_app
+from cli.commands.check import _pick_domain, check
 from cli.commands.scan import _display_result
 from cli.utils import APIClient, CLISettings
 from rich.console import Console
@@ -21,7 +21,8 @@ app = typer.Typer(
 )
 
 # Register subcommands
-app.add_typer(check_app, name="check", help="Complete security check workflow")
+# A plain command, not a group: `web-check check example.com --report` must parse.
+app.command("check", help="Complete security check workflow")(check)
 app.add_typer(scan_app, name="scan", help="Scan operations")
 app.add_typer(results_app, name="results", help="Results operations")
 app.add_typer(config_app, name="config", help="Configuration operations")

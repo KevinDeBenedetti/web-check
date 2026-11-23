@@ -44,9 +44,9 @@ services:
       - CORS_ORIGINS=${CORS_ORIGINS:-}
       - ZAP_HOST=zap
       - ZAP_PORT=8090
-      - ZAP_API_KEY=${ZAP_API_KEY:?ZAP_API_KEY must be set in .env (e.g. openssl rand -hex 32)}
     networks:
       - scanner-net
+      - zap-net
     restart: unless-stopped
     depends_on:
       zap:
@@ -60,7 +60,8 @@ services:
   # Security Scanners
   # ==========================================================================
 
-  # ZAP (OWASP Zed Attack Proxy)
+  # ZAP (OWASP Zed Attack Proxy). Its API runs without a key: ZAP shares zap-net
+  # with the API only, so the scanner containers on scanner-net cannot reach it.
   zap:
     image: zaproxy/zap-stable:2.17.0
     container_name: security-scanner-zap
@@ -68,11 +69,11 @@ services:
       - ./outputs:/zap/wrk:rw
     command: >
       zap.sh -daemon -host 0.0.0.0 -port 8090
-      -config api.key=${ZAP_API_KEY:?ZAP_API_KEY must be set in .env (e.g. openssl rand -hex 32)}
+      -config api.disablekey=true
       -config api.addrs.addr.name=.*
       -config api.addrs.addr.regex=true
     networks:
-      - scanner-net
+      - zap-net
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8090"]
@@ -135,4 +136,8 @@ volumes:
 networks:
   scanner-net:
     name: ${DOCKER_NETWORK:-scanner-net}
+    driver: bridge
+  # ZAP and the API only. Attach a lab target here as well to scan it with ZAP.
+  zap-net:
+    name: web-check-zap
     driver: bridge

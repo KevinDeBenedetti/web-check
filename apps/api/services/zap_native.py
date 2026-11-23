@@ -51,7 +51,10 @@ async def run_zap_scan(target: str, timeout: int = 900, scan_id: str | None = No
         def _run_scan() -> dict[str, Any]:
             # Access the target URL
             logger.info("zap_accessing_url", target=target)
-            zap.urlopen(target)
+            # Redirects are not followed: this request goes through the ZAP proxy,
+            # and a target must not be able to bounce it to ZAP's own API or to an
+            # internal host.
+            zap.urlopen(target, allow_redirects=False)
 
             # Spider scan to discover URLs
             logger.info("zap_starting_spider", target=target)
@@ -131,9 +134,7 @@ async def run_zap_scan(target: str, timeout: int = 900, scan_id: str | None = No
         if "Unable to connect to proxy" in error_msg or "Max retries exceeded" in error_msg:
             error_msg = "ZAP daemon is not accessible. Please ensure the ZAP container is running and healthy."
         elif "not permitted" in error_msg:
-            error_msg = (
-                "ZAP API access denied. Check that ZAP_API_KEY matches the ZAP daemon's api.key."
-            )
+            error_msg = "ZAP API access denied. If the ZAP daemon runs with an API key, set ZAP_API_KEY to it."
 
         logger.error("zap_scan_failed", target=target, error=error_msg)
 

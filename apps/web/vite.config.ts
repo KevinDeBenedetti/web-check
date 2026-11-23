@@ -3,8 +3,9 @@ import { loadEnv } from "vite";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, ".", "");
+  // The repository's .env (two levels up), whatever directory npm was started from.
   // Same variable as the CLI, so one .env setting covers both
+  const env = loadEnv(mode, decodeURIComponent(new URL("../../", import.meta.url).pathname), "");
   const apiUrl = env.WEB_CHECK_CLI_API_URL || "http://localhost:8000";
 
   return {

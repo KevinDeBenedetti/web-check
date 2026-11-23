@@ -13,6 +13,12 @@ export function filenameFromDisposition(header: string | null): string | null {
   const match = header?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
   if (!match?.[1]) return null;
   // The value names a download: keep a plain file name only.
-  const name = decodeURIComponent(match[1]).replace(/[/\\]/g, "").trim();
+  let decoded = match[1];
+  try {
+    decoded = decodeURIComponent(decoded);
+  } catch {
+    // Not percent-encoded after all: keep the raw value.
+  }
+  const name = decoded.replace(/[/\\]/g, "").trim();
   return name || null;
 }

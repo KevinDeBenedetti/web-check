@@ -4,8 +4,30 @@ from datetime import UTC, datetime
 from typing import Any
 
 from api.database import Base
-from sqlalchemy import JSON, DateTime, Float, Integer, String, Text
+from sqlalchemy import JSON, DateTime, Dialect, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.types import TypeDecorator
+
+
+class UTCDateTime(TypeDecorator[datetime]):
+    """Timezone-aware UTC datetime.
+
+    SQLite stores no offset: without this, values come back naive and are
+    serialised without one, which clients then read as local time.
+    """
+
+    impl = DateTime(timezone=True)
+    cache_ok = True
+
+    def process_bind_param(self, value: datetime | None, dialect: Dialect) -> datetime | None:
+        if value is not None and value.tzinfo is not None:
+            value = value.astimezone(UTC)
+        return value
+
+    def process_result_value(self, value: datetime | None, dialect: Dialect) -> datetime | None:
+        if value is not None and value.tzinfo is None:
+            value = value.replace(tzinfo=UTC)
+        return value
 
 
 class Scan(Base):
@@ -20,9 +42,9 @@ class Scan(Base):
         String(20), nullable=False, default="running"
     )  # running, success, error, timeout
     started_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+        UTCDateTime, nullable=False, default=lambda: datetime.now(UTC)
     )
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     modules: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     timeout: Mapped[int] = mapped_column(Integer, nullable=False, default=300)
 
@@ -42,7 +64,7 @@ class ScanResult(Base):
     category: Mapped[str] = mapped_column(String(20), nullable=False)  # quick, deep, security
     target: Mapped[str] = mapped_column(String(500), nullable=False)
     timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+        UTCDateTime, nullable=False, default=lambda: datetime.now(UTC)
     )
     duration_ms: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False)  # success, error, timeout

@@ -42,11 +42,11 @@ def _main(ctx: typer.Context) -> None:
 # ---------------------------------------------------------------------------
 
 OptOutput = Annotated[
-    str,
+    str | None,
     typer.Option(
         "--output",
         "-o",
-        help="Comma-separated reporters: terminal,json,html,webhook",
+        help="Comma-separated reporters: terminal,json,html,markdown,webhook (default: output.formats of the configuration)",
     ),
 ]
 OptConfig = Annotated[
@@ -149,7 +149,7 @@ def _run(report: Report, cfg: MyCheckConfig, *, strict: bool = False) -> None:
 @app.command()
 def web(
     url: Annotated[str, typer.Argument(help="Target URL to scan")],
-    output: OptOutput = "terminal",
+    output: OptOutput = None,
     config: OptConfig = None,
     verbose: OptVerbose = False,
     strict: OptStrict = False,
@@ -157,7 +157,8 @@ def web(
     """Run web security checks against a URL."""
     _setup_logging(verbose)
     cfg = load_config(config)
-    cfg.output.formats = [f.strip() for f in output.split(",")]
+    if output:
+        cfg.output.formats = [f.strip() for f in output.split(",")]
 
     checks = get_web_checks()
     scheduler = Scheduler(checks=checks, timeout=cfg.web.timeout)
@@ -171,7 +172,7 @@ def k8s(
     context: OptContext = None,
     kubeconfig: OptKubeconfig = None,
     namespace: OptNamespace = None,
-    output: OptOutput = "terminal",
+    output: OptOutput = None,
     config: OptConfig = None,
     verbose: OptVerbose = False,
     strict: OptStrict = False,
@@ -179,7 +180,8 @@ def k8s(
     """Run Kubernetes security checks."""
     _setup_logging(verbose)
     cfg = load_config(config)
-    cfg.output.formats = [f.strip() for f in output.split(",")]
+    if output:
+        cfg.output.formats = [f.strip() for f in output.split(",")]
 
     k8s_ctx = _build_k8s_context(cfg.k8s, context, kubeconfig, namespace)
     checks = get_k8s_checks()
@@ -197,7 +199,7 @@ def all_checks(
     context: OptContext = None,
     kubeconfig: OptKubeconfig = None,
     namespace: OptNamespace = None,
-    output: OptOutput = "terminal",
+    output: OptOutput = None,
     config: OptConfig = None,
     verbose: OptVerbose = False,
     strict: OptStrict = False,
@@ -205,7 +207,8 @@ def all_checks(
     """Run all web and Kubernetes security checks."""
     _setup_logging(verbose)
     cfg = load_config(config)
-    cfg.output.formats = [f.strip() for f in output.split(",")]
+    if output:
+        cfg.output.formats = [f.strip() for f in output.split(",")]
 
     k8s_ctx = _build_k8s_context(cfg.k8s, context, kubeconfig, namespace)
     checks = get_all_checks()

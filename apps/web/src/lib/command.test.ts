@@ -16,6 +16,11 @@ describe("buildCurlCommand", () => {
     );
   });
 
+  it("reads the API key from the environment when the API requires one", () => {
+    const command = buildCurlCommand({ target: "https://example.com", timeout: 300 }, "http://localhost:8001", true);
+    expect(command).toContain(`-H "X-API-Key: $WEB_CHECK_API_KEY"`);
+  });
+
   it("escapes single quotes", () => {
     const command = buildCurlCommand(
       { target: "https://example.com/?q='x'", timeout: 300 },

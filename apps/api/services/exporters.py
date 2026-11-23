@@ -1,6 +1,7 @@
 """Export a scan report as JSON, Markdown or SARIF 2.1.0."""
 
 import json
+import re
 from typing import Any, Literal
 
 from api.models import ScanResponse
@@ -46,14 +47,29 @@ def export_json(scan: ScanResponse, findings: list[AggregatedFinding]) -> str:
     return json.dumps(document, indent=2, ensure_ascii=False) + "\n"
 
 
+_MD_SPECIALS = re.compile(r"([\\`*_\[\]<>#|~])")
+
+
+def _md_inline(value: str) -> str:
+    """Scanner-controlled text on one line, with Markdown and HTML markup neutralised."""
+    return _MD_SPECIALS.sub(r"\\\1", " ".join(value.split()))
+
+
+def _md_block(value: str) -> str:
+    """Scanner-controlled multi-line text: escaped line by line, never a heading or a table."""
+    return "\n".join(
+        _MD_SPECIALS.sub(r"\\\1", line.rstrip()) for line in value.strip().splitlines()
+    )
+
+
 def _md_cell(value: str) -> str:
-    return value.replace("|", "\\|").replace("\n", " ")
+    return _md_inline(value)
 
 
 def export_markdown(scan: ScanResponse, findings: list[AggregatedFinding]) -> str:
     """Human-readable report, suitable for a ticket or a pull request."""
     lines = [
-        f"# Web-Check report — {scan.target}",
+        f"# Web-Check report — {_md_inline(scan.target)}",
         "",
         f"- Scan: `{scan.scan_id}`",
         f"- Started: {scan.started_at.isoformat()}",
@@ -71,19 +87,19 @@ def export_markdown(scan: ScanResponse, findings: list[AggregatedFinding]) -> st
         lines += ["No findings.", ""]
     for finding in findings:
         lines += [
-            f"### [{finding.severity.upper()}] {finding.title}",
+            f"### [{finding.severity.upper()}] {_md_inline(finding.title)}",
             "",
             f"_Sources: {', '.join(finding.sources)}_",
             "",
-            finding.description.strip(),
+            _md_block(finding.description),
             "",
         ]
         if finding.remediation:
-            lines += [f"**Remediation:** {finding.remediation.strip()}", ""]
+            lines += [f"**Remediation:** {_md_block(finding.remediation)}", ""]
         if finding.cve:
-            lines += [f"**CVE:** {finding.cve}", ""]
+            lines += [f"**CVE:** {_md_inline(finding.cve)}", ""]
         if finding.reference:
-            lines += [f"Reference: {finding.reference}", ""]
+            lines += [f"Reference: <{finding.reference}>", ""]
 
     lines += ["## Modules", "", "| Module | Status | Duration | Findings |", "|---|---|---|---|"]
     for result in scan.results:

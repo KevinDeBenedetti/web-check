@@ -123,6 +123,21 @@ async def check_docker_container(container_name: str) -> bool:
         return False
 
 
+# Exit codes of the docker CLI itself: 125 (docker error), 126 (command cannot be
+# invoked), 127 (command not found). A missing or stopped container exits 1 with a
+# daemon error on stderr.
+_DOCKER_FAILURE_CODES = {125, 126, 127}
+_DOCKER_FAILURE_PREFIXES = ("Error response from daemon", "Error: No such container")
+
+
+def _docker_itself_failed(result: dict[str, Any]) -> bool:
+    if result["exit_code"] in _DOCKER_FAILURE_CODES:
+        return True
+    return result["exit_code"] != 0 and result["stderr"].lstrip().startswith(
+        _DOCKER_FAILURE_PREFIXES
+    )
+
+
 async def docker_run(
     image: str,
     command: list[str],
@@ -202,6 +217,12 @@ async def docker_run(
             "timeout": False,
             "truncated": False,
         }
+
+    if not result["timeout"] and _docker_itself_failed(result):
+        # The scanner never ran (container stopped or missing, daemon unreachable):
+        # report it the way a failed launch is reported, not as an empty scan.
+        logger.error("docker_command_failed", command=" ".join(cmd), error=result["stderr"])
+        result["exit_code"] = -1
 
     if result["timeout"]:
         logger.warning("docker_command_timeout", command=" ".join(cmd))

@@ -321,7 +321,7 @@ async def test_zap_timeout_stops_spider_and_active_scan(monkeypatch: pytest.Monk
 
     calls: list[str] = []
     zap = SimpleNamespace(
-        urlopen=lambda target: None,
+        urlopen=lambda target, **kwargs: None,
         spider=SimpleNamespace(
             scan=lambda target: "1",
             status=lambda sid: "10",
