@@ -1,0 +1,79 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Dependency updates of web-check, run by .github/workflows/renovate.yml, on top of the shared preset KevinDeBenedetti/renovate-config: Monday-morning pull requests (Europe/Paris), nothing published less than 3 days ago, OSV security updates that never wait, actions and images pinned to their digest, weekly lock file maintenance. Renovate reads this file from main only: a change here takes effect once it is merged there.",
+  "extends": ["github>KevinDeBenedetti/renovate-config"],
+  "packageRules": [
+    {
+      "description": "Every update is a `chore(deps)` (`ci(deps)` for the actions, below), never config:recommended's `fix(deps)`: release-please hides `chore`, so a dependency bump cuts no release on its own.",
+      "matchPackageNames": ["*"],
+      "semanticCommitType": "chore"
+    },
+    {
+      "description": "Python: move uv.lock only, and touch pyproject.toml when a release falls outside a declared range (the upper bounds on sqlalchemy and sqlmap).",
+      "matchManagers": ["pep621"],
+      "rangeStrategy": "update-lockfile"
+    },
+    {
+      "description": "Python minor and patch updates (pyproject.toml and uv.lock) in one pull request a week. Majors come one per pull request (the preset's separateMultipleMajorReleases).",
+      "matchManagers": ["pep621"],
+      "matchUpdateTypes": ["minor", "patch", "pin"],
+      "groupName": "Python packages"
+    },
+    {
+      "description": "Web UI minor and patch updates (apps/web/package.json and package-lock.json) in one pull request a week.",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["minor", "patch", "pin"],
+      "groupName": "web packages"
+    },
+    {
+      "description": "The Vite toolchain only works on one major: its majors come together.",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["vite", "vitest", "@vitest/**", "@vitejs/**"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "Vite"
+    },
+    {
+      "description": "React and its types move on one major together.",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["react", "react-dom", "@types/react", "@types/react-dom"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "React"
+    },
+    {
+      "description": "The base images of the Dockerfile (node web-build stage, uv + Python API stage) in one pull request: tags, digests and digest pins.",
+      "matchManagers": ["dockerfile"],
+      "groupName": "base images"
+    },
+    {
+      "description": "The scanner images of docker-compose.yml (zap, nuclei, nikto, ffuf): minors, patches and digests in one pull request; a major gets its own.",
+      "matchManagers": ["docker-compose"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pinDigest"],
+      "groupName": "scanner images"
+    },
+    {
+      "description": "The actions of .github/workflows in one pull request, as `ci(deps)` (the `chore` rule above would otherwise override the preset's `ci`). The reusable workflows of github-workflows stay on @main: the preset leaves them alone.",
+      "matchManagers": ["github-actions"],
+      "matchDepTypes": ["action"],
+      "groupName": "GitHub Actions",
+      "semanticCommitType": "ci"
+    },
+    {
+      "description": "Node.js majors are switched by hand to the next LTS line, in the web-build stage of the Dockerfile and node-version of ci-cd.yml in the same commit (an odd major is never LTS).",
+      "matchPackageNames": ["node"],
+      "matchDatasources": ["docker", "node-version"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "description": "The Python runtime is moved by hand, everywhere at once: .python-version, requires-python, python-version in ci-cd.yml and the python3.12 tag of the uv image (whose suffix Renovate keeps as is).",
+      "matchPackageNames": ["python"],
+      "enabled": false
+    },
+    {
+      "description": "ghcr.io gives no release date, which the preset's 3-day minimumReleaseAge would take as never old enough: the uv image would never move.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/astral-sh/uv"],
+      "minimumReleaseAgeBehaviour": "timestamp-optional"
+    }
+  ]
+}
