@@ -138,7 +138,7 @@ uv run alembic -c apps/alembic.ini check
 preset [`KevinDeBenedetti/renovate-config`](https://github.com/KevinDeBenedetti/renovate-config))
 runs from `.github/workflows/renovate.yml` and opens its pull requests on Monday
 before 06:00 (Europe/Paris). It only proposes releases that are at least 3 days
-old; security fixes (from the OSV database) are never delayed. It covers Python
+old; security fixes (GitHub and OSV advisories) are never delayed. It covers Python
 (`pyproject.toml` and `uv.lock`), the web UI (`apps/web`), the base images of the
 `Dockerfile`, the scanner images of `docker-compose.yml` and the GitHub Actions of
 the workflows. The Dependency Dashboard issue lists every pending update.
