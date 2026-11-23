@@ -223,3 +223,29 @@ async def test_scanner_timeout_validation() -> None:
             "/api/quick/nuclei", params={"url": "https://example.com", "timeout": 5000}
         )
         assert response.status_code == 422  # Validation error
+
+
+def test_nikto_parser_skips_run_status_lines() -> None:
+    """Nikto 2.6 console output: only lines about the target become findings."""
+    from api.services.nikto import _parse_nikto_output
+
+    output = "\n".join(
+        [
+            "- Nikto v2.6.1",
+            "---------------------------------------------------------------------------",
+            "+ Target IP:          203.0.113.10",
+            "+ Target Hostname:    example.com",
+            "+ Target Port:        443",
+            "+ Platform:           Linux",
+            "+ Start Time:         2026-11-23 10:00:00 (GMT0)",
+            "+ WARNING: Net::SSL does not support SAN extraction. Use Net::SSLeay instead.",
+            "+ /: The X-Content-Type-Options header is not set.",
+            "+ End Time:           2026-11-23 10:05:00 (GMT0) (300 seconds)",
+            "+ 1 host(s) tested",
+            "+ 8102 requests made in 300 seconds",
+        ]
+    )
+    findings = _parse_nikto_output(output)
+
+    assert len(findings) == 1
+    assert "X-Content-Type-Options" in findings[0].description

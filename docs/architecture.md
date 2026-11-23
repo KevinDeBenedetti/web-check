@@ -31,7 +31,7 @@ web-check/
 | `api` | Custom (repo Dockerfile) | FastAPI REST API + scan orchestrator |
 | `zap` | `zaproxy/zap-stable` | OWASP ZAP dynamic analysis proxy |
 | `nuclei` | `projectdiscovery/nuclei` | Template-based vulnerability scanner |
-| `nikto` | `alpine/nikto` | Web server misconfiguration scanner |
+| `nikto` | `hackllc/nikto` | Web server misconfiguration scanner |
 | `ffuf` | `secsi/ffuf` | Directory/path fuzzer (`tools` profile) |
 
 ## Networking
