@@ -65,11 +65,14 @@ _JOB_TTL = 600
 JOB_CHECK_TIMEOUT = float(_JOB_WAIT + 30 + 60 + 30 + 60 + 30)
 
 
-def kube_bench_job_manifest(name: str, node: str | None = None) -> dict[str, Any]:
+def kube_bench_job_manifest(
+    name: str, node: str | None = None, benchmark: str | None = None
+) -> dict[str, Any]:
     """The kube-bench Job of upstream's job.yaml, pinned, run once, with JSON output.
 
     With *node*, its pod runs on that node (``nodeName``) and tolerates its taints,
-    so control-plane nodes are audited too.
+    so control-plane nodes are audited too. With *benchmark*, kube-bench runs that
+    benchmark instead of the one it detects.
     """
     pod_placement: dict[str, Any] = (
         {"nodeName": node, "tolerations": [{"operator": "Exists"}]} if node else {}
@@ -97,7 +100,8 @@ def kube_bench_job_manifest(name: str, node: str | None = None) -> dict[str, Any
                         {
                             "name": "kube-bench",
                             "image": KUBE_BENCH_IMAGE,
-                            "command": ["kube-bench", "run", "--json"],
+                            "command": ["kube-bench", "run", "--json"]
+                            + (["--benchmark", benchmark] if benchmark else []),
                             "volumeMounts": [
                                 {"name": volume, "mountPath": mount, "readOnly": True}
                                 for volume, _, mount in _HOST_PATHS
@@ -112,6 +116,25 @@ def kube_bench_job_manifest(name: str, node: str | None = None) -> dict[str, Any
             },
         },
     }
+
+
+def k3s_benchmark(kubelet_version: str) -> str | None:
+    """The k3s CIS benchmark kube-bench picks for a k3s kubelet version; None off k3s.
+
+    In a pod, kube-bench often cannot reach the API server to detect the version
+    and falls back to the generic cis-1.6, whose control-plane paths k3s does not
+    use. This mirrors kube-bench v0.16's own k3sBenchmark (cmd/util.go).
+    """
+    if "+k3s" not in kubelet_version:
+        return None
+    major_minor = ".".join(kubelet_version.lstrip("v").split("+")[0].split(".")[:2])
+    return {
+        "1.22": "k3s-cis-1.23",
+        "1.23": "k3s-cis-1.23",
+        "1.24": "k3s-cis-1.24",
+        "1.25": "k3s-cis-1.7",
+        "1.26": "k3s-cis-1.8",
+    }.get(major_minor, "k3s-cis-1.9")
 
 
 def kubectl_command(ctx: K8sContext, *args: str) -> list[str]:
@@ -214,7 +237,7 @@ class KubeBenchCheck:
                     "get",
                     "nodes",
                     "-o",
-                    "jsonpath={.items[*].metadata.name}",
+                    'jsonpath={range .items[*]}{.metadata.name} {.status.nodeInfo.kubeletVersion}{"\\n"}{end}',
                 ),
                 timeout=30.0,
             )
@@ -222,7 +245,13 @@ class KubeBenchCheck:
             return _not_found("kubectl")
         if _tool_missing(listed):
             return _not_found("kubectl")
-        nodes = listed.stdout.split() if listed.returncode == 0 else []
+        # node name -> kubelet version ("v1.36.3+k3s1")
+        nodes: dict[str, str] = {}
+        if listed.returncode == 0:
+            for line in listed.stdout.splitlines():
+                name, _, version = line.strip().partition(" ")
+                if name:
+                    nodes[name] = version.strip()
 
         selected = target.context_name or target.kubeconfig_path or "current context"
         if not nodes:
@@ -245,7 +274,8 @@ class KubeBenchCheck:
             )
 
         outcomes = await asyncio.gather(
-            *(_job_report(target, node) for node in nodes), return_exceptions=True
+            *(_job_report(target, node, k3s_benchmark(version)) for node, version in nodes.items()),
+            return_exceptions=True,
         )
         total = _Tally()
         per_node: dict[str, dict[str, Any]] = {}
@@ -260,7 +290,7 @@ class KubeBenchCheck:
                 raise outcome
             tally = _tally(outcome, in_pod=True)
             if tally is None:
-                per_node[node] = {"error": "Its log is not kube-bench JSON."}
+                per_node[node] = {"error": "Its log is not kube-bench JSON.", "log": outcome[:500]}
                 continue
             total.add(tally)
             per_node[node] = tally.node_summary()
@@ -295,10 +325,10 @@ class _JobFailed(Exception):
         self.result = result
 
 
-async def _job_report(target: K8sContext, node: str | None) -> str:
-    """Run one kube-bench Job (on *node*, when given) and return its JSON log."""
+async def _job_report(target: K8sContext, node: str | None, benchmark: str | None = None) -> str:
+    """Run one kube-bench Job (on *node*, when given) and return its log."""
     name = f"my-check-kube-bench-{secrets.token_hex(3)}"
-    manifest = json.dumps(kube_bench_job_manifest(name, node))
+    manifest = json.dumps(kube_bench_job_manifest(name, node, benchmark))
     created = await run_subprocess(
         kubectl_command(target, "create", "-f", "-"), timeout=60.0, stdin=manifest
     )
@@ -367,15 +397,36 @@ class _Tally:
         }
 
 
+def _report_json(log: str) -> Any:
+    """kube-bench's JSON report from its output; None when there is none.
+
+    A pod log mixes stderr into stdout, so warning lines may surround the JSON:
+    the report is the first line that starts a JSON document and decodes.
+    """
+    try:
+        return json.loads(log)
+    except json.JSONDecodeError:
+        pass
+    decoder = json.JSONDecoder()
+    offset = 0
+    for line in log.splitlines(keepends=True):
+        if line.lstrip().startswith(("{", "[")):
+            try:
+                return decoder.raw_decode(log, offset + len(line) - len(line.lstrip()))[0]
+            except json.JSONDecodeError:
+                pass
+        offset += len(line)
+    return None
+
+
 def _tally(stdout: str, *, in_pod: bool) -> _Tally | None:
     """Count the results of kube-bench's JSON report; None when it is not JSON.
 
     Journal-based audits run in a pod (*in_pod*), where the host's journal is out
     of reach, are counted apart as unverifiable instead of being scored.
     """
-    try:
-        data = json.loads(stdout)
-    except json.JSONDecodeError:
+    data = _report_json(stdout)
+    if data is None:
         return None
 
     tally = _Tally()

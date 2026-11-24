@@ -151,11 +151,13 @@ class FakeKubectl:
         job_status: str = "1/",
         nodes: list[str] | None = None,
         nodes_returncode: int = 0,
+        kubelet_version: str = "v1.30.2",
     ) -> None:
         self.logs = logs  # one report for every node, or {node name: report}
         self.job_status = job_status  # {.status.succeeded}/{.status.failed}
         self.nodes = ["node-1"] if nodes is None else nodes
         self.nodes_returncode = nodes_returncode
+        self.kubelet_version = kubelet_version
         self.calls: list[tuple[list[str], str | None]] = []
         self.job_nodes: dict[str, str] = {}  # Job name -> nodeName of its pod
 
@@ -171,7 +173,8 @@ class FakeKubectl:
         if "nodes" in cmd:
             if self.nodes_returncode:
                 return SubprocessResult(self.nodes_returncode, "", "nodes is forbidden")
-            return SubprocessResult(0, "".join(f"{node}\n" for node in self.nodes), "")
+            listing = "".join(f"{node} {self.kubelet_version}\n" for node in self.nodes)
+            return SubprocessResult(0, listing, "")
         if "create" in cmd:
             manifest = json.loads(stdin or "")
             node = manifest["spec"]["template"]["spec"].get("nodeName", "")
@@ -182,7 +185,8 @@ class FakeKubectl:
             job = cmd[-1].removeprefix("job/")
             node = self.job_nodes.get(job, "")
             report = self.logs[node] if node in self.logs else self.logs
-            return SubprocessResult(0, json.dumps(report), "")
+            log = report if isinstance(report, str) else json.dumps(report)
+            return SubprocessResult(0, log, "")
         return SubprocessResult(0, "", "")
 
     def verbs(self) -> list[str]:
@@ -353,6 +357,79 @@ async def test_unlistable_nodes_fall_back_to_a_single_job(monkeypatch: pytest.Mo
     assert "nodeName" not in json.loads(fake.calls[1][1] or "")["spec"]["template"]["spec"]
     assert result.details["scope"] == "cluster (Job on one node)"
     assert "nodes could not be listed" in result.message
+
+
+# What kube-bench prints in a pod that cannot reach the API server (seen on k3s).
+_VERSION_WARNING = (
+    "Warning: Kubernetes version was not auto-detected because kubectl could not connect"
+    " to the Kubernetes server. Assuming default version 1.18\n"
+)
+
+
+async def test_a_job_log_with_warnings_before_the_json_is_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report = {"Controls": [{"node_type": "node", "tests": [{"results": [_result("PASS")]}]}]}
+    log = _VERSION_WARNING * 2 + json.dumps(report) + "\n"
+    monkeypatch.setattr(kube_bench, "run_subprocess", FakeKubectl(log))
+
+    result = await kube_bench.KubeBenchCheck().run(JOB_CTX)
+
+    assert result.details["pass"] == 1
+    assert "error" not in result.details["nodes"]["node-1"]
+
+
+async def test_a_job_log_without_json_keeps_an_excerpt(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = FakeKubectl(
+        {"cp-1": "level=fatal msg=unable to load config", "worker-1": {}},
+        nodes=["cp-1", "worker-1"],
+    )
+    monkeypatch.setattr(kube_bench, "run_subprocess", fake)
+
+    result = await kube_bench.KubeBenchCheck().run(JOB_CTX)
+
+    assert "unable to load config" in result.details["nodes"]["cp-1"]["log"]
+
+
+def _job_commands(fake: FakeKubectl) -> list[list[str]]:
+    return [
+        json.loads(stdin or "")["spec"]["template"]["spec"]["containers"][0]["command"]
+        for cmd, stdin in fake.calls
+        if "create" in cmd
+    ]
+
+
+@pytest.mark.parametrize(
+    ("kubelet_version", "benchmark"),
+    [
+        ("v1.36.3+k3s1", "k3s-cis-1.9"),
+        ("v1.27.4+k3s1", "k3s-cis-1.9"),
+        ("v1.26.9+k3s1", "k3s-cis-1.8"),
+        ("v1.25.2+k3s1", "k3s-cis-1.7"),
+        ("v1.24.17+k3s1", "k3s-cis-1.24"),
+        ("v1.23.6+k3s1", "k3s-cis-1.23"),
+    ],
+)
+async def test_a_k3s_node_gets_the_k3s_benchmark(
+    monkeypatch: pytest.MonkeyPatch, kubelet_version: str, benchmark: str
+) -> None:
+    fake = FakeKubectl({"Controls": []}, kubelet_version=kubelet_version)
+    monkeypatch.setattr(kube_bench, "run_subprocess", fake)
+
+    await kube_bench.KubeBenchCheck().run(JOB_CTX)
+
+    assert _job_commands(fake) == [["kube-bench", "run", "--json", "--benchmark", benchmark]]
+
+
+async def test_other_nodes_leave_the_benchmark_to_kube_bench(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeKubectl({"Controls": []}, kubelet_version="v1.30.2")
+    monkeypatch.setattr(kube_bench, "run_subprocess", fake)
+
+    await kube_bench.KubeBenchCheck().run(JOB_CTX)
+
+    assert _job_commands(fake) == [["kube-bench", "run", "--json"]]
 
 
 def test_kube_bench_job_is_opt_in() -> None:
