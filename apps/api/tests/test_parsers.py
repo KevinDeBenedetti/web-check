@@ -9,7 +9,7 @@ same pages escaped and parameterised. Local paths and ports were scrubbed.
 from pathlib import Path
 
 import pytest
-from api.services.sqlmap_scanner import parse_sqlmap_output
+from api.services.sqlmap_scanner import parse_sqlmap_output, sqlmap_connection_error
 from api.services.xsstrike_scanner import parse_xsstrike_output
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -95,3 +95,45 @@ def test_xsstrike_escaped_reflection_is_reported_as_possible_only() -> None:
     findings = parse_xsstrike_output(_fixture("xsstrike_escaped_false_positive.txt"))
     assert len(findings) == 1
     assert "confirm" in findings[0].description.lower()
+
+
+def test_sqlmap_unreachable_target_is_a_connection_failure() -> None:
+    # Captured from sqlmap 1.10.11 against a closed port: it exits 0 all the same.
+    error = sqlmap_connection_error(_fixture("sqlmap_unreachable.txt"))
+    assert error is not None and "unable to connect to the target URL" in error
+    assert "retry" not in error
+
+
+@pytest.mark.parametrize("name", ["sqlmap_clean.txt", "sqlmap_vulnerable.txt"])
+def test_sqlmap_completed_scans_are_not_connection_failures(name: str) -> None:
+    assert sqlmap_connection_error(_fixture(name)) is None
+
+
+def test_sqlmap_connection_timeout_is_a_failure_but_a_retried_one_is_not() -> None:
+    retried = (
+        "[10:00:00] [CRITICAL] connection timed out to the target URL. "
+        "sqlmap is going to retry the request(s)\n"
+        "[10:00:05] [WARNING] all tested parameters do not appear to be injectable.\n"
+    )
+    assert sqlmap_connection_error(retried) is None
+    final = "[10:00:00] [CRITICAL] connection timed out to the target URL\n"
+    assert sqlmap_connection_error(final) == "connection timed out to the target URL"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "[10:00:00] [CRITICAL] connection reset to the target URL",
+        "[10:00:00] [CRITICAL] host 'nowhere.invalid' does not exist",
+    ],
+)
+def test_sqlmap_reset_and_unknown_host_are_connection_failures(line: str) -> None:
+    assert sqlmap_connection_error(line + "\n") == line.split("[CRITICAL] ")[1]
+
+
+def test_sqlmap_completed_scan_wins_over_a_later_connection_loss() -> None:
+    output = (
+        "[10:00:00] [WARNING] all tested parameters do not appear to be injectable.\n"
+        "[10:00:09] [CRITICAL] connection timed out to the target URL\n"
+    )
+    assert sqlmap_connection_error(output) is None

@@ -47,6 +47,8 @@ class K8sContext:
     context_name: str | None = None
     kubeconfig_path: str | None = None
     namespace: str | None = None
+    # Run kube-bench as a privileged Job in the cluster instead of on this machine.
+    kube_bench_job: bool = False
 
     def kubeconfig_env(self) -> dict[str, str] | None:
         """KUBECONFIG for tools that take no --kubeconfig flag (polaris, kube-bench)."""
@@ -123,20 +125,23 @@ async def run_subprocess(
     *,
     timeout: float = 120.0,
     env: dict[str, str] | None = None,
+    stdin: str | None = None,
 ) -> SubprocessResult:
     """Run *cmd* asynchronously with a timeout. Returns SubprocessResult.
 
     *env* adds variables to the inherited environment (it does not replace it).
+    *stdin* is written to the command's standard input.
     """
     proc = await asyncio.create_subprocess_exec(
         *cmd,
+        stdin=asyncio.subprocess.PIPE if stdin is not None else None,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         env={**os.environ, **env} if env else None,
     )
     try:
         stdout_bytes, stderr_bytes = await asyncio.wait_for(
-            proc.communicate(),
+            proc.communicate(stdin.encode() if stdin is not None else None),
             timeout=timeout,
         )
     except TimeoutError:

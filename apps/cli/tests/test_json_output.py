@@ -18,6 +18,8 @@ class FakeClient:
         pass
 
     def get(self, endpoint: str, **params: Any) -> dict:
+        if endpoint == "/api/catalog":
+            return {"modules": [{"id": "nuclei"}], "profiles": [], "default_profile": "standard"}
         if endpoint.startswith("/api/scans/"):
             return {
                 "scan_id": "s1",

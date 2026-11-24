@@ -2,6 +2,17 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "description": "Dependency updates of web-check, run by .github/workflows/renovate.yml, on top of the shared preset KevinDeBenedetti/renovate-config: Monday-morning pull requests (Europe/Paris), nothing published less than 3 days ago, OSV security updates that never wait, actions and images pinned to their digest, weekly lock file maintenance. Renovate reads this file from main only: a change here takes effect once it is merged there.",
   "extends": ["github>KevinDeBenedetti/renovate-config"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "The kube-bench image my-check runs as a Job in the cluster (--kube-bench-job): KUBE_BENCH_IMAGE in kube_bench.py, a tag and its digest, which move together.",
+      "managerFilePatterns": ["/^apps/my_check/checks/k8s/wrappers/kube_bench\\.py$/"],
+      "matchStrings": [
+        "KUBE_BENCH_IMAGE = \\(\\s*\"(?<depName>[^:\"]+):(?<currentValue>[^\"@]+)\"\\s*\"@(?<currentDigest>sha256:[0-9a-f]{64})\""
+      ],
+      "datasourceTemplate": "docker"
+    }
+  ],
   "packageRules": [
     {
       "description": "Every update is a `chore(deps)` (`ci(deps)` for the actions, below), never config:recommended's `fix(deps)`: release-please hides `chore`, so a dependency bump cuts no release on its own.",

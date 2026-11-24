@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from kubernetes import client
 from my_check.checks.k8s import _load_client
-from my_check.checks.k8s._model import containers_of, name_of, namespace_of
+from my_check.checks.k8s._model import containers_of, list_pods, name_of, namespace_of
 from my_check.types import (
     CheckCategory,
     CheckResult,
@@ -59,10 +59,7 @@ class SecretsCheck:
         api_client = _load_client(target)
         core = client.CoreV1Api(api_client)
 
-        if target.namespace:
-            pods = core.list_namespaced_pod(target.namespace).items
-        else:
-            pods = core.list_pod_for_all_namespaces().items
+        pods = list_pods(core, target.namespace)
 
         issues: list[dict[str, str]] = []
 

@@ -31,6 +31,32 @@ _INJECTION_SUMMARY = re.compile(
 _PARAMETER = re.compile(r"^Parameter: (?P<name>.+?) \((?P<place>[^)]+)\)\s*$")
 _FIELD = re.compile(r"^\s+(?P<key>Type|Title|Payload): (?P<value>.*)$")
 _DBMS = re.compile(r"^back-end DBMS: (.+)$", re.M)
+# sqlmap exits 0 when it cannot reach the target: its controller only logs the
+# failure. A line that ends in "sqlmap is going to retry the request(s)" is not the
+# last word; the final one (no retry suffix) is.
+#   [11:08:02] [CRITICAL] unable to connect to the target URL ('Connection refused') or proxy
+#   [10:00:00] [CRITICAL] connection timed out to the target URL
+#   [10:00:00] [CRITICAL] host 'nowhere.invalid' does not exist
+_CONNECTION_FAILURE = re.compile(
+    r"^\[[^\]]*\] \[CRITICAL\] ("
+    r"(?:unable to connect to|connection timed out to|connection reset to) the target URL.*?"
+    r"|host '[^']*' does not exist.*?"
+    r")\s*$",
+    re.M,
+)
+# A scan that got this far tested every parameter: a later connection loss
+# does not make it a failure.
+_COMPLETED = "all tested parameters do not appear to be injectable"
+
+
+def sqlmap_connection_error(stdout: str) -> str | None:
+    """sqlmap's final connection failure, or None when it reached the target."""
+    if _COMPLETED in stdout:
+        return None
+    for match in _CONNECTION_FAILURE.finditer(stdout.replace("\r\n", "\n")):
+        if "going to retry" not in match.group(1):
+            return match.group(1)
+    return None
 
 
 def parse_sqlmap_output(stdout: str) -> list[Finding]:
@@ -155,6 +181,18 @@ async def run_sqlmap_scan(
         write_private_file(output_file, stdout)
 
         findings = parse_sqlmap_output(stdout)
+        if not findings and (failure := sqlmap_connection_error(stdout)):
+            return CheckResult(
+                module="sqlmap",
+                category="security",
+                target=target,
+                timestamp=datetime.now(UTC),
+                duration_ms=int((time.time() - start) * 1000),
+                status="error",
+                data=None,
+                findings=[],
+                error=f"sqlmap could not reach the target: {failure}",
+            )
 
         logger.info(
             "sqlmap_scan_completed",

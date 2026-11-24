@@ -124,3 +124,47 @@ def test_web_ports_setting_reaches_the_ports_check() -> None:
     # Unset keeps the check's own list, with the database / remote-access ports.
     assert ports_of(get_web_checks(None)) == DEFAULT_PORTS
     assert {22, 3306} <= set(ports_of(get_web_checks(load_config().web.ports)))
+
+
+class RecordingScheduler(FakeScheduler):
+    k8s_ctx: K8sContext | None = None
+    timeout: float | None = None
+
+    def __init__(self, **kwargs) -> None:
+        RecordingScheduler.timeout = kwargs.get("timeout")
+
+    async def run(self, **kwargs) -> Report:
+        RecordingScheduler.k8s_ctx = kwargs.get("k8s_ctx")
+        return await super().run(**kwargs)
+
+
+@pytest.mark.parametrize(
+    ("args", "config", "expected"),
+    [
+        ([], {}, False),
+        (["--kube-bench-job"], {}, True),
+        ([], {"k8s": {"kube_bench_job": True}}, True),
+    ],
+    ids=["default", "flag", "config"],
+)
+def test_kube_bench_job_is_opt_in(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, args: list[str], config: dict, expected: bool
+) -> None:
+    monkeypatch.setattr(cli, "Scheduler", RecordingScheduler)
+    (tmp_path / "my-check.config.json").write_text(json.dumps(config))
+
+    assert runner.invoke(cli.app, ["k8s", *args]).exit_code == 0
+    assert RecordingScheduler.k8s_ctx is not None
+    assert RecordingScheduler.k8s_ctx.kube_bench_job is expected
+
+
+def test_kube_bench_job_raises_the_check_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "Scheduler", RecordingScheduler)
+    (tmp_path / "my-check.config.json").write_text(json.dumps({"k8s": {"timeout": 60}}))
+
+    assert runner.invoke(cli.app, ["k8s"]).exit_code == 0
+    assert RecordingScheduler.timeout == 60
+    assert runner.invoke(cli.app, ["k8s", "--kube-bench-job"]).exit_code == 0
+    assert RecordingScheduler.timeout is not None and RecordingScheduler.timeout >= 300

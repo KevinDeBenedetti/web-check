@@ -15,8 +15,7 @@ console = Console()
 
 scan_app = typer.Typer(help="Scan operations")
 
-# All modules supported by /api/scans/start
-_ALL_MODULES = ["nuclei", "nikto", "zap", "testssl", "sqlmap", "wapiti", "xsstrike"]
+# The modules /api/scans/start accepts come from GET /api/catalog.
 _DEFAULT_MODULES = ["nuclei", "nikto", "zap"]
 
 
@@ -149,9 +148,9 @@ def full(
     url: str = typer.Argument(..., help="Target URL to scan"),
     modules: str = typer.Option(
         ",".join(_DEFAULT_MODULES),
-        help=f"Comma-separated modules. Available: {', '.join(_ALL_MODULES)}",
+        help="Comma-separated modules, as listed by the API catalog (GET /api/catalog)",
     ),
-    all_modules: bool = typer.Option(False, "--all", help="Run every available module"),
+    all_modules: bool = typer.Option(False, "--all", help="Run every module of the API catalog"),
     timeout: int = typer.Option(300, help="Timeout per module in seconds (30-3600)"),
     output_format: str = typer.Option("table", help="Output format (table, json)"),
     report: bool = typer.Option(False, "--report", help="Save a Markdown report to outputs/"),
@@ -159,24 +158,34 @@ def full(
     """Run a complete multi-module security scan (async, with live progress).
 
     Default modules: nuclei, nikto, zap.
-    Use --all to run all 7 modules (much slower).
+    Use --all to run every module of the API catalog (much slower).
     """
     # JSON mode: stdout carries the JSON document only; progress goes to stderr.
     out = Console(stderr=True) if output_format == "json" else console
-    module_list = (
-        _ALL_MODULES if all_modules else [m.strip() for m in modules.split(",") if m.strip()]
-    )
-
-    invalid = [m for m in module_list if m not in _ALL_MODULES]
-    if invalid:
-        out.print(f"[red]✗ Unknown module(s): {', '.join(invalid)}[/red]")
-        out.print(f"  Available: {', '.join(_ALL_MODULES)}")
-        raise typer.Exit(1) from None
 
     settings = CLISettings()
     client = APIClient(settings.api_url, settings.api_timeout, settings.api_key)
 
     try:
+        try:
+            catalog = client.get("/api/catalog")
+        except Exception as e:
+            out.print(f"[red]✗ Could not read the module catalog (GET /api/catalog): {e}[/red]")
+            raise typer.Exit(1) from None
+        available = [module["id"] for module in catalog.get("modules", [])]
+        if not available:
+            out.print("[red]✗ The API catalog lists no scan module[/red]")
+            raise typer.Exit(1) from None
+        module_list = (
+            available if all_modules else [m.strip() for m in modules.split(",") if m.strip()]
+        )
+
+        invalid = [m for m in module_list if m not in available]
+        if invalid:
+            out.print(f"[red]✗ Unknown module(s): {', '.join(invalid)}[/red]")
+            out.print(f"  Available: {', '.join(available)}")
+            raise typer.Exit(1) from None
+
         # Start async scan
         out.print(f"\n[bold cyan]🔍 Starting full scan on {url}[/bold cyan]")
         out.print(f"   Modules : [cyan]{', '.join(module_list)}[/cyan]")
@@ -244,6 +253,8 @@ def full(
         if report:
             save_report(url, normalise_full_scan(scan), scan_type="full")
 
+    except typer.Exit:
+        raise
     except Exception as e:
         logger.error("full_scan_failed", error=str(e))
         out.print(f"[red]✗ Full scan failed: {e}[/red]")

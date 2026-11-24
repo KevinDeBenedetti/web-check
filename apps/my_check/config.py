@@ -81,6 +81,9 @@ class K8sConfig(BaseModel):
     context: str | None = Field(None)
     kubeconfig: str | None = Field(None)
     namespace: str | None = Field(None)
+    kube_bench_job: bool = Field(
+        False, description="Run kube-bench as a privileged Job in the selected cluster"
+    )
     enabled_checks: list[str] = Field(default_factory=lambda: list(_DEFAULT_K8S_CHECKS))
     timeout: float = Field(60.0, ge=1.0)
 
