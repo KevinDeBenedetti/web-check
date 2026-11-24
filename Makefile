@@ -22,7 +22,7 @@ endif
 export APP_UID APP_GID DOCKER_GID
 
 .DEFAULT_GOAL := help
-.PHONY: help start dev stop logs install cli test format check \
+.PHONY: help start dev stop logs install cli test format check bin \
         ui-install ui-dev ui-build ui-check clean clean-all
 
 help: ## List the targets
@@ -62,6 +62,21 @@ test: ## Run the tests
 
 format: ## Format the code
 	@uv run ruff format .
+
+# Single-file executables for the host OS and CPU (on macOS: arm64 on Apple silicon,
+# x86_64 on Intel). uv fetches PyInstaller for the build only.
+# The apps' own modules are found by following their imports; dnspython loads its
+# record types by name and questionary needs its data, so those two are collected.
+PYINSTALLER = uv run --with pyinstaller pyinstaller --onefile --noconfirm --clean \
+	--log-level WARN --exclude-module pytest \
+	--paths $(CURDIR)/apps --distpath dist --workpath build/pyinstaller --specpath build/pyinstaller
+
+bin: ## Build standalone my-check and web-check executables into dist/
+	@$(PYINSTALLER) --name my-check --collect-submodules dns --collect-all questionary \
+		$(CURDIR)/packaging/my_check_entry.py
+	@$(PYINSTALLER) --name web-check $(CURDIR)/packaging/web_check_entry.py
+	@./dist/my-check --help >/dev/null && ./dist/web-check --help >/dev/null
+	@echo "✅ dist/my-check and dist/web-check built for $$(uname -sm)"
 
 check: ## Format check, lint, type check and tests
 	@uv run ruff format --check .

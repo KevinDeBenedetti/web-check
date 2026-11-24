@@ -14,6 +14,23 @@ make install   # uv sync --all-groups
 make cli       # the interactive wizard (uv run my-check)
 ```
 
+### Standalone executable
+
+`make bin` builds single-file `my-check` and `web-check` executables into `dist/`
+with PyInstaller, for the OS and CPU of the machine that runs it (on macOS: arm64
+on Apple silicon, x86_64 on Intel). They need neither uv nor Python:
+
+```sh
+make bin
+sudo install dist/my-check dist/web-check /usr/local/bin/   # optional
+my-check web https://example.com
+```
+
+The binaries are not signed with a Developer ID: macOS runs them where they were
+built, but a copy downloaded on another Mac is quarantined. Clear the flag there
+with `xattr -d com.apple.quarantine my-check`. The wrapped Kubernetes tools
+(kube-bench, Trivy, Polaris, Falco) stay external, as with `uv run my-check`.
+
 ## Interactive wizard
 
 `uv run my-check` with no command opens a guided form. It asks what to scan (web,

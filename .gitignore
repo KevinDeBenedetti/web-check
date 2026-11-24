@@ -44,3 +44,7 @@ env/
 *.db
 *.db-*
 web-check.db
+
+# Standalone executables (make bin)
+dist/
+build/
