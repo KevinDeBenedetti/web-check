@@ -206,3 +206,27 @@ def test_a_timed_out_check_does_not_hold_the_process_at_exit(stuck_in: str) -> N
     assert done.returncode == 0, done.stderr
     assert "Timed out" in done.stdout
     assert elapsed < 10  # the stuck check would hold it for 30 s
+
+
+@pytest.mark.parametrize("source", ["environment", "config", "flag"])
+def test_a_home_relative_kubeconfig_path_is_expanded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source: str
+) -> None:
+    # No shell reads the configured value, and the tools my-check runs do not expand "~".
+    monkeypatch.setattr(cli, "Scheduler", RecordingScheduler)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    args = ["k8s"]
+    if source == "environment":
+        monkeypatch.setenv("MY_CHECK_K8S_KUBECONFIG", "~/.kube/prod")
+    elif source == "config":
+        (tmp_path / "my-check.config.json").write_text(
+            json.dumps({"k8s": {"kubeconfig": "~/.kube/prod"}})
+        )
+    else:
+        args += ["--kubeconfig", "~/.kube/prod"]
+
+    assert runner.invoke(cli.app, args).exit_code == 0
+    expanded = str(tmp_path / ".kube" / "prod")
+    assert RecordingScheduler.k8s_ctx is not None
+    assert RecordingScheduler.k8s_ctx.kubeconfig_path == expanded
+    assert RecordingScheduler.k8s_ctx.kubeconfig_env() == {"KUBECONFIG": expanded}

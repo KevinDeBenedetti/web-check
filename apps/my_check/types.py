@@ -50,6 +50,12 @@ class K8sContext:
     # Run kube-bench as a privileged Job in the cluster instead of on this machine.
     kube_bench_job: bool = False
 
+    def __post_init__(self) -> None:
+        # A path from the environment, the configuration file or the wizard went
+        # through no shell, and kubectl, trivy, polaris and kube-bench do not expand "~".
+        if self.kubeconfig_path:
+            object.__setattr__(self, "kubeconfig_path", os.path.expanduser(self.kubeconfig_path))
+
     def kubeconfig_env(self) -> dict[str, str] | None:
         """KUBECONFIG for tools that take no --kubeconfig flag (polaris, kube-bench)."""
         return {"KUBECONFIG": self.kubeconfig_path} if self.kubeconfig_path else None

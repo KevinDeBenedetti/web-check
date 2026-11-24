@@ -2,10 +2,11 @@
 
 By default kube-bench runs on this machine and audits its own node. With
 ``K8sContext.kube_bench_job`` it runs as Jobs in the selected cluster, from
-upstream's job.yaml: one Job pinned to each node (``kubectl get nodes``), so the
-control-plane and worker sections are both covered. The Jobs are created, waited
-for, their JSON logs read and summed, then deleted. When the nodes cannot be
-listed (RBAC), a single Job audits the node the scheduler picks.
+upstream's job.yaml: one Job pinned to each Ready Linux node (``kubectl get
+nodes``), a few at a time, so the control-plane and worker sections are both
+covered. The Jobs are created, waited for, their JSON logs read and summed, then
+deleted. When the nodes cannot be listed (RBAC), a single Job audits the node
+the scheduler picks.
 """
 
 from __future__ import annotations
@@ -52,16 +53,20 @@ _HOST_PATHS: tuple[tuple[str, str, str], ...] = (
     ("opt-cni-bin", "/opt/cni/bin/", "/opt/cni/bin/"),
 )
 
-# Seconds: how long to wait for the Job, how often to poll its status, the most
-# it may run, and when Kubernetes deletes it if my-check could not (interrupted run).
+# Seconds: how long to wait for the Jobs (one window for all of them, from the
+# first one), how often to poll a Job's status, the most it may run, and when
+# Kubernetes deletes it if my-check could not (interrupted run).
 _JOB_WAIT = 300
 _JOB_POLL = 5
 _JOB_DEADLINE = 600
 _JOB_TTL = 600
+# Jobs (each with its polling kubectl) running at the same time.
+_JOB_PARALLEL = 10
 # What the whole check needs in Job mode, each step at its own timeout: list the
 # nodes (30), create (60), wait plus its last poll (_JOB_WAIT + 30), logs (60) and
-# delete (30); the nodes' Jobs run in parallel. The scheduler's per-check timeout
-# is raised to it (my_check.cli), so the deletes are never cut short.
+# delete (30). The nodes' Jobs share the one wait window, whatever their number.
+# The scheduler's per-check timeout is raised to it (my_check.cli), so the
+# deletes are never cut short.
 JOB_CHECK_TIMEOUT = float(_JOB_WAIT + 30 + 60 + 30 + 60 + 30)
 
 
@@ -141,12 +146,15 @@ def k3s_benchmark(kubelet_version: str) -> str | None:
     }.get(major_minor, "k3s-cis-1.9")
 
 
-# One line per node: name, kubelet version, then the values of its control-plane
-# and master role labels (both empty on a worker), tab-separated.
+# One line per node, tab-separated: name, kubelet version, the values of its
+# control-plane and master role labels (both empty on a worker), its
+# kubernetes.io/os label and the status of its Ready condition.
 _NODES_JSONPATH = (
     'jsonpath={range .items[*]}{.metadata.name}{"\\t"}{.status.nodeInfo.kubeletVersion}'
     '{"\\t"}{.metadata.labels.node-role\\.kubernetes\\.io/control-plane}'
-    '{.metadata.labels.node-role\\.kubernetes\\.io/master}{"\\n"}{end}'
+    "{.metadata.labels.node-role\\.kubernetes\\.io/master}"
+    '{"\\t"}{.metadata.labels.kubernetes\\.io/os}'
+    '{"\\t"}{.status.conditions[?(@.type=="Ready")].status}{"\\n"}{end}'
 )
 
 
@@ -154,15 +162,27 @@ _NODES_JSONPATH = (
 class _Node:
     kubelet_version: str
     control_plane: bool
+    os: str
+    ready: bool
+
+    def skip_reason(self) -> str | None:
+        """Why kube-bench cannot run on this node; None when it can."""
+        if self.os != "linux":
+            return f"not a Linux node ({self.os or 'no kubernetes.io/os label'})"
+        if not self.ready:
+            return "not Ready"
+        return None
 
 
 def _parse_nodes(listing: str) -> dict[str, _Node]:
     """Nodes by name, from a `_NODES_JSONPATH` listing."""
     nodes: dict[str, _Node] = {}
     for line in listing.splitlines():
-        name, version, roles = ([*line.split("\t"), "", ""])[:3]
-        if name.strip():
-            nodes[name.strip()] = _Node(version.strip(), bool(roles.strip()))
+        name, version, roles, os_label, ready = (
+            part.strip() for part in [*line.split("\t"), "", "", "", ""][:5]
+        )
+        if name:
+            nodes[name] = _Node(version, bool(roles), os_label, ready == "True")
     return nodes
 
 
@@ -198,9 +218,11 @@ def _failure(message: str, result: SubprocessResult) -> CheckResult:
     )
 
 
-async def _wait_for_job(target: K8sContext, name: str) -> str | None:
-    """None once the Job succeeded; why it did not otherwise (failed, timed out)."""
-    deadline = time.monotonic() + _JOB_WAIT
+async def _wait_for_job(target: K8sContext, name: str, deadline: float) -> str | None:
+    """None once the Job succeeded; why it did not otherwise (failed, timed out).
+
+    *deadline* is the `time.monotonic()` value at which the wait gives up.
+    """
     while True:
         status = await run_subprocess(
             kubectl_command(
@@ -216,7 +238,7 @@ async def _wait_for_job(target: K8sContext, name: str) -> str | None:
         if failed not in ("", "0"):
             return "it failed (kubectl describe job shows why)"
         if time.monotonic() >= deadline:
-            return f"it was still running after {_JOB_WAIT}s"
+            return f"it was still running when the {_JOB_WAIT}s wait for the Jobs ended"
         await asyncio.sleep(_JOB_POLL)
 
 
@@ -277,11 +299,12 @@ class KubeBenchCheck:
         nodes = _parse_nodes(listed.stdout) if listed.returncode == 0 else {}
 
         selected = target.context_name or target.kubeconfig_path or "current context"
+        deadline = time.monotonic() + _JOB_WAIT
         if not nodes:
             # The nodes could not be listed (that needs a ClusterRole) or none was:
             # run one Job wherever it is scheduled.
             try:
-                stdout = await _job_report(target, None)
+                stdout = await _job_report(target, None, deadline)
             except _JobFailed as failed:
                 return failed.result
             why = (
@@ -296,22 +319,43 @@ class KubeBenchCheck:
                 in_pod=True,
             )
 
-        outcomes = await asyncio.gather(
-            *(
-                _job_report(
+        # kube-bench runs on Ready Linux nodes only: on another node the Job could
+        # only end without a result, after the whole wait.
+        skipped = {
+            node: {"skipped": reason}
+            for node, info in nodes.items()
+            if (reason := info.skip_reason())
+        }
+        eligible = {node: info for node, info in nodes.items() if node not in skipped}
+        if not eligible:
+            return CheckResult(
+                status=CheckStatus.FAIL,
+                score=0,
+                message=f"No Ready Linux node to run kube-bench on in '{selected}'"
+                f" ({len(skipped)} node(s) skipped).",
+                details={"nodes": skipped},
+            )
+
+        slots = asyncio.Semaphore(_JOB_PARALLEL)
+
+        async def in_a_slot(node: str, info: _Node) -> str:
+            async with slots:
+                return await _job_report(
                     target,
                     node,
+                    deadline,
                     k3s_benchmark(info.kubelet_version),
                     None if info.control_plane else "node",
                 )
-                for node, info in nodes.items()
-            ),
+
+        outcomes = await asyncio.gather(
+            *(in_a_slot(node, info) for node, info in eligible.items()),
             return_exceptions=True,
         )
         total = _Tally()
         per_node: dict[str, dict[str, Any]] = {}
         failures: list[CheckResult] = []
-        for node, outcome in zip(nodes, outcomes, strict=True):
+        for node, outcome in zip(eligible, outcomes, strict=True):
             if isinstance(outcome, _JobFailed):
                 failures.append(outcome.result)
                 stderr = (outcome.result.details or {}).get("stderr", "").strip()
@@ -327,24 +371,25 @@ class KubeBenchCheck:
             per_node[node] = tally.node_summary()
 
         unaudited = sum(1 for summary in per_node.values() if "error" in summary)
-        if unaudited == len(nodes):
-            if len(nodes) == 1 and failures:
+        if unaudited == len(eligible):
+            if len(eligible) == 1 and failures and not skipped:
                 return failures[0]
             return CheckResult(
                 status=CheckStatus.FAIL,
                 score=0,
-                message=f"No kube-bench Job completed on the {len(nodes)} node(s).",
-                details={"nodes": per_node},
+                message=f"No kube-bench Job completed on the {len(eligible)} node(s).",
+                details={"nodes": per_node | skipped},
             )
 
+        skip_note = f"; {len(skipped)} skipped, not Ready or not Linux" if skipped else ""
         result = _verdict(
             total,
-            scope=f"cluster (Jobs on {len(nodes)} node{'s' if len(nodes) > 1 else ''})",
-            note=f" (kube-bench Jobs on the {len(nodes)} node(s) of '{selected}')",
+            scope=f"cluster (Jobs on {len(eligible)} node{'s' if len(eligible) > 1 else ''})",
+            note=f" (kube-bench Jobs on the {len(eligible)} node(s) of '{selected}'{skip_note})",
             in_pod=True,
             unaudited_nodes=unaudited,
         )
-        result.details["nodes"] = per_node
+        result.details["nodes"] = per_node | skipped
         return result
 
 
@@ -359,14 +404,26 @@ class _JobFailed(Exception):
 async def _job_report(
     target: K8sContext,
     node: str | None,
+    deadline: float,
     benchmark: str | None = None,
     targets: str | None = None,
 ) -> str:
     """Run one kube-bench Job (on *node*, when given) and return its log.
 
     A worker gets *targets* ``node``: kube-bench otherwise runs every section of
-    the benchmark, control plane included, on every node.
+    the benchmark, control plane included, on every node. *deadline* is the
+    `time.monotonic()` value at which the wait for the Jobs ends: past it, no
+    Job is created.
     """
+    if time.monotonic() >= deadline:
+        raise _JobFailed(
+            CheckResult(
+                status=CheckStatus.FAIL,
+                score=0,
+                message=f"The kube-bench Job was not started: the {_JOB_WAIT}s wait"
+                " for the Jobs ended before its turn.",
+            )
+        )
     name = f"my-check-kube-bench-{secrets.token_hex(3)}"
     manifest = json.dumps(kube_bench_job_manifest(name, node, benchmark, targets))
     created = await run_subprocess(
@@ -376,7 +433,7 @@ async def _job_report(
         raise _JobFailed(_failure("Could not create the kube-bench Job in the cluster.", created))
 
     try:
-        if why := await _wait_for_job(target, name):
+        if why := await _wait_for_job(target, name, deadline):
             raise _JobFailed(
                 CheckResult(
                     status=CheckStatus.FAIL,
