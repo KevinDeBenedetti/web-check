@@ -66,13 +66,16 @@ JOB_CHECK_TIMEOUT = float(_JOB_WAIT + 30 + 60 + 30 + 60 + 30)
 
 
 def kube_bench_job_manifest(
-    name: str, node: str | None = None, benchmark: str | None = None
+    name: str,
+    node: str | None = None,
+    benchmark: str | None = None,
+    targets: str | None = None,
 ) -> dict[str, Any]:
     """The kube-bench Job of upstream's job.yaml, pinned, run once, with JSON output.
 
     With *node*, its pod runs on that node (``nodeName``) and tolerates its taints,
     so control-plane nodes are audited too. With *benchmark*, kube-bench runs that
-    benchmark instead of the one it detects.
+    benchmark instead of the one it detects; with *targets*, only those sections.
     """
     pod_placement: dict[str, Any] = (
         {"nodeName": node, "tolerations": [{"operator": "Exists"}]} if node else {}
@@ -101,7 +104,8 @@ def kube_bench_job_manifest(
                             "name": "kube-bench",
                             "image": KUBE_BENCH_IMAGE,
                             "command": ["kube-bench", "run", "--json"]
-                            + (["--benchmark", benchmark] if benchmark else []),
+                            + (["--benchmark", benchmark] if benchmark else [])
+                            + (["--targets", targets] if targets else []),
                             "volumeMounts": [
                                 {"name": volume, "mountPath": mount, "readOnly": True}
                                 for volume, _, mount in _HOST_PATHS
@@ -135,6 +139,31 @@ def k3s_benchmark(kubelet_version: str) -> str | None:
         "1.25": "k3s-cis-1.7",
         "1.26": "k3s-cis-1.8",
     }.get(major_minor, "k3s-cis-1.9")
+
+
+# One line per node: name, kubelet version, then the values of its control-plane
+# and master role labels (both empty on a worker), tab-separated.
+_NODES_JSONPATH = (
+    'jsonpath={range .items[*]}{.metadata.name}{"\\t"}{.status.nodeInfo.kubeletVersion}'
+    '{"\\t"}{.metadata.labels.node-role\\.kubernetes\\.io/control-plane}'
+    '{.metadata.labels.node-role\\.kubernetes\\.io/master}{"\\n"}{end}'
+)
+
+
+@dataclass(frozen=True, slots=True)
+class _Node:
+    kubelet_version: str
+    control_plane: bool
+
+
+def _parse_nodes(listing: str) -> dict[str, _Node]:
+    """Nodes by name, from a `_NODES_JSONPATH` listing."""
+    nodes: dict[str, _Node] = {}
+    for line in listing.splitlines():
+        name, version, roles = ([*line.split("\t"), "", ""])[:3]
+        if name.strip():
+            nodes[name.strip()] = _Node(version.strip(), bool(roles.strip()))
+    return nodes
 
 
 def kubectl_command(ctx: K8sContext, *args: str) -> list[str]:
@@ -237,7 +266,7 @@ class KubeBenchCheck:
                     "get",
                     "nodes",
                     "-o",
-                    'jsonpath={range .items[*]}{.metadata.name} {.status.nodeInfo.kubeletVersion}{"\\n"}{end}',
+                    _NODES_JSONPATH,
                 ),
                 timeout=30.0,
             )
@@ -245,13 +274,7 @@ class KubeBenchCheck:
             return _not_found("kubectl")
         if _tool_missing(listed):
             return _not_found("kubectl")
-        # node name -> kubelet version ("v1.36.3+k3s1")
-        nodes: dict[str, str] = {}
-        if listed.returncode == 0:
-            for line in listed.stdout.splitlines():
-                name, _, version = line.strip().partition(" ")
-                if name:
-                    nodes[name] = version.strip()
+        nodes = _parse_nodes(listed.stdout) if listed.returncode == 0 else {}
 
         selected = target.context_name or target.kubeconfig_path or "current context"
         if not nodes:
@@ -274,7 +297,15 @@ class KubeBenchCheck:
             )
 
         outcomes = await asyncio.gather(
-            *(_job_report(target, node, k3s_benchmark(version)) for node, version in nodes.items()),
+            *(
+                _job_report(
+                    target,
+                    node,
+                    k3s_benchmark(info.kubelet_version),
+                    None if info.control_plane else "node",
+                )
+                for node, info in nodes.items()
+            ),
             return_exceptions=True,
         )
         total = _Tally()
@@ -325,10 +356,19 @@ class _JobFailed(Exception):
         self.result = result
 
 
-async def _job_report(target: K8sContext, node: str | None, benchmark: str | None = None) -> str:
-    """Run one kube-bench Job (on *node*, when given) and return its log."""
+async def _job_report(
+    target: K8sContext,
+    node: str | None,
+    benchmark: str | None = None,
+    targets: str | None = None,
+) -> str:
+    """Run one kube-bench Job (on *node*, when given) and return its log.
+
+    A worker gets *targets* ``node``: kube-bench otherwise runs every section of
+    the benchmark, control plane included, on every node.
+    """
     name = f"my-check-kube-bench-{secrets.token_hex(3)}"
-    manifest = json.dumps(kube_bench_job_manifest(name, node, benchmark))
+    manifest = json.dumps(kube_bench_job_manifest(name, node, benchmark, targets))
     created = await run_subprocess(
         kubectl_command(target, "create", "-f", "-"), timeout=60.0, stdin=manifest
     )
