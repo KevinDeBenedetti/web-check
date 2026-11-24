@@ -63,7 +63,7 @@ services:
   # ZAP (OWASP Zed Attack Proxy). Its API runs without a key: ZAP shares zap-net
   # with the API only, so the scanner containers on scanner-net cannot reach it.
   zap:
-    image: zaproxy/zap-stable:2.17.0
+    image: zaproxy/zap-stable:2.17.0@sha256:9624669db72f54d86c4b46a7064518bd9bf79d8c61a4c31befa9923489f328af
     container_name: security-scanner-zap
     volumes:
       - ./outputs:/zap/wrk:rw
@@ -84,7 +84,7 @@ services:
 
   # Nuclei (Vulnerability Scanner)
   nuclei:
-    image: projectdiscovery/nuclei:v3.11.1
+    image: projectdiscovery/nuclei:v3.11.1@sha256:582d5546902e67052097cb2d07296c642d50a1afc5e44623cb038845df9a32eb
     container_name: security-scanner-nuclei
     volumes:
       - ./outputs:/output:rw
@@ -98,7 +98,7 @@ services:
   # Nikto (Web Server Scanner) — official image, amd64 and arm64. Findings are read
   # from its console output, so it needs no access to ./outputs.
   nikto:
-    image: hackllc/nikto:2.6.1
+    image: hackllc/nikto:2.6.1@sha256:f65dd97be358e8260d97a00e784c05c5f37d2ed69b9a9611b14d3889c2b54efa
     container_name: security-scanner-nikto
     entrypoint: ["/bin/sh", "-c"]
     command: ["tail -f /dev/null"]
@@ -108,7 +108,7 @@ services:
 
   # FFuf (Fuzzer)
   ffuf:
-    image: secsi/ffuf:2.3.0
+    image: secsi/ffuf:2.3.0@sha256:ee0390afbb0471c18cb6c0407191b424d86dc4ab30c04fb93b3908751a33bc5e
     container_name: security-scanner-ffuf
     volumes:
       - ./outputs:/output:rw
