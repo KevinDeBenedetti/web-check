@@ -27,9 +27,16 @@ def _load_client(ctx: K8sContext):  # noqa: ANN202 – returns client.ApiClient
             context=ctx.context_name,
             client_configuration=configuration,
         )
-    except Exception:
-        logger.warning("Kubeconfig load failed, trying in-cluster config")
-        k8s_config.load_incluster_config(client_configuration=configuration)
+    except Exception as kubeconfig_error:
+        logger.warning("Kubeconfig load failed (%s), trying in-cluster config", kubeconfig_error)
+        try:
+            k8s_config.load_incluster_config(client_configuration=configuration)
+        except Exception as incluster_error:
+            # Outside a pod the in-cluster error ("Service host/port is not set")
+            # hides the real cause: name both.
+            raise RuntimeError(
+                f"kubeconfig: {kubeconfig_error}; in-cluster config: {incluster_error}"
+            ) from incluster_error
 
     # Set aggressive timeouts so unreachable clusters fail fast
     configuration.retries = urllib3.Retry(total=1, backoff_factor=0)

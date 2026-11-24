@@ -1,0 +1,20 @@
+        ___
+       __H__
+ ___ ___["]_____ ___ ___  {1.10.11#pip}
+|_ -| . ["]     | .'| . |
+|___|_  [']_|_|_|__,|  _|
+      |_|V...       |_|   https://sqlmap.org
+
+[!] legal disclaimer: Usage of sqlmap for attacking targets without prior mutual consent is illegal. It is the end user's responsibility to obey all applicable local, state and federal laws. Developers assume no liability and are not responsible for any misuse or damage caused by this program
+
+[*] starting @ 11:08:01 /2026-11-24/
+
+[11:08:01] [WARNING] using '/app/outputs' as the output directory
+[11:08:01] [INFO] fetched random HTTP User-Agent header value 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36' from file '/app/.venv/lib/python3.12/site-packages/sqlmap/data/txt/user-agents.txt'
+[11:08:02] [INFO] testing connection to the target URL
+[11:08:02] [CRITICAL] unable to connect to the target URL ('Connection refused') or proxy. sqlmap is going to retry the request(s)
+[11:08:02] [WARNING] if the problem persists please check that the provided target URL is reachable
+[11:08:02] [CRITICAL] unable to connect to the target URL ('Connection refused') or proxy
+
+[*] ending @ 11:08:02 /2026-11-24/
+

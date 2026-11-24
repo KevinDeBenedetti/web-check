@@ -48,6 +48,7 @@ uv run my-check all https://example.com --context my-cluster --output terminal,j
 | `--context`         | `k8s`, `all`     | Kubeconfig context.                                                                                          |
 | `--kubeconfig`      | `k8s`, `all`     | Kubeconfig file.                                                                                             |
 | `--namespace`, `-n` | `k8s`, `all`     | Limit the Kubernetes checks to one namespace.                                                                |
+| `--kube-bench-job`  | `k8s`, `all`     | Run kube-bench as a Job in the selected cluster instead of on this machine (`k8s.kube_bench_job`).          |
 
 ## Checks
 
@@ -76,13 +77,40 @@ uv run my-check all https://example.com --context my-cluster --output terminal,j
 | `k8s-images`           | `latest` tags without a digest                                                               |
 | `k8s-pss-compliance`   | Pod Security Standards: host namespaces and container security settings                      |
 | `k8s-etcd-encryption`  | Encryption at rest of secrets in etcd                                                        |
-| `k8s-kube-bench`       | CIS benchmarks (needs `kube-bench`; it audits the node it runs on, not the selected cluster) |
+| `k8s-kube-bench`       | CIS benchmarks (needs `kube-bench`, or `kubectl` with `--kube-bench-job`; see below)        |
 | `k8s-trivy`            | Image vulnerabilities (needs `trivy`)                                                        |
 | `k8s-polaris`          | Best practices (needs `polaris`)                                                             |
 | `k8s-falco`            | Health of the Falco runtime-security DaemonSet                                               |
 
 `kube-bench`, `trivy` and `polaris` are optional: without them their check
 reports *not found* as information and does not lower the score.
+
+kube-bench audits the node it runs on. By default that is this machine, not the
+selected cluster. With `--kube-bench-job` (or `"kube_bench_job": true` under `k8s`
+in the configuration), my-check runs upstream's kube-bench Job in the selected
+context and namespace (`default` when none is given) instead: it creates a Job
+named `my-check-kube-bench-<random>` with `hostPID` and read-only host mounts,
+waits up to 5 minutes for it to succeed or fail, reads its JSON log, then deletes
+it (a 10-minute TTL removes it if the run is interrupted). The image is pinned by digest. The Job
+audits the one node it is scheduled on, needs the rights to create Jobs and read
+pod logs in that namespace, and is blocked by a namespace enforcing the
+`restricted` or `baseline` Pod Security Standard. In this mode the per-check
+timeout is raised to at least 390 s, whatever `k8s.timeout` says. The Job's pod
+carries the `app.kubernetes.io/managed-by: my-check` label, and the other checks
+skip pods with that label: my-check does not audit its own pod.
+
+A pod cannot see everything the benchmark reads. On k3s, the control plane is
+embedded in the k3s binary and logs its flags to the host's systemd journal,
+which the kube-bench image has no `journalctl` to read. The result then says
+**Partial CIS benchmark** and names the gaps: sections missing from the report
+(of `master`, `controlplane`, `node` and `policies`) and the journal-based checks
+left out of the counts (`details.unverifiable`), rather than scoring them as
+failures. A partial benchmark never reads as a clean pass. For the full benchmark
+on k3s, run the kube-bench binary on each node with `--benchmark k3s-cis-*`.
+
+A context set by `MY_CHECK_K8S_CONTEXT` or `k8s.context` also applies to a
+kubeconfig given with `--kubeconfig`: pass `--context` with a kubeconfig whose
+context names differ, or the checks report the cluster as unreachable.
 
 ## Configuration
 

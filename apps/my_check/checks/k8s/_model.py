@@ -39,3 +39,18 @@ def containers_of(pod: Any, *, init: bool = True, ephemeral: bool = False) -> li
     if ephemeral:
         containers += spec.ephemeral_containers or []
     return containers
+
+
+# Pods my-check itself starts in the cluster (the kube-bench Job) carry this label:
+# the checks running alongside skip them, so my-check does not audit its own pod.
+MANAGED_BY_LABEL = ("app.kubernetes.io/managed-by", "my-check")
+
+
+def list_pods(core: Any, namespace: str | None) -> list[Any]:
+    """The pods of *namespace* (every namespace when None), my-check's own pods excluded."""
+    if namespace:
+        pods = core.list_namespaced_pod(namespace).items
+    else:
+        pods = core.list_pod_for_all_namespaces().items
+    key, value = MANAGED_BY_LABEL
+    return [pod for pod in pods if labels_of(pod).get(key) != value]

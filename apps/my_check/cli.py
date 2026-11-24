@@ -65,6 +65,14 @@ OptNamespace = Annotated[
     str | None,
     typer.Option("--namespace", "-n", help="Kubernetes namespace to scope checks"),
 ]
+OptKubeBenchJob = Annotated[
+    bool,
+    typer.Option(
+        "--kube-bench-job",
+        help="Run kube-bench as a privileged Job in the selected cluster (it creates, "
+        "then deletes, a Job with hostPID and read-only host mounts) instead of on this machine",
+    ),
+]
 OptVerbose = Annotated[
     bool,
     typer.Option("--verbose", "-v", help="Enable verbose logging"),
@@ -97,16 +105,27 @@ def _setup_logging(verbose: bool) -> None:
     )
 
 
+def _k8s_timeout(configured: float, ctx: K8sContext) -> float:
+    """The per-check timeout, raised to what the kube-bench Job needs in Job mode."""
+    if ctx.kube_bench_job:
+        from my_check.checks.k8s.wrappers.kube_bench import JOB_CHECK_TIMEOUT
+
+        return max(configured, JOB_CHECK_TIMEOUT)
+    return configured
+
+
 def _build_k8s_context(
     cfg: K8sConfig,
     context: str | None,
     kubeconfig: str | None,
     namespace: str | None,
+    kube_bench_job: bool,
 ) -> K8sContext:
     return K8sContext(
         context_name=context or cfg.context,
         kubeconfig_path=kubeconfig or cfg.kubeconfig,
         namespace=namespace or cfg.namespace,
+        kube_bench_job=kube_bench_job or cfg.kube_bench_job,
     )
 
 
@@ -191,6 +210,7 @@ def k8s(
     context: OptContext = None,
     kubeconfig: OptKubeconfig = None,
     namespace: OptNamespace = None,
+    kube_bench_job: OptKubeBenchJob = False,
     output: OptOutput = None,
     config: OptConfig = None,
     verbose: OptVerbose = False,
@@ -204,9 +224,9 @@ def k8s(
         cfg.output.formats = [f.strip() for f in output.split(",")]
     _apply_sarif(cfg, sarif)
 
-    k8s_ctx = _build_k8s_context(cfg.k8s, context, kubeconfig, namespace)
+    k8s_ctx = _build_k8s_context(cfg.k8s, context, kubeconfig, namespace, kube_bench_job)
     checks = get_k8s_checks()
-    scheduler = Scheduler(checks=checks, timeout=cfg.k8s.timeout)
+    scheduler = Scheduler(checks=checks, timeout=_k8s_timeout(cfg.k8s.timeout, k8s_ctx))
     enabled = set(cfg.k8s.enabled_checks)
     report = asyncio.run(
         scheduler.run(k8s_ctx=k8s_ctx, enabled_ids=enabled, category=CheckCategory.K8S)
@@ -220,6 +240,7 @@ def all_checks(
     context: OptContext = None,
     kubeconfig: OptKubeconfig = None,
     namespace: OptNamespace = None,
+    kube_bench_job: OptKubeBenchJob = False,
     output: OptOutput = None,
     config: OptConfig = None,
     verbose: OptVerbose = False,
@@ -233,9 +254,11 @@ def all_checks(
         cfg.output.formats = [f.strip() for f in output.split(",")]
     _apply_sarif(cfg, sarif)
 
-    k8s_ctx = _build_k8s_context(cfg.k8s, context, kubeconfig, namespace)
+    k8s_ctx = _build_k8s_context(cfg.k8s, context, kubeconfig, namespace, kube_bench_job)
     checks = get_all_checks(cfg.web.ports)
-    scheduler = Scheduler(checks=checks, timeout=max(cfg.web.timeout, cfg.k8s.timeout))
+    scheduler = Scheduler(
+        checks=checks, timeout=max(cfg.web.timeout, _k8s_timeout(cfg.k8s.timeout, k8s_ctx))
+    )
     enabled = set(cfg.web.enabled_checks) | set(cfg.k8s.enabled_checks)
     report = asyncio.run(scheduler.run(target=url, k8s_ctx=k8s_ctx, enabled_ids=enabled))
     _run(report, cfg, strict=strict)

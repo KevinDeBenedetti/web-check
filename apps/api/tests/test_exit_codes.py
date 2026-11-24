@@ -74,3 +74,24 @@ def test_exit_code_error_keeps_a_bounded_tail() -> None:
     assert message is not None and message.startswith("sqlmap exited with code 1: ")
     assert len(message) < 600
     assert exit_code_error({"exit_code": 0, "stderr": "warn", "stdout": ""}, "sqlmap") is None
+
+
+async def test_sqlmap_unreachable_target_is_an_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    # sqlmap exits 0 when it cannot reach the target: only its log says so.
+    stdout = (Path(__file__).parent / "fixtures" / "sqlmap_unreachable.txt").read_text()
+
+    async def fake(*args, **kwargs) -> dict:
+        return {
+            "stdout": stdout,
+            "stderr": "",
+            "exit_code": 0,
+            "timeout": False,
+            "truncated": False,
+        }
+
+    monkeypatch.setattr(sqlmap_scanner, "run_process", fake)
+
+    result = await sqlmap_scanner.run_sqlmap_scan(TARGET, 30)
+
+    assert result.status == "error"
+    assert result.error is not None and "unable to connect to the target URL" in result.error
