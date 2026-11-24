@@ -1,4 +1,4 @@
-"""`scan full` accepts exactly the modules listed by the API catalog (GET /api/catalog)."""
+"""`scan full` runs the modules and profiles listed by the API catalog (GET /api/catalog)."""
 
 from pathlib import Path
 from typing import Any
@@ -23,7 +23,10 @@ class CatalogClient:
         if endpoint == "/api/catalog":
             return {
                 "modules": [{"id": module_id} for module_id in CATALOG_IDS],
-                "profiles": [],
+                "profiles": [
+                    {"id": "quick", "modules": ["headers", "dns"]},
+                    {"id": "standard", "modules": ["headers", "testssl", "nuclei"]},
+                ],
                 "default_profile": "standard",
             }
         return {
@@ -87,4 +90,65 @@ def test_an_unreadable_catalog_says_so(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.exit_code == 1
     assert "Could not read the module catalog" in result.output
     assert "401 Unauthorized" in result.output
+    assert CatalogClient.posted == []
+
+
+def test_without_options_the_catalogs_default_profile_runs() -> None:
+    result = _full()
+
+    assert result.exit_code == 0, result.output
+    assert CatalogClient.posted[0]["modules"] == ["headers", "testssl", "nuclei"]
+
+
+def test_profile_runs_that_profiles_modules() -> None:
+    result = _full("--profile", "quick")
+
+    assert result.exit_code == 0, result.output
+    assert CatalogClient.posted[0]["modules"] == ["headers", "dns"]
+
+
+def test_an_unknown_profile_is_refused() -> None:
+    result = _full("--profile", "paranoid")
+
+    assert result.exit_code == 1
+    assert "Unknown profile: paranoid" in result.output
+    assert "quick, standard" in result.output, "the error should list the catalog's profiles"
+    assert CatalogClient.posted == []
+
+
+@pytest.mark.parametrize("other", [["--modules", "dns"], ["--all"]])
+def test_profile_cannot_be_combined_with_modules_or_all(other: list[str]) -> None:
+    result = _full("--profile", "quick", *other)
+
+    assert result.exit_code == 1
+    assert "--profile" in result.output
+    assert CatalogClient.posted == []
+
+
+def test_the_guide_runs_the_catalogs_default_profile(monkeypatch: pytest.MonkeyPatch) -> None:
+    import cli.main
+
+    monkeypatch.setattr(cli.main, "APIClient", CatalogClient)
+    monkeypatch.delenv("ALLOWED_DOMAINS", raising=False)
+
+    answers = "scan\nfull\nhttps://example.com\ntable\nno\n"
+    result = CliRunner().invoke(app, ["guide"], input=answers)
+
+    assert result.exit_code == 0, result.output
+    assert CatalogClient.posted[0]["modules"] == ["headers", "testssl", "nuclei"]
+
+
+def test_a_catalog_without_a_default_profile_asks_for_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    original = CatalogClient.get
+
+    def no_default(self, endpoint: str, **params: Any) -> dict:
+        answer = original(self, endpoint, **params)
+        return {**answer, "default_profile": ""} if endpoint == "/api/catalog" else answer
+
+    monkeypatch.setattr(CatalogClient, "get", no_default)
+
+    result = _full()
+
+    assert result.exit_code == 1
+    assert "no default profile" in result.output
     assert CatalogClient.posted == []

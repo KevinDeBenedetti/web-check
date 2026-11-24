@@ -144,6 +144,12 @@ async def run_subprocess(
             proc.communicate(stdin.encode() if stdin is not None else None),
             timeout=timeout,
         )
+    except asyncio.CancelledError:
+        # The check was cancelled (its own timeout): do not leave the command running.
+        if proc.returncode is None:
+            proc.kill()
+            await proc.wait()  # reap it before the check's event loop closes
+        raise
     except TimeoutError:
         proc.kill()
         await proc.communicate()

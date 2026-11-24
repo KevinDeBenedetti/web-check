@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
 from my_check.types import (
@@ -31,9 +31,49 @@ _STATUS_ICONS: dict[CheckStatus, tuple[str, str]] = {
 }
 
 
-def _run_check_in_thread(check: Check, arg: str | K8sContext) -> CheckResult:
-    """Run a check in a worker thread with its own event loop."""
-    return asyncio.run(check.run(arg))
+# Grace period for a check to unwind (kill its subprocesses) after its own timeout,
+# before the scheduler stops waiting for its thread.
+_TIMEOUT_GRACE = 5.0
+
+
+def _run_check_in_thread(check: Check, arg: str | K8sContext, timeout: float) -> CheckResult:
+    """Run a check in a worker thread with its own event loop.
+
+    The timeout applies inside that loop, so a timed-out check is cancelled and its
+    `run_subprocess` children are killed instead of running on.
+    """
+    return asyncio.run(asyncio.wait_for(check.run(arg), timeout=timeout))
+
+
+async def _in_daemon_thread(check: Check, arg: str | K8sContext, timeout: float) -> CheckResult:
+    """Await `_run_check_in_thread` run in a daemon thread.
+
+    The interpreter does not join a daemon thread at exit, so a check stuck in a
+    blocking call cannot hold the process once the scheduler has given up on it
+    (a `ThreadPoolExecutor` worker would be joined).
+    """
+    loop = asyncio.get_running_loop()
+    future: asyncio.Future[CheckResult] = loop.create_future()
+
+    def _settle(outcome: CheckResult | BaseException) -> None:
+        if future.done():
+            return
+        if isinstance(outcome, BaseException):
+            future.set_exception(outcome)
+        else:
+            future.set_result(outcome)
+
+    def _target() -> None:
+        outcome: CheckResult | BaseException
+        try:
+            outcome = _run_check_in_thread(check, arg, timeout)
+        except BaseException as exc:  # handed to the awaiting loop
+            outcome = exc
+        if not loop.is_closed():
+            loop.call_soon_threadsafe(_settle, outcome)
+
+    threading.Thread(target=_target, name=f"check-{check.id}", daemon=True).start()
+    return await asyncio.wait_for(future, timeout=timeout + _TIMEOUT_GRACE)
 
 
 @dataclass(slots=True)
@@ -186,21 +226,11 @@ class Scheduler:
             arg = target
 
         start = time.monotonic()
-        loop = asyncio.get_running_loop()
 
         try:
             # Each check runs in its own thread+event loop so blocking k8s
             # client calls never stall the main event loop or each other.
-            # No `with`: leaving the block would join the worker thread and block
-            # until the check finishes, which is exactly what the timeout prevents.
-            pool = ThreadPoolExecutor(max_workers=1)
-            try:
-                result = await asyncio.wait_for(
-                    loop.run_in_executor(pool, _run_check_in_thread, check, arg),
-                    timeout=self.timeout,
-                )
-            finally:
-                pool.shutdown(wait=False, cancel_futures=True)
+            result = await _in_daemon_thread(check, arg, self.timeout)
         except TimeoutError:
             elapsed = time.monotonic() - start
             progress[check.id] = (f"⏱ timed out ({elapsed:.0f}s)", "red")

@@ -1,6 +1,7 @@
 """Scan command implementation."""
 
 import time
+from typing import Any
 
 import structlog
 import typer
@@ -15,8 +16,14 @@ console = Console()
 
 scan_app = typer.Typer(help="Scan operations")
 
-# The modules /api/scans/start accepts come from GET /api/catalog.
-_DEFAULT_MODULES = ["nuclei", "nikto", "zap"]
+# The modules and profiles /api/scans/start accepts come from GET /api/catalog.
+
+
+def _profile_modules(catalog: dict[str, Any], profile_id: str) -> list[str] | None:
+    """Modules of a catalog profile; None when the catalog has no such profile."""
+    profiles = {p["id"]: p.get("modules", []) for p in catalog.get("profiles", [])}
+    modules = profiles.get(profile_id)
+    return list(modules) if modules is not None else None
 
 
 @scan_app.command()
@@ -146,9 +153,13 @@ def ssl(
 @scan_app.command()
 def full(
     url: str = typer.Argument(..., help="Target URL to scan"),
-    modules: str = typer.Option(
-        ",".join(_DEFAULT_MODULES),
+    modules: str | None = typer.Option(
+        None,
         help="Comma-separated modules, as listed by the API catalog (GET /api/catalog)",
+    ),
+    profile: str | None = typer.Option(
+        None,
+        help="Profile of the API catalog to run (default: the catalog's default profile)",
     ),
     all_modules: bool = typer.Option(False, "--all", help="Run every module of the API catalog"),
     timeout: int = typer.Option(300, help="Timeout per module in seconds (30-3600)"),
@@ -157,8 +168,9 @@ def full(
 ) -> None:
     """Run a complete multi-module security scan (async, with live progress).
 
-    Default modules: nuclei, nikto, zap.
-    Use --all to run every module of the API catalog (much slower).
+    Default: the API catalog's default profile, the same scan as the web UI.
+    --profile picks another profile, --modules lists the modules, and --all runs
+    every module of the catalog (much slower).
     """
     # JSON mode: stdout carries the JSON document only; progress goes to stderr.
     out = Console(stderr=True) if output_format == "json" else console
@@ -176,9 +188,29 @@ def full(
         if not available:
             out.print("[red]✗ The API catalog lists no scan module[/red]")
             raise typer.Exit(1) from None
-        module_list = (
-            available if all_modules else [m.strip() for m in modules.split(",") if m.strip()]
-        )
+        if profile is not None and (modules is not None or all_modules):
+            out.print("[red]✗ Use --profile, --modules or --all, not several[/red]")
+            raise typer.Exit(1) from None
+        profile_id: str | None = None
+        if all_modules:
+            module_list = available
+        elif modules is not None:
+            module_list = [m.strip() for m in modules.split(",") if m.strip()]
+        else:
+            profile_id = profile or catalog.get("default_profile")
+            if not profile_id:
+                out.print("[red]✗ The API catalog has no default profile: pass --profile[/red]")
+                raise typer.Exit(1) from None
+            selected = _profile_modules(catalog, profile_id)
+            if selected is None:
+                profile_ids = [p["id"] for p in catalog.get("profiles", [])]
+                out.print(f"[red]✗ Unknown profile: {profile_id}[/red]")
+                out.print(f"  Available: {', '.join(profile_ids) or 'none'}")
+                raise typer.Exit(1) from None
+            if not selected:
+                out.print(f"[red]✗ The profile {profile_id} lists no module[/red]")
+                raise typer.Exit(1) from None
+            module_list = selected
 
         invalid = [m for m in module_list if m not in available]
         if invalid:
@@ -188,6 +220,8 @@ def full(
 
         # Start async scan
         out.print(f"\n[bold cyan]🔍 Starting full scan on {url}[/bold cyan]")
+        if profile_id:
+            out.print(f"   Profile : [cyan]{profile_id}[/cyan]")
         out.print(f"   Modules : [cyan]{', '.join(module_list)}[/cyan]")
         out.print(f"   Timeout : {timeout}s per module\n")
 
