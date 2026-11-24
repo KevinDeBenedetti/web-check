@@ -116,7 +116,6 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["apps/api/tests", "apps/cli/tests", "apps/my_check/tests"]
 markers = [
-    "slow: marks tests as slow (deselected by default in CI)",
     "integration: marks tests as integration tests",
 ]
 addopts = "-v"

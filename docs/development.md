@@ -101,6 +101,15 @@ uv run pytest --cov --cov-report=term-missing
 uv run pytest apps/api/tests/test_api.py -v
 ```
 
+The tests run offline. The root `conftest.py` makes a test fail when it looks up
+a host other than this machine, or connects or sends a datagram to one, even when
+the code under test swallows the error, and names that host: a scan test that
+reached a real site would scan it. Fake what goes out instead: the scanner
+function an endpoint calls, the HTTP client (`httpx.MockTransport`), or the target
+resolver, which `apps/api/tests/conftest.py` already answers with a public address
+for every API test. The guard sees only this Python process: a subprocess (a
+scanner binary, `docker`) is out of its reach, so fake the call that starts it.
+
 ## Code quality
 
 ```bash

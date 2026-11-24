@@ -108,9 +108,9 @@ def _setup_logging(verbose: bool) -> None:
 def _k8s_timeout(configured: float, ctx: K8sContext) -> float:
     """The per-check timeout, raised to what the kube-bench Job needs in Job mode."""
     if ctx.kube_bench_job:
-        from my_check.checks.k8s.wrappers.kube_bench import JOB_CHECK_TIMEOUT
+        from my_check.checks.k8s.wrappers.kube_bench import job_check_timeout
 
-        return max(configured, JOB_CHECK_TIMEOUT)
+        return max(configured, job_check_timeout(ctx.kube_bench_wait))
     return configured
 
 
@@ -126,6 +126,8 @@ def _build_k8s_context(
         kubeconfig_path=kubeconfig or cfg.kubeconfig,
         namespace=namespace or cfg.namespace,
         kube_bench_job=kube_bench_job or cfg.kube_bench_job,
+        kube_bench_wait=cfg.kube_bench_wait,
+        kube_bench_parallel=cfg.kube_bench_parallel,
     )
 
 

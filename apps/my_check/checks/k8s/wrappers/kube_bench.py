@@ -53,21 +53,25 @@ _HOST_PATHS: tuple[tuple[str, str, str], ...] = (
     ("opt-cni-bin", "/opt/cni/bin/", "/opt/cni/bin/"),
 )
 
-# Seconds: how long to wait for the Jobs (one window for all of them, from the
-# first one), how often to poll a Job's status, the most it may run, and when
-# Kubernetes deletes it if my-check could not (interrupted run).
-_JOB_WAIT = 300
+# Seconds: how often to poll a Job's status, the least a Job may run (raised to
+# the wait, K8sContext.kube_bench_wait), and when Kubernetes deletes it if
+# my-check could not (interrupted run). The wait for the Jobs (one window for all
+# of them, from the first one) and the most Jobs running at the same time come
+# from K8sContext (k8s.kube_bench_wait and k8s.kube_bench_parallel).
 _JOB_POLL = 5
 _JOB_DEADLINE = 600
 _JOB_TTL = 600
-# Jobs (each with its polling kubectl) running at the same time.
-_JOB_PARALLEL = 10
-# What the whole check needs in Job mode, each step at its own timeout: list the
-# nodes (30), create (60), wait plus its last poll (_JOB_WAIT + 30), logs (60) and
-# delete (30). The nodes' Jobs share the one wait window, whatever their number.
-# The scheduler's per-check timeout is raised to it (my_check.cli), so the
-# deletes are never cut short.
-JOB_CHECK_TIMEOUT = float(_JOB_WAIT + 30 + 60 + 30 + 60 + 30)
+
+
+def job_check_timeout(wait: int) -> float:
+    """What the whole check needs in Job mode, with *wait* seconds for the Jobs.
+
+    Each step at its own timeout: list the nodes (30), create (60), wait plus its
+    last poll (*wait* + 30), logs (60) and delete (30). The nodes' Jobs share the
+    one wait window, whatever their number. The scheduler's per-check timeout is
+    raised to it (my_check.cli), so the deletes are never cut short.
+    """
+    return float(wait + 30 + 60 + 30 + 60 + 30)
 
 
 def kube_bench_job_manifest(
@@ -75,12 +79,14 @@ def kube_bench_job_manifest(
     node: str | None = None,
     benchmark: str | None = None,
     targets: str | None = None,
+    wait: int = _JOB_DEADLINE,
 ) -> dict[str, Any]:
     """The kube-bench Job of upstream's job.yaml, pinned, run once, with JSON output.
 
     With *node*, its pod runs on that node (``nodeName``) and tolerates its taints,
     so control-plane nodes are audited too. With *benchmark*, kube-bench runs that
     benchmark instead of the one it detects; with *targets*, only those sections.
+    The Job may run for *wait* seconds (my-check's wait for it), at least 600.
     """
     pod_placement: dict[str, Any] = (
         {"nodeName": node, "tolerations": [{"operator": "Exists"}]} if node else {}
@@ -94,7 +100,7 @@ def kube_bench_job_manifest(
         },
         "spec": {
             "backoffLimit": 0,
-            "activeDeadlineSeconds": _JOB_DEADLINE,
+            "activeDeadlineSeconds": max(_JOB_DEADLINE, wait),
             "ttlSecondsAfterFinished": _JOB_TTL,
             "template": {
                 "metadata": {
@@ -148,14 +154,20 @@ def k3s_benchmark(kubelet_version: str) -> str | None:
 
 # One line per node, tab-separated: name, kubelet version, the values of its
 # control-plane and master role labels (both empty on a worker), its
-# kubernetes.io/os label and the status of its Ready condition.
+# kubernetes.io/os label, the status of its Ready condition, its `type` label and
+# its taint keys (space-separated).
 _NODES_JSONPATH = (
     'jsonpath={range .items[*]}{.metadata.name}{"\\t"}{.status.nodeInfo.kubeletVersion}'
     '{"\\t"}{.metadata.labels.node-role\\.kubernetes\\.io/control-plane}'
     "{.metadata.labels.node-role\\.kubernetes\\.io/master}"
     '{"\\t"}{.metadata.labels.kubernetes\\.io/os}'
-    '{"\\t"}{.status.conditions[?(@.type=="Ready")].status}{"\\n"}{end}'
+    '{"\\t"}{.status.conditions[?(@.type=="Ready")].status}'
+    '{"\\t"}{.metadata.labels.type}{"\\t"}{.spec.taints[*].key}{"\\n"}{end}'
 )
+
+# How a virtual-kubelet node (a serverless or burst node pool) declares itself.
+_VIRTUAL_KUBELET_TYPE = "virtual-kubelet"
+_VIRTUAL_KUBELET_TAINT = "virtual-kubelet.io/provider"
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,9 +176,12 @@ class _Node:
     control_plane: bool
     os: str
     ready: bool
+    virtual: bool = False
 
     def skip_reason(self) -> str | None:
         """Why kube-bench cannot run on this node; None when it can."""
+        if self.virtual:
+            return "a virtual-kubelet node, no host to audit"
         if self.os != "linux":
             return f"not a Linux node ({self.os or 'no kubernetes.io/os label'})"
         if not self.ready:
@@ -178,11 +193,14 @@ def _parse_nodes(listing: str) -> dict[str, _Node]:
     """Nodes by name, from a `_NODES_JSONPATH` listing."""
     nodes: dict[str, _Node] = {}
     for line in listing.splitlines():
-        name, version, roles, os_label, ready = (
-            part.strip() for part in [*line.split("\t"), "", "", "", ""][:5]
+        name, version, roles, os_label, ready, type_label, taints = (
+            part.strip() for part in [*line.split("\t"), *[""] * 7][:7]
         )
         if name:
-            nodes[name] = _Node(version, bool(roles), os_label, ready == "True")
+            virtual = (
+                type_label == _VIRTUAL_KUBELET_TYPE or _VIRTUAL_KUBELET_TAINT in taints.split()
+            )
+            nodes[name] = _Node(version, bool(roles), os_label, ready == "True", virtual)
     return nodes
 
 
@@ -238,7 +256,9 @@ async def _wait_for_job(target: K8sContext, name: str, deadline: float) -> str |
         if failed not in ("", "0"):
             return "it failed (kubectl describe job shows why)"
         if time.monotonic() >= deadline:
-            return f"it was still running when the {_JOB_WAIT}s wait for the Jobs ended"
+            return (
+                f"it was still running when the {target.kube_bench_wait}s wait for the Jobs ended"
+            )
         await asyncio.sleep(_JOB_POLL)
 
 
@@ -299,7 +319,7 @@ class KubeBenchCheck:
         nodes = _parse_nodes(listed.stdout) if listed.returncode == 0 else {}
 
         selected = target.context_name or target.kubeconfig_path or "current context"
-        deadline = time.monotonic() + _JOB_WAIT
+        deadline = time.monotonic() + target.kube_bench_wait
         if not nodes:
             # The nodes could not be listed (that needs a ClusterRole) or none was:
             # run one Job wherever it is scheduled.
@@ -336,7 +356,7 @@ class KubeBenchCheck:
                 details={"nodes": skipped},
             )
 
-        slots = asyncio.Semaphore(_JOB_PARALLEL)
+        slots = asyncio.Semaphore(target.kube_bench_parallel)
 
         async def in_a_slot(node: str, info: _Node) -> str:
             async with slots:
@@ -381,7 +401,7 @@ class KubeBenchCheck:
                 details={"nodes": per_node | skipped},
             )
 
-        skip_note = f"; {len(skipped)} skipped, not Ready or not Linux" if skipped else ""
+        skip_note = f"; {len(skipped)} skipped, see details.nodes" if skipped else ""
         result = _verdict(
             total,
             scope=f"cluster (Jobs on {len(eligible)} node{'s' if len(eligible) > 1 else ''})",
@@ -420,12 +440,14 @@ async def _job_report(
             CheckResult(
                 status=CheckStatus.FAIL,
                 score=0,
-                message=f"The kube-bench Job was not started: the {_JOB_WAIT}s wait"
+                message=f"The kube-bench Job was not started: the {target.kube_bench_wait}s wait"
                 " for the Jobs ended before its turn.",
             )
         )
     name = f"my-check-kube-bench-{secrets.token_hex(3)}"
-    manifest = json.dumps(kube_bench_job_manifest(name, node, benchmark, targets))
+    manifest = json.dumps(
+        kube_bench_job_manifest(name, node, benchmark, targets, target.kube_bench_wait)
+    )
     created = await run_subprocess(
         kubectl_command(target, "create", "-f", "-"), timeout=60.0, stdin=manifest
     )
