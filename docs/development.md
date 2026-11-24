@@ -47,17 +47,32 @@ The API image runs as an unprivileged user. `docker-compose.yml` runs it as
 `0` on Docker Desktop for macOS). When calling `docker compose` directly on Linux, set
 them in `.env`, otherwise `./outputs` and `./data` may not be writable.
 
-## Local API development (without Docker)
+## Native run (API and UI on the host)
+
+`make native` runs the API and the web UI directly on the machine (macOS or
+Linux), with no API container:
 
 ```bash
-# Install dependencies
-uv sync --all-groups
-
-# Start the API (applies database migrations on startup)
-uv run uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
+make install   # uv sync --all-groups, once
+make native    # http://localhost:8000/ui/ — Ctrl+C stops the API
+make stop      # stops the scanner containers afterwards
 ```
 
-> **Note:** Scanner sidecars (ZAP, Nuclei, Nikto) must be running via Docker for scan features to work.
+It builds the UI, starts the ZAP, Nuclei and Nikto containers when Docker
+answers (`docker-compose.native.yml` publishes ZAP's API on `127.0.0.1:8090`),
+then runs uvicorn on `127.0.0.1:${NATIVE_PORT:-8000}`. It reads the same `.env`
+and writes to the same `./outputs` and `./data` as the containerized API.
+Stop that one first (`make stop`), or pick another port: `make native NATIVE_PORT=8001`.
+
+Without Docker, the modules that run in Python (headers, DNS, SSLyze, Wapiti,
+sqlmap…) still work; ZAP, Nuclei, Nikto and FFUF fail. XSStrike only exists in
+the Docker image (`/opt/xsstrike`).
+
+For live reload of the API, run uvicorn yourself:
+
+```bash
+uv run uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
+```
 
 ## Web UI development
 
