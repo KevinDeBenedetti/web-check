@@ -1,0 +1,14 @@
+# ==============================================================================
+# Native overrides — the API runs on the host, the scanners stay in Docker
+# ==============================================================================
+# Usage: make native
+#   (= docker compose -f docker-compose.yml -f docker-compose.native.yml up -d zap nuclei nikto,
+#    then uvicorn on the host)
+#
+# The host API reaches Nuclei, Nikto and FFUF through `docker exec`, but ZAP only
+# through its HTTP API, which listens without a key: publish it on loopback only.
+
+services:
+  zap:
+    ports:
+      - "127.0.0.1:${ZAP_PORT:-8090}:8090"

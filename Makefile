@@ -2,6 +2,10 @@
 
 COMPOSE := docker compose
 COMPOSE_DEV := $(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml
+COMPOSE_NATIVE := $(COMPOSE) -f docker-compose.yml -f docker-compose.native.yml
+
+# Port of the API run on the host by `make native`.
+NATIVE_PORT ?= 8000
 
 # URLs of the running stack, with the port Docker actually published (API_PORT in .env).
 SHOW_URLS = port=$$($(COMPOSE) port api 8000 2>/dev/null | sed 's/.*://'); \
@@ -22,7 +26,7 @@ endif
 export APP_UID APP_GID DOCKER_GID
 
 .DEFAULT_GOAL := help
-.PHONY: help start dev stop logs install cli test format check bin \
+.PHONY: help start dev stop logs native install cli test format check bin \
         ui-install ui-dev ui-build ui-check clean clean-all
 
 help: ## List the targets
@@ -48,6 +52,21 @@ stop: ## Stop and remove the containers
 
 logs: ## Follow the logs (one service: make logs SVC=api)
 	@$(COMPOSE) logs -f $(SVC)
+
+##@ Native: API + UI on this machine, scanners in Docker
+
+# Builds the UI, starts the scanner containers when Docker answers, then runs the
+# API in the foreground (Ctrl+C stops it; `make stop` stops the containers). Without
+# Docker, the Python modules (headers, DNS, SSLyze, Wapiti, sqlmap…) still run.
+native: ## Run the API and the web UI on this machine (NATIVE_PORT, default 8000)
+	@mkdir -p outputs data
+	@test -d apps/web/node_modules || npm --prefix apps/web ci
+	@npm --prefix apps/web run --silent build -- --logLevel warn
+	@if docker info >/dev/null 2>&1; then $(COMPOSE_NATIVE) up -d zap nuclei nikto; \
+	else echo "⚠️  Docker is not running: ZAP, Nuclei, Nikto and FFUF scans will fail"; fi
+	@echo "✅ UI http://localhost:$(NATIVE_PORT)/ui/ · API http://localhost:$(NATIVE_PORT)/docs"
+	@ZAP_HOST=127.0.0.1 ZAP_PORT=$${ZAP_PORT:-8090} uv run uvicorn api.main:app \
+		--app-dir apps --host 127.0.0.1 --port $(NATIVE_PORT)
 
 ##@ Python
 
