@@ -149,68 +149,11 @@ def guide() -> None:
     # ── Execute ───────────────────────────────────────────────────────────
     console.print()
 
-    # Full scan delegates to the `scan full` command logic
+    # A full scan is the `scan full` command's own flow.
     if scan_type == "full":
-        import time
+        from cli.commands import scan as scan_cmd
 
-        from cli.commands.scan import _display_full_summary, _profile_modules
-        from cli.report import normalise_full_scan, save_report
-
-        settings = CLISettings()
-        client = APIClient(settings.api_url, settings.api_timeout, settings.api_key)
-        try:
-            # The catalog's default profile: the same scan as `scan full` and the web UI.
-            catalog = client.get("/api/catalog")
-            modules = _profile_modules(catalog, catalog.get("default_profile") or "")
-            if not modules:
-                console.print("[red]✗ The API catalog has no default profile[/red]")
-                raise typer.Exit(1)
-            console.print(f"[bold cyan]🔍 Starting full scan on {url}[/bold cyan]")
-            console.print(f"   Profile : [cyan]{catalog.get('default_profile')}[/cyan]")
-            console.print(f"   Modules : [cyan]{', '.join(modules)}[/cyan]\n")
-
-            response = client.post(
-                "/api/scans/start",
-                json={"target": url, "modules": modules, "timeout": 300},
-            )
-            scan_id = response.get("scan_id")
-            if not scan_id:
-                console.print("[red]✗ Failed to start scan[/red]")
-                raise typer.Exit(1)
-
-            last_count = 0
-            with console.status("[bold green]Scanning…") as status:
-                for _ in range(300):
-                    time.sleep(5)
-                    scan = client.get(f"/api/scans/{scan_id}")
-                    results = scan.get("results", [])
-                    if len(results) > last_count:
-                        for r in results[last_count:]:
-                            icon = "✓" if r.get("status") == "success" else "✗"
-                            color = "green" if r.get("status") == "success" else "yellow"
-                            findings_n = len(r.get("findings", []))
-                            console.log(
-                                f"[{color}][{icon}][/{color}] [bold]{r.get('module', '?')}[/bold]  "
-                                f"[dim]{r.get('duration_ms', 0)}ms[/dim]  "
-                                f"[yellow]{findings_n} finding(s)[/yellow]"
-                            )
-                            status.update(f"[green]Completed {len(results)} module(s)…[/green]")
-                        last_count = len(results)
-                    if scan.get("status") != "running":
-                        break
-
-            scan = client.get(f"/api/scans/{scan_id}")
-            if fmt == "json":
-                _display_result(scan, "json")
-            else:
-                _display_full_summary(scan_id, url, scan.get("results", []))
-            if do_report:
-                save_report(url, normalise_full_scan(scan), scan_type="full")
-        except Exception as e:
-            console.print(f"[red]✗ Scan failed: {e}[/red]")
-            raise typer.Exit(1) from None
-        finally:
-            client.close()
+        scan_cmd.run_full_scan(url, output_format=fmt, report=do_report)
         return
 
     endpoint = _SCAN_ENDPOINTS[scan_type]

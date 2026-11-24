@@ -172,6 +172,32 @@ def full(
     --profile picks another profile, --modules lists the modules, and --all runs
     every module of the catalog (much slower).
     """
+    run_full_scan(
+        url,
+        modules=modules,
+        profile=profile,
+        all_modules=all_modules,
+        timeout=timeout,
+        output_format=output_format,
+        report=report,
+    )
+
+
+def run_full_scan(
+    url: str,
+    *,
+    modules: str | None = None,
+    profile: str | None = None,
+    all_modules: bool = False,
+    timeout: int = 300,
+    output_format: str = "table",
+    report: bool = False,
+) -> None:
+    """Start a multi-module scan, follow it to its end, then print and save it.
+
+    The one start-and-poll flow of the CLI: `scan full` and the guide both run it.
+    Without *modules*, *profile* or *all_modules*, the catalog's default profile runs.
+    """
     # JSON mode: stdout carries the JSON document only; progress goes to stderr.
     out = Console(stderr=True) if output_format == "json" else console
 

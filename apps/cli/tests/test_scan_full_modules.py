@@ -152,3 +152,39 @@ def test_a_catalog_without_a_default_profile_asks_for_one(monkeypatch: pytest.Mo
     assert result.exit_code == 1
     assert "no default profile" in result.output
     assert CatalogClient.posted == []
+
+
+def test_the_guide_runs_its_full_scan_through_scan_full(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[str, dict[str, Any]]] = []
+    monkeypatch.setattr(
+        scan_cmd, "run_full_scan", lambda url, **options: calls.append((url, options))
+    )
+    monkeypatch.delenv("ALLOWED_DOMAINS", raising=False)
+
+    answers = "scan\nfull\nhttps://example.com\njson\nyes\n"
+    result = CliRunner().invoke(app, ["guide"], input=answers)
+
+    assert result.exit_code == 0, result.output
+    assert calls == [("https://example.com", {"output_format": "json", "report": True})]
+
+
+def test_the_guide_refuses_a_default_profile_with_an_unknown_module(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = CatalogClient.get
+
+    def stale_profile(self, endpoint: str, **params: Any) -> dict:
+        answer = original(self, endpoint, **params)
+        if endpoint != "/api/catalog":
+            return answer
+        return {**answer, "profiles": [{"id": "standard", "modules": ["headers", "retired"]}]}
+
+    monkeypatch.setattr(CatalogClient, "get", stale_profile)
+    monkeypatch.delenv("ALLOWED_DOMAINS", raising=False)
+
+    answers = "scan\nfull\nhttps://example.com\ntable\nno\n"
+    result = CliRunner().invoke(app, ["guide"], input=answers)
+
+    assert result.exit_code == 1
+    assert "Unknown module(s): retired" in result.output
+    assert CatalogClient.posted == []

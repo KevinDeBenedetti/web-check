@@ -105,13 +105,18 @@ reports *not found* as information and does not lower the score.
 kube-bench audits the node it runs on. By default that is this machine, not the
 selected cluster. With `--kube-bench-job` (or `"kube_bench_job": true` under `k8s`
 in the configuration), my-check runs upstream's kube-bench Job in the selected
-context and namespace (`default` when none is given) instead, once per node: it
-lists the nodes (`kubectl get nodes`), creates for each a Job named
+context and namespace (`default` when none is given) instead, once per Ready
+Linux node: it lists the nodes (`kubectl get nodes`), creates for each a Job named
 `my-check-kube-bench-<random>` pinned to that node (`nodeName`, tolerating its
 taints, so control-plane nodes are audited too) with `hostPID` and read-only host
 mounts, waits up to 5 minutes for them to succeed or fail, reads their JSON logs,
 then deletes them (a 10-minute TTL removes them if the run is interrupted). The
-image is pinned by digest. The counts are summed over the nodes, and
+image is pinned by digest. A node that is not Ready, or whose `kubernetes.io/os`
+label is not `linux`, gets no Job: `details.nodes` names it as `skipped` with the
+reason, and it does not make the benchmark partial. At most 10 Jobs run at the
+same time; the 5 minutes cover all of them, so on a cluster too large to finish
+in that time the remaining nodes are reported as not started. The counts are
+summed over the audited nodes, and
 `details.nodes` gives each node's own counts and sections, or why it has no
 result (with an excerpt of its log when that is not kube-bench JSON); a node
 without a result makes the benchmark partial. In a pod, kube-bench often cannot
@@ -142,6 +147,10 @@ on k3s, run the kube-bench binary on each node with `--benchmark k3s-cis-*`.
 A context set by `MY_CHECK_K8S_CONTEXT` or `k8s.context` also applies to a
 kubeconfig given with `--kubeconfig`: pass `--context` with a kubeconfig whose
 context names differ, or the checks report the cluster as unreachable.
+
+A kubeconfig path that starts with `~` is expanded to the home directory wherever
+it comes from (`--kubeconfig`, `MY_CHECK_K8S_KUBECONFIG`, `k8s.kubeconfig` or the
+guided form), so `~/.kube/config` works in `.env` and in the configuration file.
 
 ## Configuration
 

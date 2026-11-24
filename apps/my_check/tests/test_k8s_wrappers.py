@@ -5,6 +5,7 @@ Output samples follow each tool's own JSON structures: trivy's Kubernetes report
 PodResult / ContainerResult types (pkg/validator/output.go).
 """
 
+import asyncio
 import json
 from typing import Any
 
@@ -142,6 +143,10 @@ async def test_kube_bench_says_it_audited_the_local_node(monkeypatch: pytest.Mon
     assert result.details["scope"] == "local node"
 
 
+# The real asyncio.sleep: a test may replace the module attribute to skip the polls.
+_yield = asyncio.sleep
+
+
 class FakeKubectl:
     """Stands in for run_subprocess in kube-bench Job mode: answers each kubectl verb."""
 
@@ -153,6 +158,8 @@ class FakeKubectl:
         nodes_returncode: int = 0,
         kubelet_version: str = "v1.30.2",
         control_planes: tuple[str, ...] = ("node-1", "cp-1"),
+        not_ready: tuple[str, ...] = (),
+        os_labels: dict[str, str] | None = None,
     ) -> None:
         self.logs = logs  # one report for every node, or {node name: report}
         self.job_status = job_status  # {.status.succeeded}/{.status.failed}
@@ -160,6 +167,10 @@ class FakeKubectl:
         self.nodes_returncode = nodes_returncode
         self.kubelet_version = kubelet_version
         self.control_planes = control_planes  # nodes labelled node-role.kubernetes.io/control-plane
+        self.not_ready = not_ready  # nodes whose Ready condition is False
+        self.os_labels = os_labels or {}  # kubernetes.io/os by node, linux otherwise
+        self.running = 0  # Jobs created and not deleted yet
+        self.most_running = 0
         self.calls: list[tuple[list[str], str | None]] = []
         self.job_nodes: dict[str, str] = {}  # Job name -> nodeName of its pod
 
@@ -175,9 +186,12 @@ class FakeKubectl:
         if "nodes" in cmd:
             if self.nodes_returncode:
                 return SubprocessResult(self.nodes_returncode, "", "nodes is forbidden")
-            # name, kubelet version, then the control-plane and master role labels' values
+            # name, kubelet version, the control-plane and master role labels' values,
+            # the kubernetes.io/os label, the status of the Ready condition
             listing = "".join(
-                f"{node}\t{self.kubelet_version}\t{'true' if node in self.control_planes else ''}\n"
+                f"{node}\t{self.kubelet_version}\t{'true' if node in self.control_planes else ''}"
+                f"\t{self.os_labels.get(node, 'linux')}"
+                f"\t{'False' if node in self.not_ready else 'True'}\n"
                 for node in self.nodes
             )
             return SubprocessResult(0, listing, "")
@@ -185,7 +199,12 @@ class FakeKubectl:
             manifest = json.loads(stdin or "")
             node = manifest["spec"]["template"]["spec"].get("nodeName", "")
             self.job_nodes[manifest["metadata"]["name"]] = node
+            self.running += 1
+            self.most_running = max(self.most_running, self.running)
+        if "delete" in cmd:
+            self.running -= 1
         if "get" in cmd:
+            await _yield(0)  # let the other Jobs' tasks run, as a real kubectl would
             return SubprocessResult(0, self.job_status, "")
         if "logs" in cmd:
             job = cmd[-1].removeprefix("job/")
@@ -351,6 +370,67 @@ async def test_a_node_whose_job_fails_makes_the_benchmark_partial(
     assert result.status == CheckStatus.WARN
     assert result.message.startswith("Partial CIS benchmark")
     assert "1 node(s) without a result" in result.message
+
+
+async def test_only_ready_linux_nodes_get_a_job(monkeypatch: pytest.MonkeyPatch) -> None:
+    report = {"Controls": [{"node_type": "node", "tests": [{"results": [_result("PASS")]}]}]}
+    fake = FakeKubectl(
+        report,
+        nodes=["cp-1", "down-1", "win-1"],
+        not_ready=("down-1",),
+        os_labels={"win-1": "windows"},
+    )
+    monkeypatch.setattr(kube_bench, "run_subprocess", fake)
+
+    result = await kube_bench.KubeBenchCheck().run(JOB_CTX)
+
+    assert list(fake.job_nodes.values()) == ["cp-1"]
+    assert result.details["nodes"]["down-1"] == {"skipped": "not Ready"}
+    assert result.details["nodes"]["win-1"] == {"skipped": "not a Linux node (windows)"}
+    assert result.details["scope"] == "cluster (Jobs on 1 node)"
+    assert "without a result" not in result.message, "a skipped node is not a missing result"
+    assert "2 skipped" in result.message
+
+
+async def test_a_cluster_without_a_ready_linux_node_gets_no_job(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeKubectl({}, nodes=["down-1"], not_ready=("down-1",))
+    monkeypatch.setattr(kube_bench, "run_subprocess", fake)
+
+    result = await kube_bench.KubeBenchCheck().run(JOB_CTX)
+
+    assert fake.verbs() == ["nodes"]
+    assert result.status == CheckStatus.FAIL
+    assert "No Ready Linux node" in result.message
+    assert result.details["nodes"] == {"down-1": {"skipped": "not Ready"}}
+
+
+async def test_the_jobs_run_a_few_at_a_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    nodes = [f"worker-{i}" for i in range(7)]
+    fake = FakeKubectl({"Controls": []}, nodes=nodes)
+    monkeypatch.setattr(kube_bench, "run_subprocess", fake)
+    monkeypatch.setattr(kube_bench, "_JOB_PARALLEL", 3)
+
+    result = await kube_bench.KubeBenchCheck().run(JOB_CTX)
+
+    assert sorted(fake.job_nodes.values()) == nodes
+    assert fake.most_running == 3
+    assert result.details["scope"] == "cluster (Jobs on 7 nodes)"
+
+
+async def test_a_node_whose_turn_comes_after_the_wait_gets_no_job(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeKubectl({"Controls": []}, nodes=["cp-1", "worker-1"])
+    monkeypatch.setattr(kube_bench, "run_subprocess", fake)
+    monkeypatch.setattr(kube_bench, "_JOB_WAIT", 0)
+
+    result = await kube_bench.KubeBenchCheck().run(JOB_CTX)
+
+    assert "create" not in fake.verbs()
+    assert result.status == CheckStatus.FAIL
+    assert "not started" in result.details["nodes"]["worker-1"]["error"]
 
 
 async def test_unlistable_nodes_fall_back_to_a_single_job(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -541,3 +621,16 @@ async def test_a_partial_benchmark_without_failures_is_a_warning(
     result = await kube_bench.KubeBenchCheck().run(JOB_CTX)
 
     assert result.status == CheckStatus.WARN
+
+
+async def test_a_failed_job_on_the_only_ready_node_still_names_the_skipped_ones(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeKubectl({}, job_status="/1", nodes=["cp-1", "down-1"], not_ready=("down-1",))
+    monkeypatch.setattr(kube_bench, "run_subprocess", fake)
+
+    result = await kube_bench.KubeBenchCheck().run(JOB_CTX)
+
+    assert result.status == CheckStatus.FAIL
+    assert "did not complete: it failed" in result.details["nodes"]["cp-1"]["error"]
+    assert result.details["nodes"]["down-1"] == {"skipped": "not Ready"}
