@@ -158,6 +158,11 @@ the workflows. The Dependency Dashboard issue lists every pending update.
   the `uv` image tag).
 - Commits are `chore(deps)` (`ci(deps)` for actions), so they cut no release.
 
+Renovate runs with a token of the release GitHub App, which the repository must
+hold as the variable `RELEASE_APP_CLIENT_ID` (the App's client ID) and the secret
+`RELEASE_APP_PRIVATE_KEY` (its private key), with the App installed on the
+repository. Until the variable is set, the scheduled run is skipped.
+
 `renovate.json` is read from `main`: a change to it takes effect once merged.
 Check it before pushing:
 
