@@ -40,6 +40,11 @@ class CheckResult:
             raise ValueError(f"score must be 0–100, got {self.score}")
 
 
+# Defaults of the kube-bench Job mode, shared by K8sContext and the configuration.
+KUBE_BENCH_WAIT = 300
+KUBE_BENCH_PARALLEL = 10
+
+
 @dataclass(frozen=True, slots=True)
 class K8sContext:
     """Kubernetes connection context."""
@@ -49,8 +54,17 @@ class K8sContext:
     namespace: str | None = None
     # Run kube-bench as a privileged Job in the cluster instead of on this machine.
     kube_bench_job: bool = False
+    # Job mode: seconds to wait for the Jobs (one window for all of them), and the
+    # most Jobs running at the same time.
+    kube_bench_wait: int = KUBE_BENCH_WAIT
+    kube_bench_parallel: int = KUBE_BENCH_PARALLEL
 
     def __post_init__(self) -> None:
+        # No slot for any Job would leave every node waiting until the wait ends.
+        if self.kube_bench_parallel < 1:
+            raise ValueError(
+                f"kube_bench_parallel must be at least 1, got {self.kube_bench_parallel}"
+            )
         # A path from the environment, the configuration file or the wizard went
         # through no shell, and kubectl, trivy, polaris and kube-bench do not expand "~".
         if self.kubeconfig_path:

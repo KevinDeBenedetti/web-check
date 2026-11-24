@@ -13,7 +13,9 @@ from api.utils.config import get_settings  # noqa: E402
 
 get_settings.cache_clear()
 
+import httpx  # noqa: E402
 from api.main import app  # noqa: E402
+from api.routers import quick  # noqa: E402
 
 
 @pytest.fixture
@@ -46,8 +48,18 @@ async def test_health_check():
 
 
 @pytest.mark.asyncio
-async def test_dns_check(test_url: str) -> None:
-    """Test quick DNS check."""
+async def test_dns_check(test_url: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test quick DNS check: it requests the target's root over HTTPS (faked here)."""
+    requested: list[str] = []
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        requested.append(str(request.url))
+        return httpx.Response(204)
+
+    def fake_client(**kwargs: object) -> httpx.AsyncClient:
+        return httpx.AsyncClient(transport=httpx.MockTransport(answer))
+
+    monkeypatch.setattr(quick, "ssrf_guarded_client", fake_client)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/api/quick/dns", params={"url": test_url})
@@ -56,7 +68,9 @@ async def test_dns_check(test_url: str) -> None:
         assert data["module"] == "dns"
         assert data["category"] == "quick"
         assert data["target"] == test_url
-        assert data["status"] in ["success", "error"]
+        assert data["status"] == "success"
+        assert data["data"] == {"domain": "example.com", "resolvable": True, "http_status": 204}
+    assert requested == ["https://example.com/"]
 
 
 @pytest.mark.asyncio

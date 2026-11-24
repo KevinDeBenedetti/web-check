@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from dotenv import find_dotenv, load_dotenv
+from my_check.types import KUBE_BENCH_PARALLEL, KUBE_BENCH_WAIT
 from pydantic import BaseModel, Field, field_validator
 
 # Load .env, walking up from cwd (override=False keeps existing shell env vars intact)
@@ -83,6 +84,18 @@ class K8sConfig(BaseModel):
     namespace: str | None = Field(None)
     kube_bench_job: bool = Field(
         False, description="Run kube-bench as a privileged Job in the selected cluster"
+    )
+    kube_bench_wait: int = Field(
+        KUBE_BENCH_WAIT,
+        ge=30,
+        le=3600,
+        description="Job mode: seconds to wait for the Jobs of all the nodes together",
+    )
+    kube_bench_parallel: int = Field(
+        KUBE_BENCH_PARALLEL,
+        ge=1,
+        le=100,
+        description="Job mode: the most kube-bench Jobs running at the same time",
     )
     enabled_checks: list[str] = Field(default_factory=lambda: list(_DEFAULT_K8S_CHECKS))
     timeout: float = Field(60.0, ge=1.0)

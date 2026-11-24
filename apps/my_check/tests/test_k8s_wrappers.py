@@ -7,6 +7,7 @@ PodResult / ContainerResult types (pkg/validator/output.go).
 
 import asyncio
 import json
+from dataclasses import replace
 from typing import Any
 
 import pytest
@@ -160,6 +161,8 @@ class FakeKubectl:
         control_planes: tuple[str, ...] = ("node-1", "cp-1"),
         not_ready: tuple[str, ...] = (),
         os_labels: dict[str, str] | None = None,
+        type_labels: dict[str, str] | None = None,
+        taints: dict[str, tuple[str, ...]] | None = None,
     ) -> None:
         self.logs = logs  # one report for every node, or {node name: report}
         self.job_status = job_status  # {.status.succeeded}/{.status.failed}
@@ -169,6 +172,8 @@ class FakeKubectl:
         self.control_planes = control_planes  # nodes labelled node-role.kubernetes.io/control-plane
         self.not_ready = not_ready  # nodes whose Ready condition is False
         self.os_labels = os_labels or {}  # kubernetes.io/os by node, linux otherwise
+        self.type_labels = type_labels or {}  # the `type` label by node, none otherwise
+        self.taints = taints or {}  # taint keys by node, none otherwise
         self.running = 0  # Jobs created and not deleted yet
         self.most_running = 0
         self.calls: list[tuple[list[str], str | None]] = []
@@ -191,7 +196,8 @@ class FakeKubectl:
             listing = "".join(
                 f"{node}\t{self.kubelet_version}\t{'true' if node in self.control_planes else ''}"
                 f"\t{self.os_labels.get(node, 'linux')}"
-                f"\t{'False' if node in self.not_ready else 'True'}\n"
+                f"\t{'False' if node in self.not_ready else 'True'}"
+                f"\t{self.type_labels.get(node, '')}\t{' '.join(self.taints.get(node, ()))}\n"
                 for node in self.nodes
             )
             return SubprocessResult(0, listing, "")
@@ -410,9 +416,8 @@ async def test_the_jobs_run_a_few_at_a_time(monkeypatch: pytest.MonkeyPatch) -> 
     nodes = [f"worker-{i}" for i in range(7)]
     fake = FakeKubectl({"Controls": []}, nodes=nodes)
     monkeypatch.setattr(kube_bench, "run_subprocess", fake)
-    monkeypatch.setattr(kube_bench, "_JOB_PARALLEL", 3)
 
-    result = await kube_bench.KubeBenchCheck().run(JOB_CTX)
+    result = await kube_bench.KubeBenchCheck().run(replace(JOB_CTX, kube_bench_parallel=3))
 
     assert sorted(fake.job_nodes.values()) == nodes
     assert fake.most_running == 3
@@ -424,9 +429,8 @@ async def test_a_node_whose_turn_comes_after_the_wait_gets_no_job(
 ) -> None:
     fake = FakeKubectl({"Controls": []}, nodes=["cp-1", "worker-1"])
     monkeypatch.setattr(kube_bench, "run_subprocess", fake)
-    monkeypatch.setattr(kube_bench, "_JOB_WAIT", 0)
 
-    result = await kube_bench.KubeBenchCheck().run(JOB_CTX)
+    result = await kube_bench.KubeBenchCheck().run(replace(JOB_CTX, kube_bench_wait=0))
 
     assert "create" not in fake.verbs()
     assert result.status == CheckStatus.FAIL
@@ -634,3 +638,53 @@ async def test_a_failed_job_on_the_only_ready_node_still_names_the_skipped_ones(
     assert result.status == CheckStatus.FAIL
     assert "did not complete: it failed" in result.details["nodes"]["cp-1"]["error"]
     assert result.details["nodes"]["down-1"] == {"skipped": "not Ready"}
+
+
+@pytest.mark.parametrize(
+    ("type_labels", "taints"),
+    [
+        ({"vk-1": "virtual-kubelet"}, {}),
+        ({}, {"vk-1": ("node.kubernetes.io/unschedulable", "virtual-kubelet.io/provider")}),
+    ],
+    ids=["type label", "provider taint"],
+)
+async def test_a_virtual_kubelet_node_gets_no_job(
+    monkeypatch: pytest.MonkeyPatch,
+    type_labels: dict[str, str],
+    taints: dict[str, tuple[str, ...]],
+) -> None:
+    report = {"Controls": [{"node_type": "node", "tests": [{"results": [_result("PASS")]}]}]}
+    fake = FakeKubectl(report, nodes=["cp-1", "vk-1"], type_labels=type_labels, taints=taints)
+    monkeypatch.setattr(kube_bench, "run_subprocess", fake)
+
+    result = await kube_bench.KubeBenchCheck().run(JOB_CTX)
+
+    assert list(fake.job_nodes.values()) == ["cp-1"]
+    assert result.details["nodes"]["vk-1"] == {
+        "skipped": "a virtual-kubelet node, no host to audit"
+    }
+    assert "without a result" not in result.message
+
+
+@pytest.mark.parametrize(("wait", "deadline"), [(300, 600), (900, 900)])
+async def test_a_job_may_run_as_long_as_the_wait(
+    monkeypatch: pytest.MonkeyPatch, wait: int, deadline: int
+) -> None:
+    # Kubernetes must not stop a Job my-check is still waiting for.
+    fake = FakeKubectl({"Controls": []})
+    monkeypatch.setattr(kube_bench, "run_subprocess", fake)
+
+    await kube_bench.KubeBenchCheck().run(replace(JOB_CTX, kube_bench_wait=wait))
+
+    manifests = [json.loads(stdin or "") for cmd, stdin in fake.calls if "create" in cmd]
+    assert [m["spec"]["activeDeadlineSeconds"] for m in manifests] == [deadline]
+
+
+def test_the_check_timeout_covers_the_wait() -> None:
+    assert kube_bench.job_check_timeout(300) == 510
+    assert kube_bench.job_check_timeout(1200) == 1410
+
+
+def test_a_context_without_a_job_slot_is_refused() -> None:
+    with pytest.raises(ValueError, match="kube_bench_parallel"):
+        K8sContext(kube_bench_parallel=0)

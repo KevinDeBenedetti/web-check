@@ -230,3 +230,41 @@ def test_a_home_relative_kubeconfig_path_is_expanded(
     assert RecordingScheduler.k8s_ctx is not None
     assert RecordingScheduler.k8s_ctx.kubeconfig_path == expanded
     assert RecordingScheduler.k8s_ctx.kubeconfig_env() == {"KUBECONFIG": expanded}
+
+
+def test_the_kube_bench_job_settings_reach_the_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from my_check.checks.k8s.wrappers.kube_bench import job_check_timeout
+
+    monkeypatch.setattr(cli, "Scheduler", RecordingScheduler)
+    config = {"k8s": {"kube_bench_job": True, "kube_bench_wait": 1200, "kube_bench_parallel": 4}}
+    (tmp_path / "my-check.config.json").write_text(json.dumps(config))
+
+    assert runner.invoke(cli.app, ["k8s"]).exit_code == 0
+    ctx = RecordingScheduler.k8s_ctx
+    assert ctx is not None
+    assert (ctx.kube_bench_wait, ctx.kube_bench_parallel) == (1200, 4)
+    assert RecordingScheduler.timeout == job_check_timeout(1200)
+
+
+def test_the_kube_bench_job_settings_default_to_300_s_and_10_jobs() -> None:
+    k8s = load_config().k8s
+    assert (k8s.kube_bench_wait, k8s.kube_bench_parallel) == (300, 10)
+
+
+@pytest.mark.parametrize(
+    "setting",
+    [
+        {"kube_bench_wait": 10},
+        {"kube_bench_wait": 7200},
+        {"kube_bench_parallel": 0},
+        {"kube_bench_parallel": 500},
+    ],
+)
+def test_out_of_range_kube_bench_job_settings_are_refused(setting: dict) -> None:
+    from my_check.config import K8sConfig
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        K8sConfig(**setting)

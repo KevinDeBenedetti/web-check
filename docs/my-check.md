@@ -109,13 +109,16 @@ context and namespace (`default` when none is given) instead, once per Ready
 Linux node: it lists the nodes (`kubectl get nodes`), creates for each a Job named
 `my-check-kube-bench-<random>` pinned to that node (`nodeName`, tolerating its
 taints, so control-plane nodes are audited too) with `hostPID` and read-only host
-mounts, waits up to 5 minutes for them to succeed or fail, reads their JSON logs,
-then deletes them (a 10-minute TTL removes them if the run is interrupted). The
-image is pinned by digest. A node that is not Ready, or whose `kubernetes.io/os`
-label is not `linux`, gets no Job: `details.nodes` names it as `skipped` with the
-reason, and it does not make the benchmark partial. At most 10 Jobs run at the
-same time; the 5 minutes cover all of them, so on a cluster too large to finish
-in that time the remaining nodes are reported as not started. The counts are
+mounts, waits up to 5 minutes (`k8s.kube_bench_wait`) for them to succeed or
+fail, reads their JSON logs, then deletes them (a 10-minute TTL removes them if
+the run is interrupted). The image is pinned by digest. A node that is not Ready,
+whose `kubernetes.io/os` label is not `linux`, or that is a virtual-kubelet node
+(label `type=virtual-kubelet` or taint `virtual-kubelet.io/provider`: a serverless
+or burst node pool, with no host to audit) gets no Job: `details.nodes` names it
+as `skipped` with the reason, and it does not make the benchmark partial. At most 10 Jobs run at the
+same time (`k8s.kube_bench_parallel`); the wait covers all of them, so on a
+cluster too large to finish in that time the remaining nodes are reported as not
+started: raise either setting for a large cluster or slow image pulls. The counts are
 summed over the audited nodes, and
 `details.nodes` gives each node's own counts and sections, or why it has no
 result (with an excerpt of its log when that is not kube-bench JSON); a node
@@ -131,7 +134,8 @@ rights to create Jobs and read pod logs in that namespace, and are blocked by a
 namespace enforcing the `restricted` or `baseline` Pod Security Standard. Without
 the right to list nodes, a single Job audits the node the scheduler picks, and
 the result says so. In this mode the per-check
-timeout is raised to at least 510 s, whatever `k8s.timeout` says. The Job's pod
+timeout is raised to at least the wait plus 210 s (510 s by default), whatever
+`k8s.timeout` says, and each Job may run for the wait, 600 s at the least. The Job's pod
 carries the `app.kubernetes.io/managed-by: my-check` label, and the other checks
 skip pods with that label: my-check does not audit its own pod.
 
@@ -206,6 +210,10 @@ or the file given with `--config`:
 - `timeout` is per check, in seconds. A check that runs past it fails as
   "Timed out" and its commands are killed; a check stuck in blocking code gets
   5 more seconds, then `my-check` stops waiting and exits without it.
+- `k8s.kube_bench_wait` (seconds, 30 to 3600, default 300) and
+  `k8s.kube_bench_parallel` (1 to 100, default 10) tune the kube-bench Job mode
+  (`--kube-bench-job`): the wait for the Jobs of all the nodes together, and the
+  most Jobs running at the same time. A value out of range is refused.
 
 ## Reporters
 

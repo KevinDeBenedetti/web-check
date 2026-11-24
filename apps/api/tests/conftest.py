@@ -1,13 +1,28 @@
 """Pytest configuration."""
 
+import ipaddress
 from collections.abc import AsyncGenerator, Iterator
 from pathlib import Path
 
 import api.models.db_models  # noqa: F401  (populate Base.metadata)
 import pytest
 from api.database import Base, get_session
+from api.utils import security
 from api.utils.config import get_settings
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+# A public address (example.com's), so a target passes the non-public address check.
+PUBLIC_IP = ipaddress.ip_address("93.184.215.14")
+
+
+@pytest.fixture(autouse=True)
+def _public_dns(monkeypatch: pytest.MonkeyPatch) -> None:
+    """validate_target resolves every target: answer without the network (see ../../conftest.py)."""
+
+    async def _resolve(hostname: str) -> list:
+        return [PUBLIC_IP]
+
+    monkeypatch.setattr(security, "_resolve", _resolve)
 
 
 @pytest.fixture
