@@ -152,12 +152,14 @@ class FakeKubectl:
         nodes: list[str] | None = None,
         nodes_returncode: int = 0,
         kubelet_version: str = "v1.30.2",
+        control_planes: tuple[str, ...] = ("node-1", "cp-1"),
     ) -> None:
         self.logs = logs  # one report for every node, or {node name: report}
         self.job_status = job_status  # {.status.succeeded}/{.status.failed}
         self.nodes = ["node-1"] if nodes is None else nodes
         self.nodes_returncode = nodes_returncode
         self.kubelet_version = kubelet_version
+        self.control_planes = control_planes  # nodes labelled node-role.kubernetes.io/control-plane
         self.calls: list[tuple[list[str], str | None]] = []
         self.job_nodes: dict[str, str] = {}  # Job name -> nodeName of its pod
 
@@ -173,7 +175,11 @@ class FakeKubectl:
         if "nodes" in cmd:
             if self.nodes_returncode:
                 return SubprocessResult(self.nodes_returncode, "", "nodes is forbidden")
-            listing = "".join(f"{node} {self.kubelet_version}\n" for node in self.nodes)
+            # name, kubelet version, then the control-plane and master role labels' values
+            listing = "".join(
+                f"{node}\t{self.kubelet_version}\t{'true' if node in self.control_planes else ''}\n"
+                for node in self.nodes
+            )
             return SubprocessResult(0, listing, "")
         if "create" in cmd:
             manifest = json.loads(stdin or "")
@@ -430,6 +436,36 @@ async def test_other_nodes_leave_the_benchmark_to_kube_bench(
     await kube_bench.KubeBenchCheck().run(JOB_CTX)
 
     assert _job_commands(fake) == [["kube-bench", "run", "--json"]]
+
+
+async def test_a_worker_node_runs_only_the_node_checks(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = FakeKubectl(
+        {"Controls": []},
+        nodes=["cp-1", "worker-1"],
+        kubelet_version="v1.36.3+k3s1",
+        control_planes=("cp-1",),
+    )
+    monkeypatch.setattr(kube_bench, "run_subprocess", fake)
+
+    await kube_bench.KubeBenchCheck().run(JOB_CTX)
+
+    commands = {
+        json.loads(stdin or "")["spec"]["template"]["spec"]["nodeName"]: json.loads(stdin or "")[
+            "spec"
+        ]["template"]["spec"]["containers"][0]["command"]
+        for cmd, stdin in fake.calls
+        if "create" in cmd
+    }
+    assert commands["cp-1"] == ["kube-bench", "run", "--json", "--benchmark", "k3s-cis-1.9"]
+    assert commands["worker-1"] == [
+        "kube-bench",
+        "run",
+        "--json",
+        "--benchmark",
+        "k3s-cis-1.9",
+        "--targets",
+        "node",
+    ]
 
 
 def test_kube_bench_job_is_opt_in() -> None:

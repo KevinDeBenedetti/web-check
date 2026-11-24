@@ -101,7 +101,10 @@ without a result makes the benchmark partial. In a pod, kube-bench often cannot
 reach the API server to detect the Kubernetes version and falls back to the
 generic `cis-1.6` benchmark, so on a k3s node (`+k3s` in its kubelet version)
 my-check passes the k3s benchmark kube-bench itself would pick (`--benchmark
-k3s-cis-1.9` from 1.27 on); other nodes keep kube-bench's own choice. The Jobs need the
+k3s-cis-1.9` from 1.27 on); other nodes keep kube-bench's own choice. kube-bench
+also runs every section of the benchmark on every node, so a node without the
+`node-role.kubernetes.io/control-plane` (or `master`) label runs only the `node`
+section (`--targets node`). The Jobs need the
 rights to create Jobs and read pod logs in that namespace, and are blocked by a
 namespace enforcing the `restricted` or `baseline` Pod Security Standard. Without
 the right to list nodes, a single Job audits the node the scheduler picks, and
