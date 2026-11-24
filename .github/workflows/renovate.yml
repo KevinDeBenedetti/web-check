@@ -29,6 +29,9 @@ jobs:
   renovate:
     # On @main like the other shared workflows of this repository.
     uses: KevinDeBenedetti/github-workflows/.github/workflows/renovate.yml@main
+    # Until the App's variable is set, the schedule skips instead of failing
+    # every day; a manual run still goes ahead and shows the missing input.
+    if: vars.RELEASE_APP_CLIENT_ID != '' || github.event_name == 'workflow_dispatch'
     permissions: {} # Renovate works with the App's token, not with this job's
     with:
       app-client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
