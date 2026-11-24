@@ -96,7 +96,12 @@ mounts, waits up to 5 minutes for them to succeed or fail, reads their JSON logs
 then deletes them (a 10-minute TTL removes them if the run is interrupted). The
 image is pinned by digest. The counts are summed over the nodes, and
 `details.nodes` gives each node's own counts and sections, or why it has no
-result; a node without a result makes the benchmark partial. The Jobs need the
+result (with an excerpt of its log when that is not kube-bench JSON); a node
+without a result makes the benchmark partial. In a pod, kube-bench often cannot
+reach the API server to detect the Kubernetes version and falls back to the
+generic `cis-1.6` benchmark, so on a k3s node (`+k3s` in its kubelet version)
+my-check passes the k3s benchmark kube-bench itself would pick (`--benchmark
+k3s-cis-1.9` from 1.27 on); other nodes keep kube-bench's own choice. The Jobs need the
 rights to create Jobs and read pod logs in that namespace, and are blocked by a
 namespace enforcing the `restricted` or `baseline` Pod Security Standard. Without
 the right to list nodes, a single Job audits the node the scheduler picks, and
