@@ -153,18 +153,25 @@ def guide() -> None:
     if scan_type == "full":
         import time
 
-        from cli.commands.scan import _DEFAULT_MODULES, _display_full_summary
+        from cli.commands.scan import _display_full_summary, _profile_modules
         from cli.report import normalise_full_scan, save_report
 
         settings = CLISettings()
         client = APIClient(settings.api_url, settings.api_timeout, settings.api_key)
         try:
+            # The catalog's default profile: the same scan as `scan full` and the web UI.
+            catalog = client.get("/api/catalog")
+            modules = _profile_modules(catalog, catalog.get("default_profile") or "")
+            if not modules:
+                console.print("[red]✗ The API catalog has no default profile[/red]")
+                raise typer.Exit(1)
             console.print(f"[bold cyan]🔍 Starting full scan on {url}[/bold cyan]")
-            console.print(f"   Modules : [cyan]{', '.join(_DEFAULT_MODULES)}[/cyan]\n")
+            console.print(f"   Profile : [cyan]{catalog.get('default_profile')}[/cyan]")
+            console.print(f"   Modules : [cyan]{', '.join(modules)}[/cyan]\n")
 
             response = client.post(
                 "/api/scans/start",
-                json={"target": url, "modules": _DEFAULT_MODULES, "timeout": 300},
+                json={"target": url, "modules": modules, "timeout": 300},
             )
             scan_id = response.get("scan_id")
             if not scan_id:

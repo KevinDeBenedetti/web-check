@@ -88,14 +88,20 @@ reports *not found* as information and does not lower the score.
 kube-bench audits the node it runs on. By default that is this machine, not the
 selected cluster. With `--kube-bench-job` (or `"kube_bench_job": true` under `k8s`
 in the configuration), my-check runs upstream's kube-bench Job in the selected
-context and namespace (`default` when none is given) instead: it creates a Job
-named `my-check-kube-bench-<random>` with `hostPID` and read-only host mounts,
-waits up to 5 minutes for it to succeed or fail, reads its JSON log, then deletes
-it (a 10-minute TTL removes it if the run is interrupted). The image is pinned by digest. The Job
-audits the one node it is scheduled on, needs the rights to create Jobs and read
-pod logs in that namespace, and is blocked by a namespace enforcing the
-`restricted` or `baseline` Pod Security Standard. In this mode the per-check
-timeout is raised to at least 390 s, whatever `k8s.timeout` says. The Job's pod
+context and namespace (`default` when none is given) instead, once per node: it
+lists the nodes (`kubectl get nodes`), creates for each a Job named
+`my-check-kube-bench-<random>` pinned to that node (`nodeName`, tolerating its
+taints, so control-plane nodes are audited too) with `hostPID` and read-only host
+mounts, waits up to 5 minutes for them to succeed or fail, reads their JSON logs,
+then deletes them (a 10-minute TTL removes them if the run is interrupted). The
+image is pinned by digest. The counts are summed over the nodes, and
+`details.nodes` gives each node's own counts and sections, or why it has no
+result; a node without a result makes the benchmark partial. The Jobs need the
+rights to create Jobs and read pod logs in that namespace, and are blocked by a
+namespace enforcing the `restricted` or `baseline` Pod Security Standard. Without
+the right to list nodes, a single Job audits the node the scheduler picks, and
+the result says so. In this mode the per-check
+timeout is raised to at least 510 s, whatever `k8s.timeout` says. The Job's pod
 carries the `app.kubernetes.io/managed-by: my-check` label, and the other checks
 skip pods with that label: my-check does not audit its own pod.
 
@@ -163,7 +169,9 @@ or the file given with `--config`:
 - `web.ports` replaces the ports `web-ports` probes. Leave it out to keep the
   check's own list: 80, 443, 8080, 8443, 3000 and 9090, plus 21, 22, 3306, 5432,
   6379 and 27017, which fail the check when open.
-- `timeout` is per check, in seconds.
+- `timeout` is per check, in seconds. A check that runs past it fails as
+  "Timed out" and its commands are killed; a check stuck in blocking code gets
+  5 more seconds, then `my-check` stops waiting and exits without it.
 
 ## Reporters
 

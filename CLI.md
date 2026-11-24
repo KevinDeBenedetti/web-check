@@ -65,7 +65,8 @@ Global options: `--version` / `-v` and `--debug` (JSON log output).
 | `--timeout`       | `scan nuclei`, `scan nikto`                  | Seconds, 30–3600 (defaults 300 and 600)                           |
 | `--timeout`       | `scan ssl`                                   | Seconds, 60–3600 (default 300)                                    |
 | `--timeout`       | `scan full`                                  | Seconds per module, 30–3600 (default 300)                         |
-| `--modules`       | `scan full`                                  | Comma-separated module ids from the API catalog (`GET /api/catalog`), e.g. `headers`, `dns`, `nuclei` (default `nuclei,nikto,zap`) |
+| `--profile`       | `scan full`                                  | Profile of the API catalog (`GET /api/catalog`), e.g. `quick`, `standard` (default: the catalog's `default_profile`, the web UI's scan) |
+| `--modules`       | `scan full`                                  | Comma-separated module ids from the API catalog, e.g. `headers`, `dns`, `nuclei`, instead of a profile |
 | `--all`           | `scan full`                                  | Every module of the API catalog (much slower)                     |
 | `--limit`         | `results list`                               | Number of scans (default 10)                                      |
 | `--status`        | `results list`                               | `success`, `error` or `timeout`                                   |

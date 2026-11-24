@@ -1,9 +1,11 @@
 """CIS Benchmarks check via kube-bench.
 
 By default kube-bench runs on this machine and audits its own node. With
-``K8sContext.kube_bench_job`` it runs as a Job in the selected cluster, from
-upstream's job.yaml: the Job is created, waited for, its JSON log read, then
-deleted. It audits the one node the Job is scheduled on.
+``K8sContext.kube_bench_job`` it runs as Jobs in the selected cluster, from
+upstream's job.yaml: one Job pinned to each node (``kubectl get nodes``), so the
+control-plane and worker sections are both covered. The Jobs are created, waited
+for, their JSON logs read and summed, then deleted. When the nodes cannot be
+listed (RBAC), a single Job audits the node the scheduler picks.
 """
 
 from __future__ import annotations
@@ -12,7 +14,7 @@ import asyncio
 import json
 import secrets
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from my_check.types import (
@@ -56,13 +58,22 @@ _JOB_WAIT = 300
 _JOB_POLL = 5
 _JOB_DEADLINE = 600
 _JOB_TTL = 600
-# What the whole check needs in Job mode (wait, plus create, logs and delete):
-# the scheduler's per-check timeout is raised to it (my_check.cli).
-JOB_CHECK_TIMEOUT = float(_JOB_WAIT + 90)
+# What the whole check needs in Job mode, each step at its own timeout: list the
+# nodes (30), create (60), wait plus its last poll (_JOB_WAIT + 30), logs (60) and
+# delete (30); the nodes' Jobs run in parallel. The scheduler's per-check timeout
+# is raised to it (my_check.cli), so the deletes are never cut short.
+JOB_CHECK_TIMEOUT = float(_JOB_WAIT + 30 + 60 + 30 + 60 + 30)
 
 
-def kube_bench_job_manifest(name: str) -> dict[str, Any]:
-    """The kube-bench Job of upstream's job.yaml, pinned, run once, with JSON output."""
+def kube_bench_job_manifest(name: str, node: str | None = None) -> dict[str, Any]:
+    """The kube-bench Job of upstream's job.yaml, pinned, run once, with JSON output.
+
+    With *node*, its pod runs on that node (``nodeName``) and tolerates its taints,
+    so control-plane nodes are audited too.
+    """
+    pod_placement: dict[str, Any] = (
+        {"nodeName": node, "tolerations": [{"operator": "Exists"}]} if node else {}
+    )
     return {
         "apiVersion": "batch/v1",
         "kind": "Job",
@@ -79,6 +90,7 @@ def kube_bench_job_manifest(name: str) -> dict[str, Any]:
                     "labels": {"app": "kube-bench", "app.kubernetes.io/managed-by": "my-check"}
                 },
                 "spec": {
+                    **pod_placement,
                     "hostPID": True,
                     "restartPolicy": "Never",
                     "containers": [
@@ -195,51 +207,131 @@ class KubeBenchCheck:
         return _summarise(result.stdout, scope="local node", note=note)
 
     async def _run_job(self, target: K8sContext) -> CheckResult:
-        name = f"my-check-kube-bench-{secrets.token_hex(3)}"
-        manifest = json.dumps(kube_bench_job_manifest(name))
         try:
-            created = await run_subprocess(
-                kubectl_command(target, "create", "-f", "-"), timeout=60.0, stdin=manifest
+            listed = await run_subprocess(
+                kubectl_command(
+                    target,
+                    "get",
+                    "nodes",
+                    "-o",
+                    "jsonpath={.items[*].metadata.name}",
+                ),
+                timeout=30.0,
             )
         except FileNotFoundError:
             return _not_found("kubectl")
-        if _tool_missing(created):
+        if _tool_missing(listed):
             return _not_found("kubectl")
-        if created.returncode != 0:
-            return _failure("Could not create the kube-bench Job in the cluster.", created)
+        nodes = listed.stdout.split() if listed.returncode == 0 else []
 
-        try:
-            if why := await _wait_for_job(target, name):
-                return CheckResult(
+        selected = target.context_name or target.kubeconfig_path or "current context"
+        if not nodes:
+            # The nodes could not be listed (that needs a ClusterRole) or none was:
+            # run one Job wherever it is scheduled.
+            try:
+                stdout = await _job_report(target, None)
+            except _JobFailed as failed:
+                return failed.result
+            why = (
+                f"nodes could not be listed: {listed.stderr.strip()[:200]}"
+                if listed.returncode != 0
+                else "no node listed"
+            )
+            return _summarise(
+                stdout,
+                scope="cluster (Job on one node)",
+                note=f" (kube-bench Job on one node of '{selected}'; {why})",
+                in_pod=True,
+            )
+
+        outcomes = await asyncio.gather(
+            *(_job_report(target, node) for node in nodes), return_exceptions=True
+        )
+        total = _Tally()
+        per_node: dict[str, dict[str, Any]] = {}
+        failures: list[CheckResult] = []
+        for node, outcome in zip(nodes, outcomes, strict=True):
+            if isinstance(outcome, _JobFailed):
+                failures.append(outcome.result)
+                stderr = (outcome.result.details or {}).get("stderr", "").strip()
+                per_node[node] = {"error": f"{outcome.result.message} {stderr}".strip()[:500]}
+                continue
+            if isinstance(outcome, BaseException):
+                raise outcome
+            tally = _tally(outcome, in_pod=True)
+            if tally is None:
+                per_node[node] = {"error": "Its log is not kube-bench JSON."}
+                continue
+            total.add(tally)
+            per_node[node] = tally.node_summary()
+
+        unaudited = sum(1 for summary in per_node.values() if "error" in summary)
+        if unaudited == len(nodes):
+            if len(nodes) == 1 and failures:
+                return failures[0]
+            return CheckResult(
+                status=CheckStatus.FAIL,
+                score=0,
+                message=f"No kube-bench Job completed on the {len(nodes)} node(s).",
+                details={"nodes": per_node},
+            )
+
+        result = _verdict(
+            total,
+            scope=f"cluster (Jobs on {len(nodes)} node{'s' if len(nodes) > 1 else ''})",
+            note=f" (kube-bench Jobs on the {len(nodes)} node(s) of '{selected}')",
+            in_pod=True,
+            unaudited_nodes=unaudited,
+        )
+        result.details["nodes"] = per_node
+        return result
+
+
+class _JobFailed(Exception):
+    """A kube-bench Job that gave no report; *result* says why."""
+
+    def __init__(self, result: CheckResult) -> None:
+        super().__init__(result.message)
+        self.result = result
+
+
+async def _job_report(target: K8sContext, node: str | None) -> str:
+    """Run one kube-bench Job (on *node*, when given) and return its JSON log."""
+    name = f"my-check-kube-bench-{secrets.token_hex(3)}"
+    manifest = json.dumps(kube_bench_job_manifest(name, node))
+    created = await run_subprocess(
+        kubectl_command(target, "create", "-f", "-"), timeout=60.0, stdin=manifest
+    )
+    if created.returncode != 0:
+        raise _JobFailed(_failure("Could not create the kube-bench Job in the cluster.", created))
+
+    try:
+        if why := await _wait_for_job(target, name):
+            raise _JobFailed(
+                CheckResult(
                     status=CheckStatus.FAIL,
                     score=0,
                     message=f"The kube-bench Job {name} did not complete: {why}.",
                 )
-            logs = await run_subprocess(
-                kubectl_command(target, "logs", f"job/{name}"), timeout=60.0
             )
-            if logs.returncode != 0:
-                return _failure(f"Could not read the log of the kube-bench Job {name}.", logs)
-        finally:
-            await run_subprocess(
-                kubectl_command(
-                    target,
-                    "delete",
-                    "job",
-                    name,
-                    "--ignore-not-found",
-                    "--cascade=background",
-                    "--wait=false",
-                ),
-                timeout=30.0,
+        logs = await run_subprocess(kubectl_command(target, "logs", f"job/{name}"), timeout=60.0)
+        if logs.returncode != 0:
+            raise _JobFailed(
+                _failure(f"Could not read the log of the kube-bench Job {name}.", logs)
             )
-
-        selected = target.context_name or target.kubeconfig_path or "current context"
-        return _summarise(
-            logs.stdout,
-            scope="cluster (Job on one node)",
-            note=f" (kube-bench Job on one node of '{selected}')",
-            in_pod=True,
+        return logs.stdout
+    finally:
+        await run_subprocess(
+            kubectl_command(
+                target,
+                "delete",
+                "job",
+                name,
+                "--ignore-not-found",
+                "--cascade=background",
+                "--wait=false",
+            ),
+            timeout=30.0,
         )
 
 
@@ -247,56 +339,102 @@ class KubeBenchCheck:
 _SECTIONS = ("master", "controlplane", "node", "policies")
 
 
-def _summarise(stdout: str, *, scope: str, note: str, in_pod: bool = False) -> CheckResult:
-    """Turn kube-bench's JSON report into a check result.
+@dataclass(slots=True)
+class _Tally:
+    """Counts of one kube-bench report, or of several summed."""
 
-    A benchmark that lacks sections, or whose journal-based audits ran in a pod
-    (*in_pod*), where the host's journal is out of reach, is reported as partial:
-    those audits are left out of the counts instead of being scored as failures.
+    counts: dict[str, int] = field(default_factory=lambda: {"PASS": 0, "FAIL": 0, "WARN": 0})
+    unverifiable: int = 0
+    sections: list[str] = field(default_factory=list)
+
+    @property
+    def total(self) -> int:
+        return sum(self.counts.values())
+
+    def add(self, other: _Tally) -> None:
+        for status, count in other.counts.items():
+            self.counts[status] += count
+        self.unverifiable += other.unverifiable
+        self.sections += [s for s in other.sections if s not in self.sections]
+
+    def node_summary(self) -> dict[str, Any]:
+        return {
+            "pass": self.counts["PASS"],
+            "fail": self.counts["FAIL"],
+            "warn": self.counts["WARN"],
+            "total": self.total,
+            "sections": ", ".join(self.sections),
+        }
+
+
+def _tally(stdout: str, *, in_pod: bool) -> _Tally | None:
+    """Count the results of kube-bench's JSON report; None when it is not JSON.
+
+    Journal-based audits run in a pod (*in_pod*), where the host's journal is out
+    of reach, are counted apart as unverifiable instead of being scored.
     """
     try:
         data = json.loads(stdout)
     except json.JSONDecodeError:
+        return None
+
+    tally = _Tally()
+    controls = data if isinstance(data, list) else data.get("Controls", [])
+    for control in controls:
+        section = control.get("node_type", "")
+        if section and section not in tally.sections:
+            tally.sections.append(section)
+        for test in control.get("tests", []):
+            for r in test.get("results", []):
+                if in_pod and "journalctl" in r.get("audit", ""):
+                    tally.unverifiable += 1
+                    continue
+                status_str = r.get("status", "").upper()
+                if status_str in tally.counts:
+                    tally.counts[status_str] += 1
+    return tally
+
+
+def _summarise(stdout: str, *, scope: str, note: str, in_pod: bool = False) -> CheckResult:
+    """Turn kube-bench's JSON report into a check result."""
+    tally = _tally(stdout, in_pod=in_pod)
+    if tally is None:
         return CheckResult(
             status=CheckStatus.FAIL,
             score=0,
             message="Failed to parse kube-bench JSON output.",
             details={"raw_stdout": stdout[:1000]},
         )
+    return _verdict(tally, scope=scope, note=note, in_pod=in_pod)
 
-    counts = {"PASS": 0, "FAIL": 0, "WARN": 0}
-    unverifiable = 0
-    sections: list[str] = []
 
-    controls = data if isinstance(data, list) else data.get("Controls", [])
-    for control in controls:
-        section = control.get("node_type", "")
-        if section and section not in sections:
-            sections.append(section)
-        for test in control.get("tests", []):
-            for r in test.get("results", []):
-                if in_pod and "journalctl" in r.get("audit", ""):
-                    unverifiable += 1
-                    continue
-                status_str = r.get("status", "").upper()
-                if status_str in counts:
-                    counts[status_str] += 1
+def _verdict(
+    tally: _Tally, *, scope: str, note: str, in_pod: bool, unaudited_nodes: int = 0
+) -> CheckResult:
+    """The check result of a tally.
 
-    total_pass, total_fail, total_warn = counts["PASS"], counts["FAIL"], counts["WARN"]
-    total = total_pass + total_fail + total_warn
+    A benchmark that lacks sections, has unverifiable audits, or misses nodes
+    (*unaudited_nodes*) is reported as partial and never reads as a clean pass.
+    """
+    total_pass, total_fail, total_warn = (
+        tally.counts["PASS"],
+        tally.counts["FAIL"],
+        tally.counts["WARN"],
+    )
+    total = tally.total
     score = int((total_pass / total) * 100) if total else 0
-    missing = [section for section in _SECTIONS if section not in sections]
+    missing = [section for section in _SECTIONS if section not in tally.sections]
 
-    summary: dict[str, int | str] = {
+    summary: dict[str, Any] = {
         "pass": total_pass,
         "fail": total_fail,
         "warn": total_warn,
         "total": total,
         "scope": scope,
-        "sections": ", ".join(sections),
+        "sections": ", ".join(tally.sections),
     }
     if in_pod:
-        summary["unverifiable"] = unverifiable
+        summary["unverifiable"] = tally.unverifiable
     if missing:
         summary["missing_sections"] = ", ".join(missing)
 
@@ -313,10 +451,11 @@ def _summarise(stdout: str, *, scope: str, note: str, in_pod: bool = False) -> C
     gaps = []
     if missing:
         gaps.append(f"no {', '.join(missing)} section")
-    if unverifiable:
-        gaps.append(f"{unverifiable} journal-based check(s) not verifiable from a pod")
+    if tally.unverifiable:
+        gaps.append(f"{tally.unverifiable} journal-based check(s) not verifiable from a pod")
+    if unaudited_nodes:
+        gaps.append(f"{unaudited_nodes} node(s) without a result")
     if gaps:
-        # An incomplete benchmark never reads as a clean pass.
         if status == CheckStatus.PASS:
             status = CheckStatus.WARN
         message = f"Partial CIS benchmark ({'; '.join(gaps)}): {message}"
@@ -328,7 +467,8 @@ def _summarise(stdout: str, *, scope: str, note: str, in_pod: bool = False) -> C
         details=summary,
         remediation="Review failed CIS checks and apply recommended remediations."
         + (
-            " On k3s, run kube-bench on each node (--benchmark k3s-cis-*) for the full benchmark."
+            " On k3s, run the kube-bench binary on each node (--benchmark k3s-cis-*)"
+            " for the full benchmark."
             if gaps
             else ""
         ),

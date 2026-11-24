@@ -145,10 +145,19 @@ async def test_kube_bench_says_it_audited_the_local_node(monkeypatch: pytest.Mon
 class FakeKubectl:
     """Stands in for run_subprocess in kube-bench Job mode: answers each kubectl verb."""
 
-    def __init__(self, logs: Any, job_status: str = "1/") -> None:
-        self.logs = logs
+    def __init__(
+        self,
+        logs: Any,
+        job_status: str = "1/",
+        nodes: list[str] | None = None,
+        nodes_returncode: int = 0,
+    ) -> None:
+        self.logs = logs  # one report for every node, or {node name: report}
         self.job_status = job_status  # {.status.succeeded}/{.status.failed}
+        self.nodes = ["node-1"] if nodes is None else nodes
+        self.nodes_returncode = nodes_returncode
         self.calls: list[tuple[list[str], str | None]] = []
+        self.job_nodes: dict[str, str] = {}  # Job name -> nodeName of its pod
 
     async def __call__(
         self,
@@ -159,15 +168,28 @@ class FakeKubectl:
         stdin: str | None = None,
     ) -> SubprocessResult:
         self.calls.append((cmd, stdin))
+        if "nodes" in cmd:
+            if self.nodes_returncode:
+                return SubprocessResult(self.nodes_returncode, "", "nodes is forbidden")
+            return SubprocessResult(0, "".join(f"{node}\n" for node in self.nodes), "")
+        if "create" in cmd:
+            manifest = json.loads(stdin or "")
+            node = manifest["spec"]["template"]["spec"].get("nodeName", "")
+            self.job_nodes[manifest["metadata"]["name"]] = node
         if "get" in cmd:
             return SubprocessResult(0, self.job_status, "")
         if "logs" in cmd:
-            return SubprocessResult(0, json.dumps(self.logs), "")
+            job = cmd[-1].removeprefix("job/")
+            node = self.job_nodes.get(job, "")
+            report = self.logs[node] if node in self.logs else self.logs
+            return SubprocessResult(0, json.dumps(report), "")
         return SubprocessResult(0, "", "")
 
     def verbs(self) -> list[str]:
         return [
-            next(v for v in ("create", "get", "logs", "delete") if v in cmd)
+            "nodes"
+            if "nodes" in cmd
+            else next(v for v in ("create", "get", "logs", "delete") if v in cmd)
             for cmd, _ in self.calls
         ]
 
@@ -185,16 +207,17 @@ async def test_kube_bench_job_runs_in_the_selected_cluster(monkeypatch: pytest.M
 
     result = await kube_bench.KubeBenchCheck().run(JOB_CTX)
 
-    assert fake.verbs() == ["create", "get", "logs", "delete"]
+    assert fake.verbs() == ["nodes", "create", "get", "logs", "delete"]
     for cmd, _ in fake.calls:
         assert cmd[0] == "kubectl"
         assert cmd[cmd.index("--context") + 1] == "prod"
         assert cmd[cmd.index("--kubeconfig") + 1] == "/home/me/.kube/prod"
         assert cmd[cmd.index("--namespace") + 1] == "app"
-    manifest = json.loads(fake.calls[0][1] or "")
+    manifest = json.loads(fake.calls[1][1] or "")
     job_name = manifest["metadata"]["name"]
-    assert all(job_name in " ".join(cmd) for cmd, _ in fake.calls[1:])
-    assert result.details["scope"] == "cluster (Job on one node)"
+    assert all(job_name in " ".join(cmd) for cmd, _ in fake.calls[2:])
+    assert manifest["spec"]["template"]["spec"]["nodeName"] == "node-1"
+    assert result.details["scope"] == "cluster (Jobs on 1 node)"
     assert result.details["fail"] == 1
     assert "prod" in result.message
 
@@ -207,7 +230,7 @@ async def test_a_failed_kube_bench_job_is_reported_at_once_and_deleted(
 
     result = await kube_bench.KubeBenchCheck().run(JOB_CTX)
 
-    assert fake.verbs() == ["create", "get", "delete"]
+    assert fake.verbs() == ["nodes", "create", "get", "delete"]
     assert result.status == CheckStatus.FAIL
     assert "did not complete: it failed" in result.message
 
@@ -227,7 +250,7 @@ async def test_a_running_kube_bench_job_is_polled_until_it_succeeds(
 
     await kube_bench.KubeBenchCheck().run(JOB_CTX)
 
-    assert fake.verbs() == ["create", "get", "get", "logs", "delete"]
+    assert fake.verbs() == ["nodes", "create", "get", "get", "logs", "delete"]
     assert len(sleeps) == 1
 
 
@@ -246,6 +269,90 @@ def test_kube_bench_job_manifest_is_pinned_and_read_only() -> None:
     # The other checks skip pods with this label: my-check must not audit its own pod.
     pod_labels = manifest["spec"]["template"]["metadata"]["labels"]
     assert pod_labels["app.kubernetes.io/managed-by"] == "my-check"
+
+
+async def test_kube_bench_runs_a_job_on_every_node_and_sums_them(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    control_plane = {
+        "Controls": [
+            {"node_type": "master", "tests": [{"results": [_result("PASS"), _result("FAIL")]}]},
+            {"node_type": "controlplane", "tests": [{"results": [_result("PASS")]}]},
+        ]
+    }
+    worker = {
+        "Controls": [
+            {"node_type": "node", "tests": [{"results": [_result("PASS"), _result("WARN")]}]},
+            {"node_type": "policies", "tests": [{"results": [_result("PASS")]}]},
+        ]
+    }
+    fake = FakeKubectl({"cp-1": control_plane, "worker-1": worker}, nodes=["cp-1", "worker-1"])
+    monkeypatch.setattr(kube_bench, "run_subprocess", fake)
+
+    result = await kube_bench.KubeBenchCheck().run(JOB_CTX)
+
+    assert sorted(fake.job_nodes.values()) == ["cp-1", "worker-1"]
+    assert fake.verbs().count("delete") == 2
+    assert result.details["pass"] == 4
+    assert result.details["fail"] == 1
+    assert result.details["warn"] == 1
+    assert result.details["scope"] == "cluster (Jobs on 2 nodes)"
+    assert "missing_sections" not in result.details, "the nodes together cover every section"
+    assert result.details["nodes"]["cp-1"] == {
+        "pass": 2,
+        "fail": 1,
+        "warn": 0,
+        "total": 3,
+        "sections": "master, controlplane",
+    }
+    assert result.details["nodes"]["worker-1"]["sections"] == "node, policies"
+    assert not result.message.startswith("Partial")
+
+
+def test_a_node_job_tolerates_the_nodes_taints() -> None:
+    pod = kube_bench.kube_bench_job_manifest("my-check-kube-bench-abc123", node="cp-1")["spec"][
+        "template"
+    ]["spec"]
+
+    assert pod["nodeName"] == "cp-1"
+    assert {"operator": "Exists"} in pod["tolerations"]
+
+
+async def test_a_node_whose_job_fails_makes_the_benchmark_partial(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report = {"Controls": [{"node_type": "node", "tests": [{"results": [_result("PASS")]}]}]}
+    fake = FakeKubectl(report, nodes=["cp-1", "worker-1"])
+
+    real_call = fake.__call__
+
+    async def failing_on_cp(cmd: list[str], **kwargs: Any) -> SubprocessResult:
+        if "create" in cmd and '"nodeName": "cp-1"' in (kwargs.get("stdin") or ""):
+            fake.calls.append((cmd, kwargs.get("stdin")))
+            return SubprocessResult(1, "", "admission webhook denied the request")
+        return await real_call(cmd, **kwargs)
+
+    monkeypatch.setattr(kube_bench, "run_subprocess", failing_on_cp)
+
+    result = await kube_bench.KubeBenchCheck().run(JOB_CTX)
+
+    assert result.details["pass"] == 1
+    assert "admission webhook" in result.details["nodes"]["cp-1"]["error"]
+    assert result.status == CheckStatus.WARN
+    assert result.message.startswith("Partial CIS benchmark")
+    assert "1 node(s) without a result" in result.message
+
+
+async def test_unlistable_nodes_fall_back_to_a_single_job(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = FakeKubectl({"Controls": []}, nodes_returncode=1)
+    monkeypatch.setattr(kube_bench, "run_subprocess", fake)
+
+    result = await kube_bench.KubeBenchCheck().run(JOB_CTX)
+
+    assert fake.verbs() == ["nodes", "create", "get", "logs", "delete"]
+    assert "nodeName" not in json.loads(fake.calls[1][1] or "")["spec"]["template"]["spec"]
+    assert result.details["scope"] == "cluster (Job on one node)"
+    assert "nodes could not be listed" in result.message
 
 
 def test_kube_bench_job_is_opt_in() -> None:

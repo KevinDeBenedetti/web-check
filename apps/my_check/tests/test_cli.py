@@ -168,3 +168,41 @@ def test_kube_bench_job_raises_the_check_timeout(
     assert RecordingScheduler.timeout == 60
     assert runner.invoke(cli.app, ["k8s", "--kube-bench-job"]).exit_code == 0
     assert RecordingScheduler.timeout is not None and RecordingScheduler.timeout >= 300
+
+
+_STUCK_RUN = """
+import asyncio, sys, time
+from my_check.scheduler import Scheduler
+from my_check.types import CheckCategory, CheckResult, CheckStatus, run_subprocess
+
+class Stuck:
+    id = "stuck"
+    name = "stuck"
+    category = CheckCategory.WEB
+
+    async def run(self, target):
+        if sys.argv[1] == "blocking":
+            time.sleep(30)  # a blocking call the event loop cannot interrupt
+        else:
+            await run_subprocess([sys.executable, "-c", "import time; time.sleep(30)"])
+        return CheckResult(status=CheckStatus.PASS, score=100, message="finished")
+
+report = asyncio.run(Scheduler(checks=[Stuck()], timeout=0.5).run(target="x"))
+print(report.results["stuck"].message)
+"""
+
+
+@pytest.mark.parametrize("stuck_in", ["blocking", "subprocess"])
+def test_a_timed_out_check_does_not_hold_the_process_at_exit(stuck_in: str) -> None:
+    import subprocess
+    import sys
+
+    started = time.monotonic()
+    done = subprocess.run(
+        [sys.executable, "-c", _STUCK_RUN, stuck_in], capture_output=True, text=True, timeout=25
+    )
+    elapsed = time.monotonic() - started
+
+    assert done.returncode == 0, done.stderr
+    assert "Timed out" in done.stdout
+    assert elapsed < 10  # the stuck check would hold it for 30 s
