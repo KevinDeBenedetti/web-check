@@ -15,6 +15,7 @@ listens on every interface for the length of the test; the others stay on loopba
 import datetime
 import http.server
 import shutil
+import socketserver
 import ssl
 import subprocess
 import threading
@@ -58,6 +59,14 @@ class _Page(http.server.BaseHTTPRequestHandler):
 
 class _QuietServer(http.server.ThreadingHTTPServer):
     daemon_threads = True
+
+    def server_bind(self) -> None:
+        # HTTPServer.server_bind names the server with socket.getfqdn(host), which
+        # for 0.0.0.0 reverse-resolves this machine's hostname: a lookup the
+        # offline guard refuses. Nothing here reads the name, so skip it.
+        socketserver.TCPServer.server_bind(self)
+        host, port = self.server_address[:2]
+        self.server_name, self.server_port = str(host), int(port)
 
     def handle_error(self, request: object, client_address: object) -> None:
         pass  # scanners cut connections and send malformed requests on purpose
