@@ -191,7 +191,7 @@ def generate_markdown_report(
                 [
                     ("Domain", f"`{data.get('domain', 'N/A')}`"),
                     ("Resolvable", "✅ Yes" if data.get("resolvable") else "❌ No"),
-                    ("Addresses", ", ".join(data.get("addresses") or []) or "N/A"),
+                    ("Addresses", dns_addresses(data)),
                     ("HTTP Status", f"`{data.get('http_status', 'N/A')}`"),
                 ]
             )
@@ -384,17 +384,28 @@ def _prop_table(rows: list[tuple[str, str]]) -> list[str]:
     return lines
 
 
+def dns_summary(data: dict) -> str:
+    """Short outcome of /api/quick/dns: its HTTPS answer, else whether it resolves."""
+    if code := data.get("http_status"):
+        return f"HTTP {code}"
+    if data.get("resolvable") is True:
+        return "resolves, no HTTPS"
+    if data.get("resolvable") is False:
+        return "unresolvable"
+    return ""
+
+
+def dns_addresses(data: dict) -> str:
+    """The addresses /api/quick/dns resolved, joined, or N/A."""
+    return ", ".join(data.get("addresses") or []) or "N/A"
+
+
 def _step_detail(r: dict) -> str:
     """One-line detail hint for the summary table."""
     key = r.get("_step", "")
     data = r.get("data") or {}
     if key == "dns":
-        code = data.get("http_status")
-        return (
-            f"HTTP {code}"
-            if code
-            else ("resolves, no HTTPS" if data.get("resolvable") else "unresolvable")
-        )
+        return dns_summary(data)
     if key == "dns_enum":
         types = list(data.get("records", {}).keys())
         return f"{len(types)} record type(s)" if types else "no records"

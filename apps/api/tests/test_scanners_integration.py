@@ -6,8 +6,10 @@ accepts the arguments its service passes, and never touches a real site.
 
 sqlmap, wapiti and sslyze run on this machine. Nuclei and Nikto run in their
 containers (``make start``) and are skipped when those are not running; from there
-the test server is ``host.docker.internal``, which Docker Desktop routes to this
-machine's loopback.
+the test site is ``host.docker.internal``: Docker Desktop provides that name, and
+docker-compose.yml maps it to the host on Docker Engine (Linux). There the
+containers reach the host through its bridge address, so the site they scan
+listens on every interface for the length of the test; the others stay on loopback.
 """
 
 import datetime
@@ -76,6 +78,12 @@ def _serve(server: http.server.HTTPServer) -> Iterator[int]:
 def http_port() -> Iterator[int]:
     """Port of a one-page HTTP site on 127.0.0.1."""
     yield from _serve(_QuietServer(("127.0.0.1", 0), _Page))
+
+
+@pytest.fixture
+def container_http_port() -> Iterator[int]:
+    """Port of the same site on every interface, for the scanners in containers."""
+    yield from _serve(_QuietServer(("0.0.0.0", 0), _Page))  # noqa: S104 (see the docstring)
 
 
 def _self_signed_certificate(path: Path) -> None:
@@ -174,17 +182,21 @@ async def test_sslyze_scans_a_tls_server(https_port: int) -> None:
     assert "Invalid Certificate Chain" in [finding.title for finding in result.findings]
 
 
-async def test_nuclei_accepts_its_arguments(http_port: int) -> None:
+async def test_nuclei_accepts_its_arguments(container_http_port: int) -> None:
     _needs_container("security-scanner-nuclei")
 
-    result = await run_nuclei_scan(f"http://host.docker.internal:{http_port}/", timeout=600)
+    result = await run_nuclei_scan(
+        f"http://host.docker.internal:{container_http_port}/", timeout=600
+    )
 
     assert result.status == "success", result.error
 
 
-async def test_nikto_accepts_its_arguments(http_port: int) -> None:
+async def test_nikto_accepts_its_arguments(container_http_port: int) -> None:
     _needs_container("security-scanner-nikto")
 
-    result = await run_nikto_scan(f"http://host.docker.internal:{http_port}/", timeout=600)
+    result = await run_nikto_scan(
+        f"http://host.docker.internal:{container_http_port}/", timeout=600
+    )
 
     assert result.status == "success", result.error

@@ -125,7 +125,11 @@ make test-integration   # uv run pytest -m integration
 
 Without the containers, the Nuclei and Nikto tests are skipped and the three tools
 installed by `make install` still run. The containers reach the test site through
-`host.docker.internal`, which Docker Desktop provides.
+`host.docker.internal`: Docker Desktop provides the name, and `docker-compose.yml`
+maps it to the host (`host-gateway`) on Docker Engine for Linux. On Linux the
+containers come in through the host's bridge address, so the site they scan listens
+on every interface while the test runs, and a host firewall must let the Docker
+bridge reach it.
 
 ## Code quality
 

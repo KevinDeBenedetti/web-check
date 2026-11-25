@@ -2,7 +2,7 @@
 
 import structlog
 import typer
-from cli.report import save_report
+from cli.report import dns_addresses, dns_summary, save_report
 from cli.utils import APIClient, CLISettings, format_json
 from rich.console import Console
 from rich.markup import escape
@@ -211,11 +211,8 @@ def _step_hints(key: str, result: dict) -> str:
     parts: list[str] = []
 
     if key == "dns":
-        if data.get("resolvable") is True:
-            http_code = data.get("http_status")
-            parts.append(f"HTTP {http_code}" if http_code else "resolves, no HTTPS")
-        elif data.get("resolvable") is False:
-            parts.append("unresolvable")
+        if summary := dns_summary(data):
+            parts.append(summary)
     elif key == "dns_enum":
         record_types = list((data.get("records") or {}).keys())
         if record_types:
@@ -293,7 +290,7 @@ def _display_check_report(url: str, step_results: list[dict]) -> None:
             lines = [
                 f"  Domain:     {data.get('domain', 'N/A')}",
                 f"  Resolvable: {data.get('resolvable', 'N/A')}",
-                f"  Addresses:  {', '.join(data.get('addresses') or []) or 'N/A'}",
+                f"  Addresses:  {dns_addresses(data)}",
                 f"  HTTP Code:  {data.get('http_status', 'N/A')}",
             ]
             console.print(
