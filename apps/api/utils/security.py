@@ -81,6 +81,11 @@ async def _resolve(hostname: str) -> list[IPAddress]:
     return ips
 
 
+async def resolve_host(hostname: str) -> list[IPAddress]:
+    """Addresses *hostname* resolves to, in the resolver's order ([] when it does not)."""
+    return list(dict.fromkeys(await _resolve(hostname)))
+
+
 async def validate_target(
     raw: str, *, require_scheme: bool = True, settings: Settings | None = None
 ) -> str:

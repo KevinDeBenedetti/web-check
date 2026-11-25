@@ -110,6 +110,23 @@ resolver, which `apps/api/tests/conftest.py` already answers with a public addre
 for every API test. The guard sees only this Python process: a subprocess (a
 scanner binary, `docker`) is out of its reach, so fake the call that starts it.
 
+### Scanner integration test
+
+The tests above fake every scanner, so nothing in them notices a tool release that
+renames a flag. `apps/api/tests/test_scanners_integration.py` does: it runs sqlmap,
+Wapiti, SSLyze, Nuclei and Nikto once each, with the arguments the API passes,
+against a one-page site the test serves on `127.0.0.1`. It carries the
+`integration` marker and is deselected by default; run it after upgrading a scanner:
+
+```bash
+make start              # Nuclei and Nikto run in their containers
+make test-integration   # uv run pytest -m integration
+```
+
+Without the containers, the Nuclei and Nikto tests are skipped and the three tools
+installed by `make install` still run. The containers reach the test site through
+`host.docker.internal`, which Docker Desktop provides.
+
 ## Code quality
 
 ```bash

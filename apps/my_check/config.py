@@ -17,7 +17,7 @@ from typing import Any
 
 from dotenv import find_dotenv, load_dotenv
 from my_check.types import KUBE_BENCH_PARALLEL, KUBE_BENCH_WAIT
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 # Load .env, walking up from cwd (override=False keeps existing shell env vars intact)
 load_dotenv(find_dotenv(usecwd=True), override=False)
@@ -176,21 +176,93 @@ def _defaults_from_env() -> dict[str, Any]:
     return data
 
 
+class ConfigError(Exception):
+    """An unreadable configuration: one line per problem, ready to print."""
+
+    def __init__(self, lines: list[str]) -> None:
+        super().__init__("\n".join(lines))
+        self.lines = lines
+
+
+_ENV_SOURCE = "MY_CHECK_* environment"
+
+# Pydantic error types whose bound reads better as "at least" / "at most".
+_BOUNDS = {
+    "greater_than_equal": ("ge", "must be at least {}"),
+    "less_than_equal": ("le", "must be at most {}"),
+    "greater_than": ("gt", "must be greater than {}"),
+    "less_than": ("lt", "must be less than {}"),
+}
+
+
+def _display_path(path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(Path.cwd().resolve()))
+    except ValueError:
+        return str(path)
+
+
+def _has_location(data: Any, loc: tuple[int | str, ...]) -> bool:
+    for key in loc:
+        if isinstance(data, dict) and key in data:
+            data = data[key]
+        elif isinstance(data, list) and isinstance(key, int) and key < len(data):
+            data = data[key]
+        else:
+            return False
+    return True
+
+
+def _describe(error: Any, source: str) -> str:
+    """One line for a pydantic error: ``<source>: <setting> <rule>, got <value>``."""
+    loc = error["loc"]
+    setting = "".join(f"[{key}]" if isinstance(key, int) else f".{key}" for key in loc)
+    if error["type"] in _BOUNDS:
+        bound, template = _BOUNDS[error["type"]]
+        limit = error["ctx"][bound]
+        rule = template.format(int(limit) if float(limit).is_integer() else limit)
+    else:
+        rule = error["msg"].replace("Input should be", "must be", 1)
+    value = json.dumps(error.get("input"), default=str)
+    return f"{source}: {setting.lstrip('.') or 'the configuration'} {rule}, got {value}"
+
+
 def load_config(path: Path | None = None) -> MyCheckConfig:
-    """Load config, merging env vars → file → CLI flags (lowest → highest)."""
+    """Load config, merging env vars → file → CLI flags (lowest → highest).
+
+    Raises :class:`ConfigError` when the file is not JSON or a value breaks a
+    rule of the schema, naming where each bad value came from.
+    """
     # Start from env-var defaults
     data = _defaults_from_env()
+    file_data: dict[str, Any] = {}
 
     # Merge config file on top (file wins over env)
     config_path = path or find_config_file()
     if config_path:
         logger.info("Loading config from %s", config_path)
-        file_data = json.loads(config_path.read_text(encoding="utf-8"))
+        try:
+            file_data = json.loads(config_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ConfigError([f"{_display_path(config_path)}: not valid JSON ({exc})"]) from exc
+        except OSError as exc:
+            raise ConfigError(
+                [f"{_display_path(config_path)}: cannot be read ({exc.strerror})"]
+            ) from exc
         _deep_merge(data, file_data)
     else:
         logger.debug("No config file found — using env + defaults")
 
-    return MyCheckConfig.model_validate(data)
+    try:
+        return MyCheckConfig.model_validate(data)
+    except ValidationError as exc:
+        lines = []
+        for error in exc.errors():
+            loc = error["loc"]
+            from_file = config_path and loc and _has_location(file_data, loc)
+            source = _display_path(config_path) if from_file else _ENV_SOURCE
+            lines.append(_describe(error, source))
+        raise ConfigError(lines) from exc
 
 
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> None:

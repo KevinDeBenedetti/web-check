@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from my_check.config import K8sConfig, MyCheckConfig, load_config
+from my_check.config import ConfigError, K8sConfig, MyCheckConfig, load_config
 from my_check.registry import get_all_checks, get_k8s_checks, get_web_checks
 from my_check.scheduler import Scheduler
 from my_check.types import CheckCategory, K8sContext, Report
@@ -22,6 +22,7 @@ app = typer.Typer(
     rich_markup_mode="rich",
 )
 console = Console()
+err_console = Console(stderr=True, highlight=False, soft_wrap=True)
 
 # ---------------------------------------------------------------------------
 # Callback — launch interactive wizard when called with no sub-command
@@ -94,6 +95,16 @@ OptStrict = Annotated[
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def load_config_or_exit(path: Path | None = None) -> MyCheckConfig:
+    """Load the configuration, or print one line per bad value and exit 2."""
+    try:
+        return load_config(path)
+    except ConfigError as exc:
+        for line in exc.lines:
+            err_console.print(line, markup=False)
+        raise typer.Exit(code=2) from None
 
 
 def _setup_logging(verbose: bool) -> None:
@@ -195,7 +206,7 @@ def web(
 ) -> None:
     """Run web security checks against a URL."""
     _setup_logging(verbose)
-    cfg = load_config(config)
+    cfg = load_config_or_exit(config)
     if output:
         cfg.output.formats = [f.strip() for f in output.split(",")]
     _apply_sarif(cfg, sarif)
@@ -221,7 +232,7 @@ def k8s(
 ) -> None:
     """Run Kubernetes security checks."""
     _setup_logging(verbose)
-    cfg = load_config(config)
+    cfg = load_config_or_exit(config)
     if output:
         cfg.output.formats = [f.strip() for f in output.split(",")]
     _apply_sarif(cfg, sarif)
@@ -251,7 +262,7 @@ def all_checks(
 ) -> None:
     """Run all web and Kubernetes security checks."""
     _setup_logging(verbose)
-    cfg = load_config(config)
+    cfg = load_config_or_exit(config)
     if output:
         cfg.output.formats = [f.strip() for f in output.split(",")]
     _apply_sarif(cfg, sarif)

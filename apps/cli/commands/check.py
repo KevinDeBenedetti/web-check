@@ -213,7 +213,7 @@ def _step_hints(key: str, result: dict) -> str:
     if key == "dns":
         if data.get("resolvable") is True:
             http_code = data.get("http_status")
-            parts.append(f"HTTP {http_code}" if http_code else "resolvable")
+            parts.append(f"HTTP {http_code}" if http_code else "resolves, no HTTPS")
         elif data.get("resolvable") is False:
             parts.append("unresolvable")
     elif key == "dns_enum":
@@ -293,6 +293,7 @@ def _display_check_report(url: str, step_results: list[dict]) -> None:
             lines = [
                 f"  Domain:     {data.get('domain', 'N/A')}",
                 f"  Resolvable: {data.get('resolvable', 'N/A')}",
+                f"  Addresses:  {', '.join(data.get('addresses') or []) or 'N/A'}",
                 f"  HTTP Code:  {data.get('http_status', 'N/A')}",
             ]
             console.print(
