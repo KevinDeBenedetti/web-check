@@ -116,6 +116,6 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["apps/api/tests", "apps/cli/tests", "apps/my_check/tests"]
 markers = [
-    "integration: marks tests as integration tests",
+    "integration: runs the real scanners against a local server (opt-in: make test-integration)",
 ]
-addopts = "-v"
+addopts = "-v -m 'not integration'"

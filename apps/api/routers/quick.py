@@ -9,7 +9,7 @@ from api.services.dns_enum import run_dns_enum
 from api.services.headers_scanner import run_headers_scan
 from api.services.nikto import run_nikto_scan
 from api.services.nuclei import run_nuclei_scan
-from api.utils.security import ssrf_guarded_client, target_host, target_url
+from api.utils.security import resolve_host, ssrf_guarded_client, target_host, target_url
 from fastapi import APIRouter, Depends, Query
 
 router = APIRouter()
@@ -46,27 +46,30 @@ async def quick_nikto_scan(
 @router.get("/dns", response_model=CheckResult)
 async def quick_dns_check(url: str = Depends(target_host)) -> CheckResult:
     """
-    Perform quick DNS reconnaissance.
+    Resolve a domain, then check that it answers over HTTPS.
 
-    Checks DNS records, nameservers, and basic domain information.
-    Average duration: < 1 minute.
+    Reports the addresses the domain resolves to (`resolvable`, `addresses`) and,
+    separately, whether `https://<domain>/` answered (`https_reachable`,
+    `http_status`): a domain can resolve without serving HTTPS.
+    Average duration: < 10 seconds.
     """
     start = time.time()
     domain = urlparse(url).hostname or ""
 
     try:
-        # Build URL using only the validated domain; the guarded client re-checks
-        # the resolved IP at connection time (DNS rebinding protection).
-        validated_url = f"https://{domain}/"
-        async with ssrf_guarded_client(timeout=10.0) as client:
-            try:
-                # Do not follow redirects to avoid being redirected to unintended hosts.
-                response = await client.get(validated_url, follow_redirects=False)
-                dns_ok = True
-                status_code = response.status_code
-            except Exception:
-                dns_ok = False
-                status_code = None
+        addresses = [str(ip) for ip in await resolve_host(domain)]
+        status_code = None
+        if addresses:
+            # Build URL using only the validated domain; the guarded client re-checks
+            # the resolved IP at connection time (DNS rebinding protection).
+            validated_url = f"https://{domain}/"
+            async with ssrf_guarded_client(timeout=10.0) as client:
+                try:
+                    # Do not follow redirects to avoid being redirected to unintended hosts.
+                    response = await client.get(validated_url, follow_redirects=False)
+                    status_code = response.status_code
+                except Exception:
+                    status_code = None
 
         return CheckResult(
             module="dns",
@@ -77,7 +80,9 @@ async def quick_dns_check(url: str = Depends(target_host)) -> CheckResult:
             status="success",
             data={
                 "domain": domain,
-                "resolvable": dns_ok,
+                "resolvable": bool(addresses),
+                "addresses": addresses,
+                "https_reachable": status_code is not None,
                 "http_status": status_code,
             },
             findings=[],

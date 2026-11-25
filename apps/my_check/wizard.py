@@ -7,7 +7,7 @@ from typing import Any
 
 import questionary
 import typer
-from my_check.config import MyCheckConfig, load_config
+from my_check.config import MyCheckConfig
 from my_check.registry import get_all_checks, get_k8s_checks, get_web_checks
 from my_check.scheduler import Scheduler
 from my_check.types import Check, CheckCategory, K8sContext, Report
@@ -86,7 +86,9 @@ def run_wizard() -> None:
     _header("🔒  my-check — Security Scanner")
     console.print("  [dim]Use arrow keys ↑↓ to navigate, Space to select, Enter to confirm.[/dim]")
 
-    cfg = load_config()
+    from my_check.cli import load_config_or_exit
+
+    cfg = load_config_or_exit()
 
     # ── Step 1: mode ──────────────────────────────────────────────────────
     _step(1, "What do you want to scan?")

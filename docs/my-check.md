@@ -156,6 +156,11 @@ A kubeconfig path that starts with `~` is expanded to the home directory whereve
 it comes from (`--kubeconfig`, `MY_CHECK_K8S_KUBECONFIG`, `k8s.kubeconfig` or the
 guided form), so `~/.kube/config` works in `.env` and in the configuration file.
 
+Before the Kubernetes checks, `my-check` asks the API server for its version. When
+that fails, the checks are skipped with `Cannot reach cluster: …`. A certificate
+the kubeconfig's CA did not sign is named as such (typically a recreated cluster,
+whose kubeconfig must be fetched again); `--verbose` logs the client's full error.
+
 ## Configuration
 
 Settings come from three places. The configuration file wins over the environment,
@@ -214,6 +219,10 @@ or the file given with `--config`:
   `k8s.kube_bench_parallel` (1 to 100, default 10) tune the kube-bench Job mode
   (`--kube-bench-job`): the wait for the Jobs of all the nodes together, and the
   most Jobs running at the same time. A value out of range is refused.
+- A value that breaks a rule stops `my-check` before any check runs, with exit
+  code 2 and one line per value naming where it came from, the setting and the
+  rule: `my-check.config.json: k8s.kube_bench_parallel must be at least 1, got 0`.
+  A file that is not valid JSON is reported the same way.
 
 ## Reporters
 

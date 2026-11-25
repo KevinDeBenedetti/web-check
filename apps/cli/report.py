@@ -191,6 +191,7 @@ def generate_markdown_report(
                 [
                     ("Domain", f"`{data.get('domain', 'N/A')}`"),
                     ("Resolvable", "✅ Yes" if data.get("resolvable") else "❌ No"),
+                    ("Addresses", ", ".join(data.get("addresses") or []) or "N/A"),
                     ("HTTP Status", f"`{data.get('http_status', 'N/A')}`"),
                 ]
             )
@@ -390,7 +391,9 @@ def _step_detail(r: dict) -> str:
     if key == "dns":
         code = data.get("http_status")
         return (
-            f"HTTP {code}" if code else ("resolvable" if data.get("resolvable") else "unresolvable")
+            f"HTTP {code}"
+            if code
+            else ("resolves, no HTTPS" if data.get("resolvable") else "unresolvable")
         )
     if key == "dns_enum":
         types = list(data.get("records", {}).keys())

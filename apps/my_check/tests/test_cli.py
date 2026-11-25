@@ -268,3 +268,62 @@ def test_out_of_range_kube_bench_job_settings_are_refused(setting: dict) -> None
 
     with pytest.raises(ValidationError):
         K8sConfig(**setting)
+
+
+@pytest.mark.parametrize("command", [["web", "https://example.com"], ["k8s"]])
+def test_an_invalid_config_file_value_is_reported_in_one_line(
+    tmp_path: Path, command: list[str]
+) -> None:
+    (tmp_path / "my-check.config.json").write_text(json.dumps({"k8s": {"kube_bench_parallel": 0}}))
+
+    result = runner.invoke(cli.app, command)
+
+    assert result.exit_code == 2
+    assert result.output.strip() == (
+        "my-check.config.json: k8s.kube_bench_parallel must be at least 1, got 0"
+    )
+
+
+def test_every_invalid_value_gets_its_own_line(tmp_path: Path) -> None:
+    config = {"web": {"timeout": "soon"}, "k8s": {"kube_bench_wait": 7200}}
+    (tmp_path / "my-check.config.json").write_text(json.dumps(config))
+
+    result = runner.invoke(cli.app, ["k8s"])
+
+    assert result.exit_code == 2
+    assert result.output.splitlines() == [
+        "my-check.config.json: web.timeout must be a valid number, unable to parse string as "
+        'a number, got "soon"',
+        "my-check.config.json: k8s.kube_bench_wait must be at most 3600, got 7200",
+    ]
+
+
+def test_an_invalid_environment_value_names_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # No MY_CHECK_* variable feeds a bounded setting yet: stand in for one.
+    monkeypatch.setattr("my_check.config._defaults_from_env", lambda: {"k8s": {"timeout": 0}})
+
+    result = runner.invoke(cli.app, ["k8s"])
+
+    assert result.exit_code == 2
+    assert result.output.strip() == (
+        "MY_CHECK_* environment: k8s.timeout must be at least 1, got 0"
+    )
+
+
+def test_a_config_file_that_is_not_json_is_reported_in_one_line(tmp_path: Path) -> None:
+    (tmp_path / "my-check.config.json").write_text('{"k8s": {')
+
+    result = runner.invoke(cli.app, ["k8s"])
+
+    assert result.exit_code == 2
+    assert result.output.startswith("my-check.config.json: not valid JSON (")
+    assert len(result.output.splitlines()) == 1
+
+
+def test_a_config_file_that_cannot_be_read_is_reported_in_one_line(tmp_path: Path) -> None:
+    result = runner.invoke(cli.app, ["k8s", "--config", str(tmp_path / "missing.json")])
+
+    assert result.exit_code == 2
+    assert result.output.strip() == "missing.json: cannot be read (No such file or directory)"

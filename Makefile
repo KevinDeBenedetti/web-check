@@ -26,7 +26,7 @@ endif
 export APP_UID APP_GID DOCKER_GID
 
 .DEFAULT_GOAL := help
-.PHONY: help start dev stop logs native install cli test format check bin \
+.PHONY: help start dev stop logs native install cli test test-integration format check bin \
         ui-install ui-dev ui-build ui-check clean clean-all
 
 help: ## List the targets
@@ -78,6 +78,9 @@ cli: ## Run the my-check wizard (arguments: make cli ARGS="...")
 
 test: ## Run the tests
 	@uv run pytest -q
+
+test-integration: ## Run the real scanners against a local server (Nuclei and Nikto need make start)
+	@uv run pytest -m integration
 
 format: ## Format the code
 	@uv run ruff format .

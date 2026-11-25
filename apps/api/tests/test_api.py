@@ -16,6 +16,7 @@ get_settings.cache_clear()
 import httpx  # noqa: E402
 from api.main import app  # noqa: E402
 from api.routers import quick  # noqa: E402
+from api.utils import security  # noqa: E402
 
 
 @pytest.fixture
@@ -47,19 +48,25 @@ async def test_health_check():
         assert data["status"] == "healthy"
 
 
-@pytest.mark.asyncio
-async def test_dns_check(test_url: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test quick DNS check: it requests the target's root over HTTPS (faked here)."""
+def _fake_https(monkeypatch: pytest.MonkeyPatch, answer) -> list[str]:
+    """Answer the endpoint's HTTPS request with *answer*; returns the URLs it requested."""
     requested: list[str] = []
 
-    def answer(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx.Request) -> httpx.Response:
         requested.append(str(request.url))
-        return httpx.Response(204)
+        return answer(request)
 
     def fake_client(**kwargs: object) -> httpx.AsyncClient:
-        return httpx.AsyncClient(transport=httpx.MockTransport(answer))
+        return httpx.AsyncClient(transport=httpx.MockTransport(handler))
 
     monkeypatch.setattr(quick, "ssrf_guarded_client", fake_client)
+    return requested
+
+
+@pytest.mark.asyncio
+async def test_dns_check(test_url: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Quick DNS check: the addresses the domain resolves to, then its HTTPS answer (faked)."""
+    requested = _fake_https(monkeypatch, lambda request: httpx.Response(204))
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/api/quick/dns", params={"url": test_url})
@@ -69,8 +76,60 @@ async def test_dns_check(test_url: str, monkeypatch: pytest.MonkeyPatch) -> None
         assert data["category"] == "quick"
         assert data["target"] == test_url
         assert data["status"] == "success"
-        assert data["data"] == {"domain": "example.com", "resolvable": True, "http_status": 204}
+        assert data["data"] == {
+            "domain": "example.com",
+            "resolvable": True,
+            "addresses": ["93.184.215.14"],
+            "https_reachable": True,
+            "http_status": 204,
+        }
     assert requested == ["https://example.com/"]
+
+
+@pytest.mark.asyncio
+async def test_dns_check_reports_a_domain_that_resolves_without_serving_https(
+    test_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refuse(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused", request=request)
+
+    _fake_https(monkeypatch, refuse)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        data = (await client.get("/api/quick/dns", params={"url": test_url})).json()
+
+    assert data["status"] == "success"
+    assert data["data"] == {
+        "domain": "example.com",
+        "resolvable": True,
+        "addresses": ["93.184.215.14"],
+        "https_reachable": False,
+        "http_status": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_dns_check_reports_a_domain_that_does_not_resolve(
+    test_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def no_answer(hostname: str) -> list:
+        return []
+
+    monkeypatch.setattr(security, "_resolve", no_answer)
+    requested = _fake_https(monkeypatch, lambda request: httpx.Response(204))
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        data = (await client.get("/api/quick/dns", params={"url": test_url})).json()
+
+    assert data["status"] == "success"
+    assert data["data"] == {
+        "domain": "example.com",
+        "resolvable": False,
+        "addresses": [],
+        "https_reachable": False,
+        "http_status": None,
+    }
+    assert requested == []  # nothing to connect to
 
 
 @pytest.mark.asyncio
