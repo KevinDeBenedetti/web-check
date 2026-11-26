@@ -90,6 +90,10 @@ services:
   nuclei:
     image: projectdiscovery/nuclei:v3.11.1@sha256:582d5546902e67052097cb2d07296c642d50a1afc5e44623cb038845df9a32eb
     container_name: security-scanner-nuclei
+    # Docker Engine on Linux: lets the integration test's site on the host be reached
+    # (Docker Desktop has the name already). The API refuses *.internal targets.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./outputs:/output:rw
       - nuclei-templates:/root/nuclei-templates
@@ -104,6 +108,10 @@ services:
   nikto:
     image: hackllc/nikto:2.6.1@sha256:f65dd97be358e8260d97a00e784c05c5f37d2ed69b9a9611b14d3889c2b54efa
     container_name: security-scanner-nikto
+    # Docker Engine on Linux: lets the integration test's site on the host be reached
+    # (Docker Desktop has the name already). The API refuses *.internal targets.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     entrypoint: ["/bin/sh", "-c"]
     command: ["tail -f /dev/null"]
     networks:
