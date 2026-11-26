@@ -1,0 +1,67 @@
+name: Scanner integration
+
+# The real scanners against a local site (apps/api/tests/test_scanners_integration.py),
+# on Docker Engine: the one place the host.docker.internal:host-gateway mapping of
+# docker-compose.yml is needed, since Docker Desktop provides that name itself.
+# Not a required check (ci-cd.yml's ci-passed) until it has proved stable.
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - ".github/workflows/integration.yml"
+      - "docker-compose.yml"
+      - "apps/api/services/**"
+      # What the services import: settings, the SSRF guard, the result models.
+      - "apps/api/utils/**"
+      - "apps/api/models/**"
+      - "apps/api/tests/test_scanners_integration.py"
+      - "conftest.py"
+      - "pyproject.toml"
+      - "uv.lock"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  scanners:
+    name: Scanner integration (Linux)
+    runs-on: ubuntu-latest
+    # Two scans of up to 10 minutes each, plus the first download of the Nuclei templates.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          # Newest uv whose checksum ships with this pinned setup-uv release.
+          version: "latest-known"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      # Only the scanner containers the test drives; the API image and ZAP are not needed.
+      - name: Start Nuclei and Nikto
+        run: |
+          mkdir -p outputs
+          docker compose up -d nuclei nikto
+
+      # WEB_CHECK_INTEGRATION_REQUIRED fails, instead of skipping, a test whose
+      # scanner is missing: a run that skipped every scan would pass untested.
+      - name: Run the scanner integration test
+        run: uv run pytest -m integration -rs
+        env:
+          WEB_CHECK_INTEGRATION_REQUIRED: "1"
+
+      - name: Scanner container logs
+        if: failure()
+        run: docker compose logs nuclei nikto
