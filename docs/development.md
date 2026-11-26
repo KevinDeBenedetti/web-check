@@ -131,6 +131,14 @@ containers come in through the host's bridge address, so the site they scan list
 on every interface while the test runs, and a host firewall must let the Docker
 bridge reach it.
 
+CI runs it on Linux: `.github/workflows/integration.yml` starts the Nuclei and
+Nikto containers on `ubuntu-latest` (Docker Engine) and runs the test on pull
+requests that touch the scanners or what they import, their test,
+`docker-compose.yml`, the dependencies or the workflow itself. It also runs from the Actions tab (`workflow_dispatch`). There
+`WEB_CHECK_INTEGRATION_REQUIRED=1` turns each skip into a failure, so a run where a
+scanner is missing cannot pass; `make test-integration` leaves it unset, so locally
+a missing scanner is still skipped. The job is not a required check yet.
+
 ## Code quality
 
 ```bash

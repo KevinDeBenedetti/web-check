@@ -5,7 +5,8 @@ Deselected by default (``-m "not integration"`` in pyproject.toml); run it with
 accepts the arguments its service passes, and never touches a real site.
 
 sqlmap, wapiti and sslyze run on this machine. Nuclei and Nikto run in their
-containers (``make start``) and are skipped when those are not running; from there
+containers (``make start``) and are skipped when those are not running (failed
+instead when ``WEB_CHECK_INTEGRATION_REQUIRED`` is set, as CI does); from there
 the test site is ``host.docker.internal``: Docker Desktop provides that name, and
 docker-compose.yml maps it to the host on Docker Engine (Linux). There the
 containers reach the host through its bridge address, so the site they scan
@@ -14,6 +15,7 @@ listens on every interface for the length of the test; the others stay on loopba
 
 import datetime
 import http.server
+import os
 import shutil
 import socketserver
 import ssl
@@ -34,6 +36,10 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
 
 pytestmark = pytest.mark.integration
+
+REQUIRED_ENV = "WEB_CHECK_INTEGRATION_REQUIRED"
+"""Set (CI does) to fail, not skip, a test whose scanner is missing: a run that
+skipped every scan would otherwise pass without testing anything."""
 
 _PAGE = b"""<!doctype html>
 <html><head><title>web-check integration target</title></head>
@@ -133,9 +139,15 @@ def https_port(tmp_path: Path) -> Iterator[int]:
     yield from _serve(server)
 
 
+def _unavailable(reason: str) -> None:
+    if os.environ.get(REQUIRED_ENV):
+        pytest.fail(reason)
+    pytest.skip(reason)
+
+
 def _needs_executable(name: str) -> None:
     if shutil.which(name) is None:
-        pytest.skip(f"{name} is not installed (make install)")
+        _unavailable(f"{name} is not installed (make install)")
 
 
 def _needs_container(name: str) -> None:
@@ -150,7 +162,7 @@ def _needs_container(name: str) -> None:
     except (OSError, subprocess.TimeoutExpired):
         state = ""
     if state != "true":
-        pytest.skip(f"the {name} container is not running (make start)")
+        _unavailable(f"the {name} container is not running (make start)")
 
 
 def _run_in(directory: Path, monkeypatch: pytest.MonkeyPatch) -> None:
