@@ -15,7 +15,7 @@ COPY apps/web/ ./
 RUN npm run build
 
 # ── API ─────────────────────────────────────────────────────────────────────
-FROM ghcr.io/astral-sh/uv:0.13.9-python3.12-trixie-slim@sha256:b12436aceed37b21524b327362bd67e73a284b5d52f4f6be0e047dd8e4c4eb90
+FROM ghcr.io/astral-sh/uv:0.13.10-python3.12-trixie-slim@sha256:a3fdff607889036fef414975e3701d14a2b6734ffec10cbdd5ce60d2b6c8853a
 
 # XSStrike has no package release on PyPI: pin the git tag and its commit.
 ARG XSSTRIKE_REF=3.1.6
